@@ -1,0 +1,28 @@
+Planning Document
+
+Steps:
+  Get speech.py working (I think the fact that the laptop is closed is stopping the mic)
+    NOTE: Since SR produces text, I can just hardcode what I "say" to develop the next part
+      Feed the sentence into the next stage, once I get a mic, I can actually speak it
+
+Initial Goal:
+  Be able to open a program on my computer using voice (using custom AI)
+  Be able to ask my computer the weather using my voice
+  Control Spotify using voice only (this will actually be somewhat difficult)
+
+Broad Planning:
+  Sort of want an Alexa/Cortana style system across all of my devices
+    Help with planning/reminders/etc.
+    Unify all of my devices under a central planning system (smart home/computers/etc.)
+  One neat thing would be to send "documents" across devices
+    "Send this to my laptop" and then current focus of the desktop will open on the laptop at the next time
+  Going to want it to be very extensible
+    Say I get a smart lock
+    I want to be able to plug it in, say "lock the door" and have the door lock
+  How conversational do I want it to be?
+    At the beginning it may not be that conversational (but the technology will improve a lot)
+
+Broad Description:
+  Unified computer organization and interaction system
+  Open and work on a file on one computer, then finish and close it on another
+  Completely interactable with an Alexa style voice interface and artificial intelligence
