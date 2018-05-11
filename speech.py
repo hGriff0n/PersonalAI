@@ -9,21 +9,27 @@ import os
 import speech_recognition as sr
 import time
 
-# TODO: Need to come up with a way to force events to optionally wait until a specific event finishes
-# This is mainly necessary for cases where the AI needs to produce a response (spoken or written)
-# However, it'll be better modelled as a dependency graph/resource contention in the general case
-# NOTE: I don't want a "complete stop" either. If I'm playing music, then input should take priority
-# If I'm responding to a query, then the response should take priority
+# https://github.com/DeepHorizons/tts
+import win32com.client as wincl
 
-# TODO: Switch out input from speech to text-based (a lot faster to develop with)
+# TODO: Add in broader control over the computer's audio systems
+# TODO: Implement resource contention resolution (accounting for audio usage)
+# TODO: Implement voice recognition (probably requires AI)
+
 
 # TODO: Improve logging capabilities
-log = logging.getLogger(__name__)
-hdlr = logging.FileHandler('speech.log')        # NOTE: This reuses the file if it already exists
-formatter = logging.Formatter('%(asctime)s <%(levelname)s> %(message)s')
-hdlr.setFormatter(formatter)
-log.addHandler(hdlr)
+def createLogger(file):
+    hdlr = logging.FileHandler(file)
+    fmt = logging.Formatter('%(asctime)s <%(levelname)s> %(message)s')
+    hdlr.setFormatter(fmt)
+
+    logger = logging.getLogger(__name__)
+    logger.addHandler(hdlr)
+    return logger
+
+log = createLogger('speech.log')
 log.setLevel(logging.INFO)
+
 
 # NOTE: SpeechRecognition currently doesn't natievly support asyncio
 # This is a simple workaround to enable running of events while listening
@@ -34,6 +40,7 @@ async def listen_async(self, source):
 
     def threaded_listen():
         with source as s:
+            # with (yield from audio_lock):
             try:
                 audio = self.listen(s)
                 loop.call_soon_threadsafe(result_future.set_result, audio)
@@ -45,6 +52,10 @@ async def listen_async(self, source):
     listener_thread.start()
     return await result_future
 
+async def recognize(query, ai_voice):
+    log.info("recognizing")
+    ai_voice.Speak("You said \"{}\"".format(query))
+
 async def run(loop):
     r = sr.Recognizer()
     m = sr.Microphone()
@@ -52,6 +63,7 @@ async def run(loop):
         r.adjust_for_ambient_noise(source)
 
     print("You can start talking now\n")
+    ai_voice = wincl.Dispatch("SAPI.SpVoice")
 
     while True:
         audio_data = await listen_async(r, m)
@@ -62,9 +74,15 @@ async def run(loop):
         # NOTE: Use `asyncio.ensure_future` to run my tasks asynchronously (without needing to wait on them)
         # NOTE: Call `asyncio.sleep(0)` to immediately force a context switch (without waiting on the event)
 
-        if query == "exit":
+        if query == "exit" or query == "stop":
             break
 
+        asyncio.ensure_future(recognize(query, ai_voice), loop=loop)
+        asyncio.sleep(0)
+
+
+
+# TODO: Adapt this for the more limited role this app will handle
 loop = asyncio.get_event_loop()
 try:
     loop.run_until_complete(run(loop))
@@ -72,5 +90,8 @@ finally:
     # TODO: Need to wait on all running events before closing (https://medium.com/python-pandemonium/asyncio-coroutine-patterns-beyond-await-a6121486656f)
     loop.close()
 
-# API Documentation: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
-# https://realpython.com/python-speech-recognition/
+
+# API Documentation:
+#   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
+#   Asyncio:
+#   SAPI:

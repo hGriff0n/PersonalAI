@@ -1,9 +1,19 @@
 Planning Document
 
+Finished:
+  Active speech-to-text (Will be changed)
+  Basic text-to-speech
+
 Steps:
-  Get speech.py working (I think the fact that the laptop is closed is stopping the mic)
-    NOTE: Since SR produces text, I can just hardcode what I "say" to develop the next part
-      Feed the sentence into the next stage, once I get a mic, I can actually speak it
+  Get basic text-to-action nlp working
+    Decompose various text sentences into json "action packets"
+  Develop server/app architecture
+    Look at developing core server engine in rust
+    Farm out app and tool development to python
+
+Issues:
+  The STT/TTS stack is not very stable
+    Prone to crashes/Possibility of cross-interference
 
 Initial Goal:
   Be able to open a program on my computer using voice (using custom AI)

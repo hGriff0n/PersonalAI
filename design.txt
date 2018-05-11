@@ -1,1 +1,54 @@
 Not going to use Amazon Lex (too focused on tailored bots, not on general purpose AI)
+
+http://www.pythonsandbarracudas.com/blog/2015/12/3/asynchronous-constraint-of-memory-allocation
+https://www.facebook.com/notes/mark-zuckerberg/building-jarvis/10154361492931634
+https://medium.com/@yeraydiazdiaz/asyncio-coroutine-patterns-errors-and-cancellation-3bb422e961ff
+https://medium.com/python-pandemonium/asyncio-coroutine-patterns-beyond-await-a6121486656f
+
+System Architecture (https://www.infoq.com/news/2016/12/Google-AI-API)
+
+We are going to follow a "server/app" style, where the main ai processing and integration
+is handled within a central server and the input/output collection/reporting is handled
+in individualized apps. This approach splits the processing of all requests into a series
+of well-defined stages with a set of programmatic junction points.
+
+The first stage collects the input and performs some basic processing before sending it
+out to the server. The server performs the calculations necessary to service the request
+before sending it's response to the output stage. This output stage can perform some
+final, localized processing/formatting before sending the output to the user.
+
+The individual apps are responsible for handling local resource contentions and for
+aggregating user data. The server handles the actual api running
+
+Example:
+
+Have an app to handle command line interaces. Since it is a cmd app, it will have an
+argument parser to support direct running of commands, but the no-arg version will enter
+into a communicative "texting" model. This app can handle the situation of writing while
+the user is typing without interferring with itself.
+
+Meanwhile a separate app can handle the microphone/speaker pair for aural interactions.
+
+Note:
+
+If we eventually incorporate into a smart home style system, we're going to have
+to generate a way to handle multiple inputs, changing inputs, and simultaneous input
+
+Look at writing the core server in Rust
+
+Pros:
+
+Rust is fairly well designed for creating a server
+Some experience and practice with working in Rust
+
+Cons:
+
+Splitting development between two languages isn't necessary
+AI implementation will be in python (how tightly do I need to integrate server and AI?)
+
+Apps:
+  Sentence -> Server Input
+  Mic/Speaker -> Sentence
+  Text -> Sentence (invokable from command line, using args calls command directly)
+
+http://articulab.hcii.cs.cmu.edu/projects/sara/
