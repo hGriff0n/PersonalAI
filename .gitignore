@@ -2,3 +2,5 @@
 test\.py
 
 *.log
+
+apps/common/__pycache__/
