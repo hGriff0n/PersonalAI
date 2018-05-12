@@ -6,10 +6,13 @@ import speech_recognition as sr
 # https://github.com/DeepHorizons/tts
 import win32com.client as wincl
 
+from wit import Wit
+
 from common import logger
 
 # TODO: Exception safe this running loop
     # The only issue is with asyncio when we try to run the third loop
+# TODO: Implement Intent Extraction using wit.ai
 # TODO: Add in broader control over the computer's audio systems
 # TODO: Implement resource contention resolution (accounting for audio usage)
 # TODO: Implement voice recognition (probably requires AI)
@@ -18,7 +21,7 @@ log = logger.create('audio.log')
 log.setLevel(logger.logging.INFO)
 
 voice = wincl.Dispatch("SAPI.SpVoice")
-
+client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
 
 # Main event function which handles input and dispatching
 async def run():
