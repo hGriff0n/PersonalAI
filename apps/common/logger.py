@@ -2,7 +2,7 @@
 
 import logging
 
-def createLogger(file):
+def create(file):
     hdlr = logging.FileHandler(file)
     fmt = logging.Formatter('%(asctime)s <%(levelname)s> %(message)s')
     hdlr.setFormatter(fmt)

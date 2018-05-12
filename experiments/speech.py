@@ -30,6 +30,9 @@ def createLogger(file):
 log = createLogger('speech.log')
 log.setLevel(logging.INFO)
 
+# NOTE: I could make all this code single threaded and I wouldn't lose much functionality
+# Any gain would come fairly late in the process anyways (when the systems more fleshed out)
+
 
 # NOTE: SpeechRecognition currently doesn't natievly support asyncio
 # This is a simple workaround to enable running of events while listening

@@ -1,47 +1,50 @@
 #!/usr/bin/env python3
 
-import logging
-import time
+import asyncio
 
 import speech_recognition as sr
 # https://github.com/DeepHorizons/tts
 import win32com.client as wincl
 
-from common.logger import createLogger, logging
+from common import logger
 
-# TODO: Exception safe this running
-# TODO: Abstract the handling of query action recognition to insert customization point
+# TODO: Exception safe this running loop
 # TODO: Add in broader control over the computer's audio systems
 # TODO: Implement resource contention resolution (accounting for audio usage)
 # TODO: Implement voice recognition (probably requires AI)
 
-log = createLogger('audio.log')
-log.setLevel(logging.INFO)
+log = logger.create('audio.log')
+log.setLevel(logger.logging.INFO)
 
-def run():
+voice = wincl.Dispatch("SAPI.SpVoice")
+
+
+# Main event function which handles input and dispatching
+async def run():
     rec = sr.Recognizer()
-    mic = sr.Microphone()
-    voice = wincl.Dispatch("SAPI.SpVoice")
 
-    while True:
-        with mic as source:
-            rec.adjust_for_ambient_noise(source)
-            print("> ...")
-            audio_data = rec.listen(source)
+    with sr.Microphone() as source:
+        rec.adjust_for_ambient_noise(source)
+        print("> ...")
+        audio_data = rec.listen(source)
 
-        query = rec.recognize_google(audio_data)
-        log.info("HEARD <{}>".format(query))
+    query = rec.recognize_google(audio_data)
+    log.info("HEARD <{}>".format(query))
 
-        # TODO: Abstract this action dispatch into a separate control structure
-        if query == "exit" or query == "stop":
-            log.info("EXITING")
-            break
-        else:
-            voice.Speak("You said \"{}\"".format(query))
+    dispatch(query, voice)
+
+
+# Pass along the speech data to determine what to do
+def dispatch(query, voice):
+    if not (query == "exit" or query == "stop"):
+        asyncio.ensure_future(run())
+
+    voice.Speak("You said \"{}\"".format(query))
+
 
 # TODO: Make this event process concurrent and distributed
 if __name__ == "__main__":
-    run()
+    asyncio.get_event_loop().run_until_complete(run())          # Runs until there are no more functions left to call
 
 # API Documentation:
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
