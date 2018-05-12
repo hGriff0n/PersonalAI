@@ -46,10 +46,14 @@ async def run():
 
 # Pass along the speech data to determine what to do
 def dispatch(query, voice):
-    if not (query == "exit" or query == "stop"):
+    msg = client.message(query)
+    action = msg['entities']
+
+    # Schedule another run unless we need to stop
+    if 'stop' not in action:
         asyncio.ensure_future(run())
 
-    log.info("MSG <{}>".format(str(client.message(query))))
+    log.info("MSG <{}>".format(str(msg)))
     voice.say("You said \"{}\"".format(query))
 
 
@@ -57,7 +61,7 @@ def dispatch(query, voice):
 if __name__ == "__main__":
     asyncio.ensure_future(run())
 
-    # Run until no more functions have been scheduled
+    # Run until no more functions are scheduled
     while True:
         log.info("Gathering tasks")
         pending_tasks = [task for task in asyncio.Task.all_tasks() if not task.done()]
