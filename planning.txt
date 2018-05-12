@@ -1,7 +1,7 @@
 Planning Document
 
 Finished:
-  Active speech-to-text (Will be changed)
+  Active speech-to-text
   Basic text-to-speech
 
 Steps:

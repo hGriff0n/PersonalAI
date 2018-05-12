@@ -9,6 +9,7 @@ import win32com.client as wincl
 from common import logger
 
 # TODO: Exception safe this running loop
+    # The only issue is with asyncio when we try to run the third loop
 # TODO: Add in broader control over the computer's audio systems
 # TODO: Implement resource contention resolution (accounting for audio usage)
 # TODO: Implement voice recognition (probably requires AI)
@@ -28,10 +29,18 @@ async def run():
         print("> ...")
         audio_data = rec.listen(source)
 
-    query = rec.recognize_google(audio_data)
-    log.info("HEARD <{}>".format(query))
+    try:
+        query = rec.recognize_google(audio_data)
+        log.info("HEARD <{}>".format(query))
+        dispatch(query, voice)
 
-    dispatch(query, voice)
+    except sr.UnknownValueError:
+        asyncio.ensure_future(run())                            # Since we never entered dispatch, we still need to run
+        log.error("Couldn't recognize audio")
+
+    except Exception as e:
+        asyncio.ensure_future(run())
+        log.error(e)
 
 
 # Pass along the speech data to determine what to do
