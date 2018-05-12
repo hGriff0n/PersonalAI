@@ -13,6 +13,7 @@ Steps:
       rolling my own solution would take too long and wouldn't give the performance i want
     I also want to set aside some time to learn about how to perform similar recognition by my own
     Decompose various text sentences into json "action packets"
+  Provide script/etc. to install dependencies immediately
   Develop server/app architecture
     Look at developing core server engine in rust
     Farm out app and tool development to python

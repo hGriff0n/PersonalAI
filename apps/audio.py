@@ -3,24 +3,22 @@
 import asyncio
 
 import speech_recognition as sr
-# https://github.com/DeepHorizons/tts
-import win32com.client as wincl
+from tts.sapi import Sapi as TtsClient
 
 from wit import Wit
 
 from common import logger
 
-# TODO: Exception safe this running loop
-    # The only issue is with asyncio when we try to run the third loop
 # TODO: Implement Intent Extraction using wit.ai
 # TODO: Add in broader control over the computer's audio systems
 # TODO: Implement resource contention resolution (accounting for audio usage)
+#   May want to add in a "wake word" for these situations
 # TODO: Implement voice recognition (probably requires AI)
 
 log = logger.create('audio.log')
 log.setLevel(logger.logging.INFO)
 
-voice = wincl.Dispatch("SAPI.SpVoice")
+voice = TtsClient()
 client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
 
 # Main event function which handles input and dispatching
@@ -51,7 +49,8 @@ def dispatch(query, voice):
     if not (query == "exit" or query == "stop"):
         asyncio.ensure_future(run())
 
-    voice.Speak("You said \"{}\"".format(query))
+    log.info("MSG <{}>".format(str(client.message(query))))
+    voice.say("You said \"{}\"".format(query))
 
 
 # TODO: Make this event process concurrent and distributed
@@ -67,4 +66,5 @@ if __name__ == "__main__":
 
 # API Documentation:
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
-#   SAPI:
+#   tts.SAPI: https://github.com/DeepHorizons/tts
+#   Wit: https://wit.ai/docs
