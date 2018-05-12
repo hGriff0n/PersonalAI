@@ -56,7 +56,14 @@ def dispatch(query, voice):
 
 # TODO: Make this event process concurrent and distributed
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(run())          # Runs until there are no more functions left to call
+    asyncio.ensure_future(run())
+
+    # Run until no more functions have been scheduled
+    while True:
+        log.info("Gathering tasks")
+        pending_tasks = [task for task in asyncio.Task.all_tasks() if not task.done()]
+        if len(pending_tasks) == 0: break
+        asyncio.get_event_loop().run_until_complete(asyncio.gather(*pending_tasks))
 
 # API Documentation:
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
