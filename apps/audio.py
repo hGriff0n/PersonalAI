@@ -9,10 +9,19 @@ from wit import Wit
 
 from common import logger
 
-# TODO: Implement Intent Extraction using wit.ai
+# Immediate development work
+# TODO: Improve intent extraction/dispatch
+  # Implement the ability to play songs through spotify
+    # This may be difficult, maybe hardcode in some songs to play
 # TODO: Add in broader control over the computer's audio systems
+  # Controlling spotify will meet this somewhat
+  # Change the "I'm listening" signal to a small beep
+  # I want a more general control however (may be out of the scope for this app)
+# NOTE: After this work is done, shift over to cli app
+
+# Long term dev work
 # TODO: Implement resource contention resolution (accounting for audio usage)
-#   May want to add in a "wake word" for these situations
+#   Look into adding a "wake word" for these situations
 # TODO: Implement voice recognition (probably requires AI)
 
 log = logger.create('audio.log')
@@ -44,27 +53,44 @@ async def run():
         log.error(e)
 
 
+
 # Pass along the speech data to determine what to do
 def dispatch(query, voice):
     msg = client.message(query)
+    log.info("MSG <{}>".format(str(msg)))
+
     action = msg['entities']
     schedule_run = True
 
     # Perform intent recognition and dispatch
     if 'intent' in action:
+        log.info("INTENTS <{}>".format(action['intent']))
+
         intent = action['intent'][0]        # TODO: Figure out why 'intent' is an array
         schedule_run = 'stop' != intent['value']
+        voice.say("You said \"{}\"".format(query))
 
-    elif 'greeting' in action:
+    elif 'greetings' in action:
         log.info("GREETING")
-        voice.say("Hello Grayson")
+        voice.say("Hello")
+
+    elif 'thanks' in action:
+        log.info("THANKS")
+        voice.say("Thanks")
+
+    elif 'bye' in action:
+        log.info("GOODBYE")
+        voice.say("Bye")
+        schedule_run = False
+
+    else:
+        log.info("Unknown Action")
+        voice.say("I have no idea what you're saying")
 
     # Schedule another run unless we need to stop
     if schedule_run:
         asyncio.ensure_future(run())
 
-    log.info("MSG <{}>".format(str(msg)))
-    voice.say("You said \"{}\"".format(query))
 
 
 # TODO: Make this event process concurrent and distributed
