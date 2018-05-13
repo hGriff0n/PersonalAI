@@ -12,7 +12,10 @@ Steps:
         i'm sure it does, the fact that I couldn't find it meant the documentation wasn't good
       rolling my own solution would take too long and wouldn't give the performance i want
     I also want to set aside some time to learn about how to perform similar recognition by my own
-    Decompose various text sentences into json "action packets"
+    Figure out how to organize wit.ai training
+      Not sure about whether to group everything into the 'intent' entity or to make unique entities
+      'intent' seems to help for having multiple entities in one query
+    Figure out how to have multiple entities within one query
   Provide script/etc. to install dependencies immediately
   Develop server/app architecture
     Look at developing core server engine in rust

@@ -48,9 +48,19 @@ async def run():
 def dispatch(query, voice):
     msg = client.message(query)
     action = msg['entities']
+    schedule_run = True
+
+    # Perform intent recognition and dispatch
+    if 'intent' in action:
+        intent = action['intent'][0]        # TODO: Figure out why 'intent' is an array
+        schedule_run = 'stop' != intent['value']
+
+    elif 'greeting' in action:
+        log.info("GREETING")
+        voice.say("Hello Grayson")
 
     # Schedule another run unless we need to stop
-    if 'stop' not in action:
+    if schedule_run:
         asyncio.ensure_future(run())
 
     log.info("MSG <{}>".format(str(msg)))
