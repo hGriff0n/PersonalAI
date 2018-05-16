@@ -3,7 +3,8 @@
 import asyncio
 
 import speech_recognition as sr
-from tts.sapi import Sapi as TtsClient
+# from win32com import client as com
+from tts.sapi import Sapi as Client
 
 from wit import Wit
 
@@ -27,14 +28,19 @@ from common import logger
 log = logger.create('audio.log')
 log.setLevel(logger.logging.INFO)
 
-voice = TtsClient()
 client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
+
+audio = {
+    'mic': sr.Microphone(),
+    'voice': Client(),
+    'speaker': None
+}
 
 # Main event function which handles input and dispatching
 async def run():
     rec = sr.Recognizer()
 
-    with sr.Microphone() as source:
+    with audio['mic'] as source:
         rec.adjust_for_ambient_noise(source)
         print("> ...")
         audio_data = rec.listen(source)
@@ -42,7 +48,7 @@ async def run():
     try:
         query = rec.recognize_google(audio_data)
         log.info("HEARD <{}>".format(query))
-        dispatch(query, voice)
+        dispatch(query, audio['voice'])
 
     except sr.UnknownValueError:
         asyncio.ensure_future(run())                            # Since we never entered dispatch, we still need to run
