@@ -7,7 +7,8 @@ from wit import Wit
 
 # Speech Recognition / TTS
 import speech_recognition as sr
-from tts.sapi import Sapi as Client
+# from tts.sapi import Sapi as Client     # Why is this taking a long time
+import win32com.client
 
 # Music/general audio
 import pyaudio
@@ -18,9 +19,6 @@ from common import logger
 import os
 
 # Immediate development work
-# TODO: Improve intent extraction/dispatch
-  # Implement the ability to play songs through spotify
-    # This may be difficult, maybe hardcode in some songs to play
 # TODO: Add in broader control over the computer's audio systems
   # Change the "I'm listening" signal to a small beep
 # NOTE: After this work is done, shift over to cli app
@@ -41,7 +39,8 @@ client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
 
 audio = {
     'mic': sr.Microphone(),
-    'voice': Client(),
+    # 'voice': Client(),
+    'voice': win32com.client.Dispatch("SAPI.SpVoice"),
     'speaker': pyaudio.PyAudio()
 }
 
@@ -58,10 +57,10 @@ songs = {
 # Temporary wrapper to enable playing a song
 def play_song(song):
     _, ext = os.path.splitext(song)
-    seg = AudioSegment.from_file(song, ext)
+    seg = AudioSegment.from_file(song, ext[1:])
 
     p = audio['speaker']
-    stream = .open(format=p.get_format_from_width(seg.sample_width),
+    stream = p.open(format=p.get_format_from_width(seg.sample_width),
                     channels=seg.channels,
                     rate=seg.frame_rate,
                     output=True)
@@ -114,24 +113,40 @@ def dispatch(query, voice):
         intent = action['intent'][0]        # TODO: Figure out why 'intent' is an array
         schedule_run = 'stop' != intent['value']
 
-        voice.say("You said \"{}\"".format(query))
+        if intent['value'] == "play_music":
+            song = None
+
+            if 'search_query' in action:
+                title = action['search_query'][0]['value']
+
+                if title in songs:
+                    song = songs[title]
+
+            if song is None:
+                song = songs['Magnet']
+
+            log.info("PLAYING <{}>".format(song))
+            play_song(song)
+
+        else:
+            voice.Speak("You said \"{}\"".format(query))
 
     elif 'greetings' in action:
         log.info("GREETING")
-        voice.say("Hello")
+        voice.Speak("Hello")
 
     elif 'thanks' in action:
         log.info("THANKS")
-        voice.say("Thanks")
+        voice.Speak("Thanks")
 
     elif 'bye' in action:
         log.info("GOODBYE")
-        voice.say("Bye")
+        voice.Speak("Bye")
         schedule_run = False
 
     else:
         log.info("Unknown Action")
-        voice.say("I have no idea what you're saying")
+        voice.Speak("I have no idea what you're saying")
 
     # Schedule another run unless we need to stop
     if schedule_run:

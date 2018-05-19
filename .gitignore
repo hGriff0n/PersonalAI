@@ -4,3 +4,5 @@ test\.py
 *.log
 
 apps/common/__pycache__/
+
+data/

@@ -25,8 +25,11 @@ requires = [
     'PyAudio',
     'SpeechRecognition',
     'pywin32',
+    'pydub',
     'git+https://github.com/DeepHorizons/tts'  # This seems to be broken in python 3.7
 ]
 
 for package in requires:
     system("pip install {}".format(package))
+
+print("Be sure to install libav or ffmpeg for pydub to work on non-wav files")
