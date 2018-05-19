@@ -6,20 +6,16 @@ Finished:
 
 Steps:
   Get basic text-to-action nlp working
-    I'm going to use wit.ai for the main development branch
-      wit.ai provide an interface to extract the intent/etc. of the query (which i can use as i please)
-      could not figure out from the documentation whether dialogflow provided a similar api
-        i'm sure it does, the fact that I couldn't find it meant the documentation wasn't good
-      rolling my own solution would take too long and wouldn't give the performance i want
-    I also want to set aside some time to learn about how to perform similar recognition by my own
     Figure out how to organize wit.ai training
       Not sure about whether to group everything into the 'intent' entity or to make unique entities
       'intent' seems to help for having multiple entities in one query
     Figure out how to have multiple entities within one query
-  Provide script/etc. to install dependencies immediately
+  Develop cli app to the same "work-level" as the audio app
   Develop server/app architecture
     Look at developing core server engine in rust
     Farm out app and tool development to python
+      How are the "actions" going to be handled (they should be apps in their own right)
+  Set aside some time to learn how to perform speech recognition/nlp stuff on my own
 
 Issues:
   The STT/TTS stack is not very stable

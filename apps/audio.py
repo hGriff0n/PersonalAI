@@ -2,27 +2,36 @@
 
 import asyncio
 
-import speech_recognition as sr
-# from win32com import client as com
-from tts.sapi import Sapi as Client
-
+# AI recognition
 from wit import Wit
 
+# Speech Recognition / TTS
+import speech_recognition as sr
+from tts.sapi import Sapi as Client
+
+# Music/general audio
+import pyaudio
+from pydub import AudioSegment
+from pydub.utils import make_chunks
+
 from common import logger
+import os
 
 # Immediate development work
 # TODO: Improve intent extraction/dispatch
   # Implement the ability to play songs through spotify
     # This may be difficult, maybe hardcode in some songs to play
 # TODO: Add in broader control over the computer's audio systems
-  # Controlling spotify will meet this somewhat
   # Change the "I'm listening" signal to a small beep
-  # I want a more general control however (may be out of the scope for this app)
 # NOTE: After this work is done, shift over to cli app
 
 # Long term dev work
+# TODO: Implement a database (or something) to track all local music files
+#   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
 # TODO: Implement resource contention resolution (accounting for audio usage)
 #   Look into adding a "wake word" for these situations
+# TODO: Add in spotify playback (once the web api allows it)
+#   Look at alternate approaches to music streaming
 # TODO: Implement voice recognition (probably requires AI)
 
 log = logger.create('audio.log')
@@ -33,8 +42,38 @@ client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
 audio = {
     'mic': sr.Microphone(),
     'voice': Client(),
-    'speaker': None
+    'speaker': pyaudio.PyAudio()
 }
+
+# Temporary database for initial testing purposes
+songs = {
+    'Magnet': r"C:\Users\ghoop\Desktop\PersonalAI\data\Magnet.mp3",
+    'Living on the Edge': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
+    'Livin on the Edge': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
+    'Aerosmith': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
+    'Anstatt Blumen': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
+}
+
+
+# Temporary wrapper to enable playing a song
+def play_song(song):
+    _, ext = os.path.splitext(song)
+    seg = AudioSegment.from_file(song, ext)
+
+    p = audio['speaker']
+    stream = .open(format=p.get_format_from_width(seg.sample_width),
+                    channels=seg.channels,
+                    rate=seg.frame_rate,
+                    output=True)
+
+    # break audio into half-second chunks (to allows keyboard interrupts)
+    for chunk in make_chunks(seg, 500):
+        stream.write(chunk._data)
+
+    stream.stop_stream()
+    stream.close()
+
+
 
 # Main event function which handles input and dispatching
 async def run():
@@ -74,6 +113,7 @@ def dispatch(query, voice):
 
         intent = action['intent'][0]        # TODO: Figure out why 'intent' is an array
         schedule_run = 'stop' != intent['value']
+
         voice.say("You said \"{}\"".format(query))
 
     elif 'greetings' in action:
@@ -114,3 +154,4 @@ if __name__ == "__main__":
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
 #   tts.SAPI: https://github.com/DeepHorizons/tts
 #   Wit: https://wit.ai/docs
+#   Pydub: https://github.com/jiaaro/pydub
