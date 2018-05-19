@@ -5,4 +5,5 @@ test\.py
 
 apps/common/__pycache__/
 
-data/
+data/Magnet.mp3
+data/*.m4a

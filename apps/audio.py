@@ -18,14 +18,14 @@ from pydub.utils import make_chunks
 from common import logger
 import os
 
-# Immediate development work
-# TODO: Add in broader control over the computer's audio systems
-  # Change the "I'm listening" signal to a small beep
-# NOTE: After this work is done, shift over to cli app
-
 # Long term dev work
+# TODO: Improve interactivity of AI
+#   For instance, say what "song" is playing when I want to play music
+#   Work on modifying the beep tone to be more "pleasant" (its too loud for one)
+# TODO: Look at replacing asyncio with Trio
 # TODO: Implement a database (or something) to track all local music files
 #   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
+#   I'll probably have to implement a queuing/thread system to handle networked requests
 # TODO: Implement resource contention resolution (accounting for audio usage)
 #   Look into adding a "wake word" for these situations
 # TODO: Add in spotify playback (once the web api allows it)
@@ -74,13 +74,14 @@ def play_song(song):
 
 
 
+
 # Main event function which handles input and dispatching
 async def run():
     rec = sr.Recognizer()
 
     with audio['mic'] as source:
         rec.adjust_for_ambient_noise(source)
-        print("> ...")
+        play_song("data\\low_beep.mp3")
         audio_data = rec.listen(source)
 
     try:

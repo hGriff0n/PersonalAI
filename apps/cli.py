@@ -18,7 +18,7 @@ from common import logger
   # https://pythonhosted.org/Pyro4/
   # http://www.zerorpc.io/
 
-log = logger.create('audio.log')
+log = logger.create('cli.log')
 log.setLevel(logger.logging.INFO)
 
 client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
@@ -33,9 +33,6 @@ client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
 #     while await get_user_input():
 #         print(msg)
 
-
-from comtypes import gen
-print(gen.__path__)
 
 
 def run():
