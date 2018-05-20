@@ -2,8 +2,8 @@
 
 import asyncio
 
-# AI recognition
-from wit import Wit
+# RPC communication (may not be desirable: want to send message to a client other than the "caller")
+import Pyro4
 
 # Speech Recognition / TTS
 import speech_recognition as sr
@@ -22,11 +22,14 @@ import os
 # TODO: Improve interactivity of AI
 #   For instance, say what "song" is playing when I want to play music
 #   Work on modifying the beep tone to be more "pleasant" (its too loud for one)
+#   Work on making the voice a bit louder (I can't hear it)
 # TODO: Look at replacing asyncio with Trio
 # TODO: Implement a database (or something) to track all local music files
 #   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
+#     NOTE: This may be handled by server not dispatching "play" events to the cli app (in which case I need to rework the control flow of this app)
 #   I'll probably have to implement a queuing/thread system to handle networked requests
 # TODO: Implement resource contention resolution (accounting for audio usage)
+#   Cli app should not have to wait for a song to finish playing to interact, audio does have to wait
 #   Look into adding a "wake word" for these situations
 # TODO: Add in spotify playback (once the web api allows it)
 #   Look at alternate approaches to music streaming
@@ -35,11 +38,8 @@ import os
 log = logger.create('audio.log')
 log.setLevel(logger.logging.INFO)
 
-client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=log)
-
 audio = {
     'mic': sr.Microphone(),
-    # 'voice': Client(),
     'voice': win32com.client.Dispatch("SAPI.SpVoice"),
     'speaker': pyaudio.PyAudio()
 }
@@ -87,7 +87,14 @@ async def run():
     try:
         query = rec.recognize_google(audio_data)
         log.info("HEARD <{}>".format(query))
-        dispatch(query, audio['voice'])
+
+        answer = dispatcher.dispatch(query)
+        log.info("DISPATCHED <{}>".format(answer))
+
+        # NOTE: "Stop" answer isn't matched to the input medium
+        audio['voice'].Speak(answer['text'])
+        if not answer['stop']:
+            asyncio.ensure_future(run())
 
     except sr.UnknownValueError:
         asyncio.ensure_future(run())                            # Since we never entered dispatch, we still need to run
@@ -99,64 +106,9 @@ async def run():
 
 
 
-# Pass along the speech data to determine what to do
-def dispatch(query, voice):
-    msg = client.message(query)
-    log.info("MSG <{}>".format(str(msg)))
-
-    action = msg['entities']
-    schedule_run = True
-
-    # Perform intent recognition and dispatch
-    if 'intent' in action:
-        log.info("INTENTS <{}>".format(action['intent']))
-
-        intent = action['intent'][0]        # TODO: Figure out why 'intent' is an array
-        schedule_run = 'stop' != intent['value']
-
-        if intent['value'] == "play_music":
-            song = None
-
-            if 'search_query' in action:
-                title = action['search_query'][0]['value']
-
-                if title in songs:
-                    song = songs[title]
-
-            if song is None:
-                song = songs['Magnet']
-
-            log.info("PLAYING <{}>".format(song))
-            play_song(song)
-
-        else:
-            voice.Speak("You said \"{}\"".format(query))
-
-    elif 'greetings' in action:
-        log.info("GREETING")
-        voice.Speak("Hello")
-
-    elif 'thanks' in action:
-        log.info("THANKS")
-        voice.Speak("Thanks")
-
-    elif 'bye' in action:
-        log.info("GOODBYE")
-        voice.Speak("Bye")
-        schedule_run = False
-
-    else:
-        log.info("Unknown Action")
-        voice.Speak("I have no idea what you're saying")
-
-    # Schedule another run unless we need to stop
-    if schedule_run:
-        asyncio.ensure_future(run())
-
-
-
 # TODO: Make this event process concurrent and distributed
 if __name__ == "__main__":
+    dispatcher = Pyro4.Proxy("PYRONAME:ai.dispatch")
     asyncio.ensure_future(run())
 
     # Run until no more functions are scheduled
