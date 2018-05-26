@@ -1,7 +1,7 @@
 // extern crate futures;
 extern crate tokio;
 // extern crate tokio_core;
-// extern crate tokio_io;
+extern crate tokio_io;
 // extern crate tokio_serde_json;
 
 extern crate tokio_serde_json;
@@ -21,6 +21,8 @@ extern crate tokio_serde_json;
 use tokio::io;
 use tokio::net::TcpListener;
 use tokio::prelude::*;
+use tokio_io::codec::LinesCodec;
+use tokio_io::AsyncRead;
 
 use std::net::SocketAddr;
 
@@ -37,28 +39,44 @@ use tokio_serde_json::WriteJson;
 // Change the dispatch to a separate app, queried by this
 // Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
+
+struct Canceller {
+    rx: std::sync::mpsc::Receiver<()>,
+}
+
+impl Future for Canceller {
+    type Item = ();
+    type Error = std::sync::mpsc::RecvError;
+
+    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
+        match self.rx.try_recv() {
+            Ok(_) => Ok(Async::Ready(())),
+            Err(_) => Ok(Async::NotReady)
+        }
+    }
+}
+
 fn main() {
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
 
     let server = listener.incoming().for_each(|tcp| {
         // Split up the read and write halves
-        let (reader, writer) = tcp.split();
+        let (writer, reader) = tcp.framed(LinesCodec::new()).split();   // this gives a different type !!!
+        let (tx, rx) = std::sync::mpsc::channel();
+        let cancel = Canceller{ rx: rx };
 
-        // Copy the data back to the client
-        let conn = io::copy(reader, writer)
-            // print what happened
-            .map(|(n, _, _)| {
-                println!("Wrote {} bytes!", n)
+        let action = reader.map(move |line| {
+                println!("Received {}", line);
+                tx.send(()).unwrap();               // Signal the canceller to complete
+                line
             })
-            // Handle any errors
-            .map_err(|err| {
-                println!("IO error: {:?}", err)
-            });
+            .forward(writer)                        // Forward the data onto the client
+            .select2(cancel)                        // Allow the cancel signal to stop execution
+            .map(|_| {})
+            .map_err(|err| println!("error"));
 
-        // Spawn the future as a concurrent task
-        tokio::spawn(conn);
-
+        tokio::spawn(action);
         Ok(())
     })
     .map_err(|err| {
@@ -67,5 +85,4 @@ fn main() {
 
     // Start the server and tokio runtime
     tokio::run(server);
-    println!("Hello")
 }

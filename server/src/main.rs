@@ -19,16 +19,18 @@ fn main() {
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
 
     // Connect to the tcp server
+    // The issue may be the server still considers this stream to be open
+    // Maybe I should convert to UDP/RUDP for my connections
     let client = TcpStream::connect(&addr)
         .and_then(|conn| {
             let framed = conn.framed(LinesCodec::new());
             framed.send("Hello!".to_string())
-                  .and_then(|conn| {
-                      conn.for_each(|line| {
+                .and_then(|conn| {
+                    conn.for_each(|line| {
                         println!("Received line {}", line);
                         Ok(())
                     })
-                  })
+                })
         })
         .map_err(|err| println!("Stream error: {:?}", err));
 
