@@ -7,3 +7,6 @@ apps/common/__pycache__/
 
 data/Magnet.mp3
 data/*.m4a
+
+*.lock
+*/target/

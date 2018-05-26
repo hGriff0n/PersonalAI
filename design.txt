@@ -1,9 +1,40 @@
-Not going to use Amazon Lex (too focused on tailored bots, not on general purpose AI)
 
-http://www.pythonsandbarracudas.com/blog/2015/12/3/asynchronous-constraint-of-memory-allocation
-https://www.facebook.com/notes/mark-zuckerberg/building-jarvis/10154361492931634
-https://medium.com/@yeraydiazdiaz/asyncio-coroutine-patterns-errors-and-cancellation-3bb422e961ff
-https://medium.com/python-pandemonium/asyncio-coroutine-patterns-beyond-await-a6121486656f
+Distributed Architecture
+
+I've come to realize that my fundamental goal for this AI, and all of my architectural
+designs necessitate the implementation of a fully distributed system. In this system,
+the major design issue is in registering and coordinating new components while
+maintaining correct, asynchronous operation.
+
+From initial reading, this paper seems to perfectly describe what I'm looking for:
+https://www.w3.org/TR/mmi-mc-discovery/
+https://www.w3.org/TR/mmi-arch/
+
+Every device will take the role of a recursive modality component, communicating with
+the central ai/server for the purpose of implementing actions and decisions. Each device
+will itself be designed as a distributed modal system, albeit with the singular
+purpose of arranging device communication mediums to effect interactions. The
+communicator (with the central server) aggregates device input and sends those results
+to the server for action decisions. At the same time, it will poll events from the
+server and send them to the requisite modality for interaction effects. The individual
+modality components will be responsible for managing their individual interactions so
+that input and output events complete successfully and do not interfere with each other.
+
+AI capbilities will be handled in individualized apps that get attached to the central
+server in much the same way as device modalities are handled. These apps will recieve
+and produce events for communication in between components. The server will be handle
+parsing of the input text and determining which modality/app to send the appropriate
+event to. The server will also be responsible for maintaining interaction/system state
+and for forwarding events between apps and modalities.
+
+Apps should be able to require other apps as dependencies and produce events for those
+apps to respond to. Apps must be able to require some modalities as dependencies.
+
+The system must be able to distinquish between the same modalities on different devices
+and must support both source and destination routing for output results. This means that
+input must be able to specify the device that the output will be sent to and that the
+default output location must be the device which sent the input, if the device supports
+the necessary modality.
 
 System Architecture (https://www.infoq.com/news/2016/12/Google-AI-API)
 
@@ -52,3 +83,10 @@ Apps:
   Text -> Sentence (invokable from command line, using args calls command directly)
 
 http://articulab.hcii.cs.cmu.edu/projects/sara/
+
+Not going to use Amazon Lex (too focused on tailored bots, not on general purpose AI)
+
+http://www.pythonsandbarracudas.com/blog/2015/12/3/asynchronous-constraint-of-memory-allocation
+https://www.facebook.com/notes/mark-zuckerberg/building-jarvis/10154361492931634
+https://medium.com/@yeraydiazdiaz/asyncio-coroutine-patterns-errors-and-cancellation-3bb422e961ff
+https://medium.com/python-pandemonium/asyncio-coroutine-patterns-beyond-await-a6121486656f
