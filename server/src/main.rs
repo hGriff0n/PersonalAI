@@ -10,8 +10,6 @@ use std::net::SocketAddr;
 
 use tokio::prelude::*;
 use tokio_tcp::TcpStream;
-// use tokio_io::AsyncRead;
-// use tokio_io::codec::LinesCodec;
 use tokio_io::codec::length_delimited;
 
 use serde_json::Value;
@@ -24,20 +22,21 @@ fn main() {
     // Parse what address we're going to connect to
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
 
+    // Connect to the tcp server
     let client = TcpStream::connect(&addr)
         .and_then(|conn| {
-            // Delimit frames using a length header
-            let length_delimited = length_delimited::FramedWrite::new(conn);
+            let json = WriteJson::<_, Value>::new(length_delimited::Framed::new(conn));
 
-            // Serialize frames with JSON
-            let serialized = WriteJson::<_, Value>::new(length_delimited);
-
-            serialized.send(json!({"text": "hello" }))
-                .and_then(|_conn| Ok(()))
+            // Rotate between the reader and the writer connection
+            json.send(json!({"text": "hello" }))
+                .and_then(|conn| {
+                    let conn = ReadJson::<_, Value>::new(conn.into_inner());
+                    conn.for_each(|line| {
+                        println!("Received {:?}", line);
+                        Ok(())
+                    })
+                })
         })
-    // Connect to the tcp server
-    // The issue may be the server still considers this stream to be open
-    // Maybe I should convert to UDP/RUDP for my connections
     // let client = TcpStream::connect(&addr)
     //     .and_then(|conn| {\
     //         // let (writer, reader) = length_delimited::Framed::new(conn).split();
@@ -54,8 +53,6 @@ fn main() {
     //                     Ok(())
     //                 })
     //             })
-
-
     //     })
         .map_err(|err| println!("Stream error: {:?}", err));
 
