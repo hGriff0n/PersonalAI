@@ -1,6 +1,4 @@
-extern crate futures;
 extern crate tokio;
-// extern crate tokio_core;
 extern crate tokio_io;
 extern crate tokio_serde_json;
 
@@ -13,20 +11,28 @@ mod comm;
 // Collecting and dispatching requests to the global server from modalities
 // While maintaining and handling system level state/operations
 
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, mpsc, Mutex};
 
 use tokio::prelude::*;
 use tokio::net::TcpListener;
-use tokio_io::codec::length_delimited;
+use tokio_io::codec::length_delimited::Framed;
 
 use serde_json::Value;
 use tokio_serde_json::*;
 
 // Adapt this with the server to enable easy two-way communication
-    // I don't think I'll need to have an infinite back-and-forth communication
-        // Receive play, send to a different process (I think do need to send a "done" message though)
-        // Only reason would be to maintain state between negotiated communications
+    // Package this behavior into a common directory
+        // Goal: Provide two functions to setup this automatic communication
+    // Another issue is that they use different "communication" streams/methods
+        // The final implementation should be able to act in both capacities
+    // This may actually be a bit difficult depending on how much I want to setup automatically
+        // All of that data will not be automatically visible to the caller
+        // I could always provide a "setup" method/struct to encapsulate the behavior
     // Send events back and forth, modify behavior based on the event
+// Get working cross-device communication (move away from home ip)
+    // Figure out how to implement discovery so I don't have to hardcode paths
 // Once I have this implementation done, develop a python bridge package
 // Transition over to getting the modalities to work on the individual channel
 // Change the dispatch to a separate app, queried by this
@@ -37,21 +43,29 @@ fn main() {
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
 
-    // TODO: See if I can write this similar to the server implementation
+    // This is running on the Tokio runtime, so it will be multi-threaded. The
+    // `Arc<Mutex<...>>` allows state to be shared across the threads.
+    // let connections = Arc::new(Mutex::new(HashMap::new()));
+
     let server = listener.incoming().for_each(|conn| {
+        // let addr = conn.peer_addr().unwrap();
+
         // Split the connection into reader and writer
         // Maddeningly, `conn.split` produces `(reader, writer)`
-        let (writer, reader) = length_delimited::Framed::new(conn).split();
+        let (writer, reader) = Framed::new(conn).split();
         let writer = WriteJson::<_, Value>::new(writer);
         let reader = ReadJson::<_, Value>::new(reader);
 
         // Setup the stop channel
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = mpsc::channel();
         let cancel = comm::FutureChannel::new(rx);
 
         // Setup the communication channel
-        let (sink, source) = std::sync::mpsc::channel::<Value>();
+        let (sink, source) = mpsc::channel::<Value>();
         let source = comm::FutureChannel::new(source);
+
+        // Register the connection
+        // connections.lock().unwrap().insert(addr, (tx, sink));
 
         // Define the reader action
         let read_action = reader.for_each(move |msg| {
