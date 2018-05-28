@@ -43,19 +43,10 @@ fn main() {
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
 
-    // This is running on the Tokio runtime, so it will be multi-threaded. The
-    // `Arc<Mutex<...>>` allows state to be shared across the threads.
-    // let connections = Arc::new(Mutex::new(HashMap::new()));
+    // Maintain system-wide connection state
+    let connections = Arc::new(Mutex::new(HashMap::new()));
 
-    let server = listener.incoming().for_each(|conn| {
-        // let addr = conn.peer_addr().unwrap();
-
-        // Split the connection into reader and writer
-        // Maddeningly, `conn.split` produces `(reader, writer)`
-        let (writer, reader) = Framed::new(conn).split();
-        let writer = WriteJson::<_, Value>::new(writer);
-        let reader = ReadJson::<_, Value>::new(reader);
-
+    let server = listener.incoming().for_each(move |conn| {
         // Setup the stop channel
         let (tx, rx) = mpsc::channel();
         let cancel = comm::FutureChannel::new(rx);
@@ -65,30 +56,48 @@ fn main() {
         let source = comm::FutureChannel::new(source);
 
         // Register the connection
-        // connections.lock().unwrap().insert(addr, (tx, sink));
+        let addr = conn.peer_addr().unwrap();
+        connections.lock().unwrap().insert(addr, (tx, sink));
+
+        // Split the connection into reader and writer
+        // Maddeningly, `conn.split` produces `(reader, writer)`
+        let (writer, reader) = Framed::new(conn).split();
+        let writer = WriteJson::<_, Value>::new(writer);
+        let reader = ReadJson::<_, Value>::new(reader);
 
         // Define the reader action
+        let read_conns = connections.clone();
         let read_action = reader.for_each(move |msg| {
                 println!("GOT: {:?}", msg);
+
+                // TODO: Convert this to allow for failure
+                let sink = &read_conns.lock().unwrap()[&addr].1;
                 Ok(sink.send(msg).unwrap())
             });
 
         // Define the writer action
+        let write_conns = connections.clone();
         let write_action = writer.send_all(
             source.transform(move |mut msg| {
                 msg["resp"] = json!("World");
 
                 // Temporarily restrict the communication to a single call-response
-                tx.send(()).unwrap();
+                if let Some((tx, _)) = write_conns.lock().unwrap().get(&addr) {
+                    tx.send(()).unwrap();
+                }
 
                 msg
             }));
 
         // Combine the actions into one "packet" for registration with tokio
+        let close_conns = connections.clone();
         let action = read_action
             .select2(write_action)
             .select2(cancel)                                // NOTE: This needs to come last in order for it to work
-            .map(|_| {})
+            .map(move |_| {                                 // Remove the connection data from system state
+                let addr = addr.clone();
+                close_conns.lock().unwrap().remove(&addr);
+            })
             .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
 
         // Finally spawn the connection
