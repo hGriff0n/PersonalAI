@@ -22,22 +22,19 @@ use tokio_io::codec::length_delimited::Framed;
 use serde_json::Value;
 use tokio_serde_json::*;
 
-// Adapt this with the server to enable easy two-way communication
-    // Package this behavior into a common directory
-        // Goal: Provide two functions to setup this automatic communication
-    // Another issue is that they use different "communication" streams/methods
-        // The final implementation should be able to act in both capacities
-    // This may actually be a bit difficult depending on how much I want to setup automatically
-        // All of that data will not be automatically visible to the caller
-        // I could always provide a "setup" method/struct to encapsulate the behavior
-    // Send events back and forth, modify behavior based on the event
 // Get working cross-device communication (move away from home ip)
     // Figure out how to implement discovery so I don't have to hardcode paths
+    // Test whether "forwarding" messages works
+        // Setup "server state" structures for the handle functions
 // Once I have this implementation done, develop a python bridge package
 // Transition over to getting the modalities to work on the individual channel
 // Change the dispatch to a separate app, queried by this
 // Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
+
+// TODO: Figure out how to package this "server" into a single function/class
+    // There's a way, I just can't be bothered to fight against the compiler to find it
+    // Need to package all of this tokio-wrapper stuff into a common package anyways
 
 fn main() {
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
@@ -68,25 +65,14 @@ fn main() {
         // Define the reader action
         let read_conns = connections.clone();
         let read_action = reader.for_each(move |msg| {
-                println!("GOT: {:?}", msg);
-
-                // TODO: Convert this to allow for failure
-                let sink = &read_conns.lock().unwrap()[&addr].1;
-                Ok(sink.send(msg).unwrap())
+                handle_request(msg, &read_conns, &addr)
             });
 
         // Define the writer action
         let write_conns = connections.clone();
         let write_action = writer.send_all(
-            source.transform(move |mut msg| {
-                msg["resp"] = json!("World");
-
-                // Temporarily restrict the communication to a single call-response
-                if let Some((tx, _)) = write_conns.lock().unwrap().get(&addr) {
-                    tx.send(()).unwrap();
-                }
-
-                msg
+            source.transform(move |msg| {
+                handle_response(msg, &write_conns, &addr)
             }));
 
         // Combine the actions into one "packet" for registration with tokio
@@ -95,7 +81,6 @@ fn main() {
             .select2(write_action)
             .select2(cancel)                                // NOTE: This needs to come last in order for it to work
             .map(move |_| {                                 // Remove the connection data from system state
-                let addr = addr.clone();
                 close_conns.lock().unwrap().remove(&addr);
             })
             .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
@@ -114,3 +99,26 @@ fn main() {
 
 // API Documentation:
 //  tokio-serde-json: https://github.com/carllerche/tokio-serde-json
+
+type Connections = Arc<Mutex<HashMap<SocketAddr, (mpsc::Sender<()>, mpsc::Sender<Value>)>>>;
+
+#[allow(unused_mut)]
+fn handle_request(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
+    println!("GOT: {:?}", msg);
+
+    let sink = &conns.lock().unwrap()[addr].1;
+    Ok(sink.send(msg).unwrap())
+}
+
+fn handle_response(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Value {
+    msg["resp"] = json!("World");
+
+    if let Some(action) = msg.get("action") {
+        if action == "quit" {
+            let tx = &conns.lock().unwrap()[addr].0;
+            tx.send(()).unwrap();
+        }
+    }
+
+    msg
+}

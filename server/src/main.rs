@@ -38,16 +38,21 @@ fn main() {
             let (sink, source) = std::sync::mpsc::channel::<Value>();
             let source = comm::FutureChannel::new(source);
 
+            #[allow(unused_must_used)]
+            // Unilaterally send a message to the server
+            sink.send(json!({ "text": "hello" })).unwrap();
+
             // Define the reader action
             let read_action = reader.for_each(move |msg| {
                 println!("Received {:?}", msg);
+                sink.send(json!({ "action": "quit" }));
                 Ok(())
             });
 
             #[allow(unused_mut)]
             // Define the writer action
             let write_action = writer.send_all(
-                source.transform(move |mut msg| {
+                source.transform(move |msg| {
                     msg
                 })
             );
@@ -58,9 +63,6 @@ fn main() {
                 // .select2(cancel)                             // NOTE: This needs to come last in order for it to work
                 .map(|_| {})
                 .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
-
-            // Unilaterally send a message to the server
-            sink.send(json!({ "text": "hello" })).unwrap();
 
             // Finally spawn the connection
             tokio::spawn(action);
