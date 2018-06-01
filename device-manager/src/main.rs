@@ -1,9 +1,7 @@
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_serde_json;
-
-#[macro_use]
-extern crate serde_json;
+#[macro_use] extern crate serde_json;
 
 mod comm;
 
@@ -22,10 +20,9 @@ use tokio_io::codec::length_delimited::Framed;
 use serde_json::Value;
 use tokio_serde_json::*;
 
-// Get working cross-device communication (move away from home ip)
-    // Figure out how to implement discovery so I don't have to hardcode paths
-    // Test whether "forwarding" messages works
-        // Setup "server state" structures for the handle functions
+// Test whether "forwarding" messages works
+    // Setup "server state" structures for the handle functions
+// Figure out how to make this "service" capable of acting as a client and a server (of forcing a connection to another running instance)
 // Once I have this implementation done, develop a python bridge package
 // Transition over to getting the modalities to work on the individual channel
 // Change the dispatch to a separate app, queried by this
@@ -64,16 +61,26 @@ fn main() {
 
         // Define the reader action
         let read_conns = connections.clone();
-        let read_action = reader.for_each(move |msg| {
-                handle_request(msg, &read_conns, &addr)
-            });
+        let read_action = reader
+            .for_each(move |msg| handle_request(msg, &read_conns, &addr));
 
         // Define the writer action
         let write_conns = connections.clone();
-        let write_action = writer.send_all(
-            source.transform(move |msg| {
-                handle_response(msg, &write_conns, &addr)
-            }));
+
+        // This doesn't actually work for sending to a different client (only for echoing)
+            // This is only for "sparse" connections (if I'm constantly communicating then some get through)
+                // I have to always be sending some messages to the client for some other messages to be sent
+            // This actually looks like some sort of deadlock
+                // Without the constant communication, something gets stuck and we don't precede
+                // But what? None of the source fold stuff gets run after the communication ends
+            // The actions are both still active when the halt occurs
+            // Changing the sender to a `SyncSender` doesn't solve it either
+        // let write_action = source
+        //     .transform(move |msg| handle_response(msg, &write_conns, &addr))
+        //     .forward(writer);
+        let write_action = writer
+            .send_all(source
+                .transform(move |msg| handle_response(msg, &write_conns, &addr)));
 
         // Combine the actions into one "packet" for registration with tokio
         let close_conns = connections.clone();
@@ -81,6 +88,7 @@ fn main() {
             .select2(write_action)
             .select2(cancel)                                // NOTE: This needs to come last in order for it to work
             .map(move |_| {                                 // Remove the connection data from system state
+                println!("Closing");
                 close_conns.lock().unwrap().remove(&addr);
             })
             .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
@@ -103,15 +111,44 @@ fn main() {
 type Connections = Arc<Mutex<HashMap<SocketAddr, (mpsc::Sender<()>, mpsc::Sender<Value>)>>>;
 
 #[allow(unused_mut)]
-fn handle_request(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
-    println!("GOT: {:?}", msg);
+fn handle_request(msg: Value, conns: &Connections, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
+    // println!("GOT: {:?}", msg);
+    static mut count: i32 = 0;
 
-    let sink = &conns.lock().unwrap()[addr].1;
-    Ok(sink.send(msg).unwrap())
+    // I can get communication to occur if I spawn them fast enough
+    // if unsafe { count < 300 } {
+    //     unsafe { count += 1; }
+    //     conns.lock().unwrap()[addr].1.clone().send(msg).expect("Failed to send");
+    //     return Ok(())
+    // }
+
+    let mut conns = conns.lock().unwrap();
+    // let iter = conns.iter_mut();
+        // .filter(|&(&k, _)| k != *addr);
+    //     .map(|(_, v)| v);
+
+
+    // The receiver says it's empty iff I add the address check
+    for (to, (_, sink)) in conns.iter() {
+        if to != addr
+        {
+            println!("Sending to {:?}", to);
+        // }
+            sink.clone()
+                .send(json!({ "resp": *addr }))
+                .expect("Failed to send");
+            // println!("Sent to {:?}", to);
+        }
+    }
+
+    // conns[addr].1.send(msg).expect("Failed to send message");
+
+    Ok(())
 }
 
-fn handle_response(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Value {
-    msg["resp"] = json!("World");
+fn handle_response(msg: Value, conns: &Connections, addr: &SocketAddr) -> Value {
+    // msg["resp"] = json!("World");
+    println!("Sending message");
 
     if let Some(action) = msg.get("action") {
         if action == "quit" {

@@ -2,9 +2,7 @@ extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_tcp;
 extern crate tokio_serde_json;
-
-#[macro_use]
-extern crate serde_json;
+#[macro_use] extern crate serde_json;
 
 mod comm;
 
@@ -24,38 +22,38 @@ fn main() {
     // Parse what address we're going to connect to
     let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
 
+    let message = std::env::args().nth(1).unwrap_or("hello".to_string());
+
     // Connect to the tcp server
     let action = TcpStream::connect(&addr)
-        .and_then(|conn| {
+        .and_then(move |conn| {
         // Split the connection into reader and writer
             let (writer, reader) = Framed::new(conn).split();
             let writer = WriteJson::<_, Value>::new(writer);
             let reader = ReadJson::<_, Value>::new(reader);
 
             // NOTE: I don't need the "stop" channel as this is a "client" communicator
+            // The final implementation will have it as the structure is ultimately recursive
 
             // Setup the communication channel
             let (sink, source) = std::sync::mpsc::channel::<Value>();
             let source = comm::FutureChannel::new(source);
 
-            #[allow(unused_must_used)]
             // Unilaterally send a message to the server
-            sink.send(json!({ "text": "hello" })).unwrap();
+            sink.send(json!({ "text": message })).unwrap();
 
             // Define the reader action
-            let read_action = reader.for_each(move |msg| {
-                println!("Received {:?}", msg);
-                sink.send(json!({ "action": "quit" }));
-                Ok(())
-            });
+            let read_action = reader
+                .for_each(move |msg| {
+                    println!("Received {:?}", msg);
+                    sink.send(json!({ "action": message })).unwrap();
+                    Ok(())
+                });
 
             #[allow(unused_mut)]
             // Define the writer action
-            let write_action = writer.send_all(
-                source.transform(move |msg| {
-                    msg
-                })
-            );
+            let write_action = writer
+                .send_all(source.transform(move |msg| msg));
 
             // Assemble the actions into a single "tokio" packet
             let action = read_action

@@ -1,5 +1,6 @@
 extern crate tokio;
 
+use std;
 use std::io;
 use std::sync::mpsc;
 
@@ -10,7 +11,7 @@ pub struct FutureChannel<T> {
     rx: mpsc::Receiver<T>,
 }
 
-impl<T> FutureChannel<T> {
+impl<T: std::fmt::Debug> FutureChannel<T> {
     pub fn new(rx: mpsc::Receiver<T>) -> Self {
         Self{ rx: rx }
     }
@@ -20,12 +21,14 @@ impl<T> FutureChannel<T> {
     }
 }
 
-impl<T> Future for FutureChannel<T> {
+impl<T: std::fmt::Debug> Future for FutureChannel<T> {
     type Item = T;
     type Error = mpsc::RecvError;
 
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
-        match self.rx.try_recv() {
+        let val = self.rx.try_recv();
+        println!("poll {:?}", val);
+        match val {
             Ok(val) => Ok(Async::Ready(val)),
             Err(_) => Ok(Async::NotReady)
         }
@@ -33,12 +36,14 @@ impl<T> Future for FutureChannel<T> {
 }
 
 
-impl<T> Stream for FutureChannel<T> {
+impl<T: std::fmt::Debug> Stream for FutureChannel<T> {
     type Item = T;
     type Error = io::Error;
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
-        match self.rx.try_recv() {
+        let val = self.rx.try_recv();
+        println!("poll {:?}", val);
+        match val {
             Ok(val) => Ok(Async::Ready(Some(val))),
             Err(_) => Ok(Async::NotReady)
         }
