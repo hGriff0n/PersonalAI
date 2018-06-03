@@ -22,13 +22,12 @@ use serde_json::Value;
 use tokio_serde_json::*;
 
 // Get working cross-device communication (move away from home ip)
-    // Figure out how to implement discovery so I don't have to hardcode paths
     // Test whether "forwarding" messages works
-        // Setup "server state" structures for the handle functions
-    // Setup device "name" registration, "to" field, and other setup handling
 // Figure out how to use futures 0.2.1
 // Once I have this implementation done, develop a python bridge package
 // Transition over to getting the modalities to work on the individual channel
+    // Figure out how to handle registration/setup
+    // Generalize this code to enable server-server-client hierarchy
 // Change the dispatch to a separate app, queried by this
 // Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
@@ -42,21 +41,19 @@ fn main() {
     let listener = TcpListener::bind(&addr).unwrap();
 
     // Maintain system-wide connection state
-    let connections = Arc::new(Mutex::new(HashMap::new()));
+    let state = ServerState::new();
 
     let server = listener.incoming().for_each(move |conn| {
         // Setup the stop channel
-        let (tx, rx) = mpsc::channel();
-        let cancel = comm::FutureChannel::new(rx);
+        let (tx, cancel) = mpsc::channel();
+        let cancel = comm::FutureChannel::new(cancel);
 
         // Setup the communication channel
         let (sink, source) = futures::sync::mpsc::unbounded();
 
         // Register the connection
         let addr = conn.peer_addr().unwrap();
-        {
-            connections.lock().unwrap().insert(addr, (tx, sink));
-        }
+        state.add_connection(addr, (tx, sink));
 
         // Split the connection into reader and writer
         // Maddeningly, `conn.split` produces `(reader, writer)`
@@ -65,27 +62,23 @@ fn main() {
         let reader = ReadJson::<_, Value>::new(reader);
 
         // Define the reader action
-        let read_conns = connections.clone();
-        let read_action = reader.for_each(move |msg| {
-                handle_request(msg, &read_conns, &addr)
-            });
+        let read_state = state.clone();
+        let read_action = reader.for_each(move |msg| read_state.handle_request(msg, &addr));
 
         // Define the writer action
-        let write_conns = connections.clone();
+        let write_state = state.clone();
         let write_action = source
-            .map(move |msg| handle_response(msg, &write_conns, &addr))
+            .map(move |msg| write_state.handle_response(msg, &addr))
             .forward(writer)
             .map(|_| ())
             .map_err(|_| ());
 
         // Combine the actions into one "packet" for registration with tokio
-        let close_conns = connections.clone();
+        let close_state = state.clone();
         let action = read_action
             .select2(write_action)
             .select2(cancel)                                // NOTE: This needs to come last in order for it to work
-            .map(move |_| {                                 // Remove the connection data from system state
-                close_conns.lock().unwrap().remove(&addr);
-            })
+            .map(move |_| close_state.drop_connection(addr))
             .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
 
         // Finally spawn the connection
@@ -103,34 +96,73 @@ fn main() {
 // API Documentation:
 //  tokio-serde-json: https://github.com/carllerche/tokio-serde-json
 
-type Connections = Arc<Mutex<HashMap<SocketAddr, (mpsc::Sender<()>, futures::sync::mpsc::UnboundedSender<Value>)>>>;
 
-#[allow(unused_mut)]
-fn handle_request(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
-    println!("GOT: {:?}", msg);
+type Signals = (mpsc::Sender<()>, futures::sync::mpsc::UnboundedSender<Value>);
 
-    let mut conns = conns.lock().unwrap();
-    let iter = conns.iter_mut()
-        .filter(|&(&k, _)| k != *addr);
-
-    for (_to, (_, sink)) in iter {
-        sink.clone()
-            .unbounded_send(json!({ "from": *addr }))
-            .expect("Failed to send");
-    }
-
-    Ok(())
+// Holds all information for managing the server's state across all connections
+// Also acts as a customization point for the server's behavior
+    // I think I need to add another point for handling registration communications (and enable middleware)
+#[derive(Clone)]
+struct ServerState {
+    conns: Arc<Mutex<HashMap<SocketAddr, Signals>>>,
+    mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
 }
 
-fn handle_response(mut msg: Value, conns: &Connections, addr: &SocketAddr) -> Value {
-    msg["resp"] = json!("World");
-
-    if let Some(action) = msg.get("action") {
-        if action == "quit" {
-            let tx = &conns.lock().unwrap()[addr].0;
-            tx.send(()).unwrap();
+impl ServerState {
+    pub fn new() -> Self {
+        Self{
+            conns: Arc::new(Mutex::new(HashMap::new())),
+            mapping: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    msg
+    pub fn handle_request(&self, msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
+        println!("GOT: {:?}", msg);
+
+        #[allow(unused_mut)]
+        let mut new_msg = json!({ "from": *addr });
+
+        if let Some(addr) = msg.get("to") {
+            if let Some(addr) = addr.as_str() {
+                if let Ok(addr) = addr.parse::<SocketAddr>() {
+                    let mut conns = self.conns.lock().unwrap();
+                    conns[&addr].1.clone().unbounded_send(new_msg).expect("Failed to send");
+                }
+            }
+
+        } else {
+            let mut conns = self.conns.lock().unwrap();
+            let iter = conns.iter_mut()
+                .filter(|&(&k, _)| k != *addr);
+
+            for (_to, (_, sink)) in iter {
+                sink.clone()
+                    .unbounded_send(json!({ "from": *addr }))
+                    .expect("Failed to send");
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
+        msg["resp"] = json!("World");
+
+        if let Some(action) = msg.get("action") {
+            if action == "quit" {
+                let tx = &self.conns.lock().unwrap()[addr].0;
+                tx.send(()).unwrap();
+            }
+        }
+
+        msg
+    }
+
+    pub fn add_connection(&self, addr: SocketAddr, signals: Signals) {
+        self.conns.lock().unwrap().insert(addr, signals);
+    }
+
+    pub fn drop_connection(&self, addr: SocketAddr) {
+        self.conns.lock().unwrap().remove(&addr);
+    }
 }
