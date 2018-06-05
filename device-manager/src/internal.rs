@@ -212,7 +212,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             });
 
         let action = server
-            .select2(client_conn)
+            .join(client_conn)
             .map(|_| ())
             .map_err(|_| ());
 

@@ -18,16 +18,14 @@ mod comm;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
-// Get working cross-device communication (move away from home ip)
-    // Test whether "forwarding" messages works
 // Transition over to getting the modalities to work on the individual channel
     // Figure out how to handle registration/setup
-    // Unify the server/client code flow as much as possible
 // Figure out how to use futures 0.2.1 within this code
 // Once I have this implementation done, develop a python bridge package
 // Improve this code to production quality
     // Handle/log errors
     // Improve the config file situation
+// Get working cross-device communication (move away from home ip)
 // Change the dispatch to a separate app, queried by this
 // Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
