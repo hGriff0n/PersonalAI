@@ -65,17 +65,8 @@ Note:
 If we eventually incorporate into a smart home style system, we're going to have
 to generate a way to handle multiple inputs, changing inputs, and simultaneous input
 
-Look at writing the core server in Rust
-
-Pros:
-
-Rust is fairly well designed for creating a server
-Some experience and practice with working in Rust
-
-Cons:
-
-Splitting development between two languages isn't necessary
-AI implementation will be in python (how tightly do I need to integrate server and AI?)
+Look at using a plugin architecture to load the individual modalities, etc.
+http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 
 Apps:
   Sentence -> Server Input
