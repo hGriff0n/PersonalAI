@@ -1,0 +1,7 @@
+
+
+Long Term:
+  Switch over networking to use udp broadcasting to determine where the servers are
+    I'm hardcoding the locations for now as that is simpler for my initial development
+// https://github.com/jholtmann/ip_discovery - can use this script during client startup
+            // https://gist.github.com/rsolomo/8703190

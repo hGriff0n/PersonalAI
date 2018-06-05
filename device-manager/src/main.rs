@@ -5,7 +5,6 @@ extern crate tokio_serde_json;
 extern crate futures;
 
 extern crate config;
-// NOTE: This won't be used until this project switches to a more development focus
 extern crate app_dirs;
 
 mod internal;
@@ -18,15 +17,18 @@ mod comm;
 use std::net::SocketAddr;
 use std::collections::HashMap;
 
-// Transition over to getting the modalities to work on the individual channel
-    // Figure out how to handle registration/setup
+// Develop the modalities to use this server as the dispatch communicator
+    // Probably will be good to have this server query the dispatch app
+    // Develop python bridge package to buffer server inputs/etc. and handle resource contention
 // Figure out how to use futures 0.2.1 within this code
 // Once I have this implementation done, develop a python bridge package
 // Improve this code to production quality
     // Handle/log errors
     // Improve the config file situation
+        // Figure out how to split config files (to allow for spawning device-manager/system-manager from the same codebase)
 // Get working cross-device communication (move away from home ip)
-// Change the dispatch to a separate app, queried by this
+    // Figure out how to handle registration/setup for modalities
+    // Modify dispatch to not use hardcoded logic, instead use associated keys/etc.
 // Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
 
