@@ -20,12 +20,27 @@ type Signals = (mpsc::Sender<()>, futures::sync::mpsc::UnboundedSender<Value>);
 pub struct Server {
     conns: Arc<Mutex<HashMap<SocketAddr, Signals>>>,
     mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
+    parent_addr: Option<SocketAddr>,
 }
 
 impl Server {
+    pub fn new(parent_addr: Option<SocketAddr>) -> Self {
+        Self{
+            conns: Arc::new(Mutex::new(HashMap::new())),
+            mapping: Arc::new(Mutex::new(HashMap::new())),
+            parent_addr: parent_addr
+        }
+    }
+
     // Interface methods (ie. customization points)
-    pub fn handle_request(&self, msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
+    fn handle_request(&self, msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
         println!("GOT: {:?}", msg);
+
+        // match msg.get("action") {
+        //     Some("copy") => {
+        //         tasks::CopyAction::new(self, addr).spawn(msg.get("from"), msg.get("to"))
+        //     }
+        // }
 
         #[allow(unused_mut)]
         let mut new_msg = json!({ "from": *addr });
@@ -53,7 +68,12 @@ impl Server {
         Ok(())
     }
 
-    pub fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
+    #[allow(unused_variables)]
+    fn handle_server_request(&self, msg: Value) -> Result<(), tokio::io::Error> {
+        Ok(())
+    }
+
+    fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
         msg["resp"] = json!("World");
 
         if let Some(action) = msg.get("action") {
@@ -66,106 +86,139 @@ impl Server {
         msg
     }
 
-    pub fn add_connection(&self, addr: SocketAddr, signals: Signals) {
+    #[allow(unused_mut)]
+    fn handle_server_response(&self, mut msg: Value) -> Value {
+        msg
+    }
+
+    fn add_connection(&self, addr: SocketAddr, signals: Signals) {
         self.conns.lock().unwrap().insert(addr, signals);
     }
 
-    pub fn drop_connection(&self, addr: SocketAddr) {
+    fn drop_connection(&self, addr: SocketAddr) {
         self.conns.lock().unwrap().remove(&addr);
     }
 
-
-    // Automatic methods
-    pub fn new() -> Self {
-        Self{
-            conns: Arc::new(Mutex::new(HashMap::new())),
-            mapping: Arc::new(Mutex::new(HashMap::new())),
+    fn shutdown(self) {
+        for (_, (close, _)) in self.conns.lock().unwrap().iter() {
+            close.clone().send(()).unwrap();
         }
     }
+}
 
-    pub fn spawn(self, listen_addr: SocketAddr, parent_addr: Option<SocketAddr>) {
-        // Construct the server action
-        #[allow(unused_mut)]
-        let mut server = TcpListener::bind(&listen_addr)
-            .unwrap()
-            .incoming();
 
-        // TODO: Merge it into the server stream
-            // I think I want to create a separate "client" action to handle some stuff
-        if let Some(addr) = parent_addr {
-            let _client_stream = TcpStream::connect(&addr);
-            // record the server address
-            // server = server.
-        }
+// Spawn all the tokio actions necessary to run the described server
+pub fn spawn(server: Server, listen_addr: SocketAddr) {
+    let client = server.clone();
+    let parent = server;
 
-        // Complete the server action
-        let server = server
-            .for_each(move |conn| {
+    // Construct the server action
+    #[allow(unused_mut)]
+    let mut server = TcpListener::bind(&listen_addr)
+        .unwrap()
+        .incoming();
+
+    // Complete the server action
+    let server = server
+        .for_each(move |conn| {
+            // Setup the stop channel
+            let (tx, cancel) = mpsc::channel();
+            let cancel = comm::FutureChannel::new(cancel);
+
+            // Setup the communication channel
+            let (sink, source) = futures::sync::mpsc::unbounded();
+
+            // Register the connection
+            let addr = conn.peer_addr().unwrap();
+            parent.add_connection(addr, (tx, sink));
+
+            // Split the connection into reader and writer
+            // Maddeningly, `conn.split` produces `(reader, writer)`
+            let (writer, reader) = Framed::new(conn).split();
+            let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|_| ());
+            let reader = ReadJson::<_, Value>::new(reader);
+
+            // Define the reader action
+            let read_state = parent.clone();
+            let read_action = reader.for_each(move |msg| read_state.handle_request(msg, &addr));
+
+            // Define the writer action
+            let write_state = parent.clone();
+            let write_action = source
+                .map(move |msg| write_state.handle_response(msg, &addr))
+                .forward(writer)
+                .map(|_| ())
+                .map_err(|_| ());
+
+            // Combine the actions into one "packet" for registration with tokio
+            let close_state = parent.clone();
+            let action = read_action
+                .select2(write_action)
+                .select2(cancel)
+                .map(move |_| close_state.drop_connection(addr))
+                .map_err(|_| ());
+
+            // Finally spawn the connection
+            tokio::spawn(action);
+            Ok(())
+        })
+        .map_err(|err| println!("Server error: {:?}", err));
+
+    if let Some(paddr) = client.parent_addr {
+        let client_conn = TcpStream::connect(&paddr)
+            .and_then(move |conn| {
+                    // Split the connection into reader and writer
+                let (writer, reader) = Framed::new(conn).split();
+                let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|_| ());
+                let reader = ReadJson::<_, Value>::new(reader);
+
                 // Setup the stop channel
                 let (tx, cancel) = mpsc::channel();
                 let cancel = comm::FutureChannel::new(cancel);
 
                 // Setup the communication channel
-                let (sink, source) = futures::sync::mpsc::unbounded();
+                let (sink, source) = futures::sync::mpsc::unbounded::<Value>();
+                client.add_connection(paddr, (tx, sink.clone()));
 
-                // Register the connection
-                let addr = conn.peer_addr().unwrap();
-                self.add_connection(addr, (tx, sink));
-
-                // Split the connection into reader and writer
-                // Maddeningly, `conn.split` produces `(reader, writer)`
-                let (writer, reader) = Framed::new(conn).split();
-                let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|_| ());
-                let reader = ReadJson::<_, Value>::new(reader);
+                // Unilaterally send a message to the server
+                sink.unbounded_send(json!({ "action": "register" })).unwrap();
 
                 // Define the reader action
-                let read_state = self.clone();
-                let read_action = reader.for_each(move |msg| read_state.handle_request(msg, &addr));
+                let read_state = client.clone();
+                let read_action = reader
+                    .for_each(move |msg| read_state.handle_server_request(msg));
 
                 // Define the writer action
-                let write_state = self.clone();
+                let write_state = client.clone();
                 let write_action = source
-                    .map(move |msg| write_state.handle_response(msg, &addr))
+                    .map(move |msg| write_state.handle_server_response(msg))
                     .forward(writer)
                     .map(|_| ())
                     .map_err(|_| ());
 
-                // Combine the actions into one "packet" for registration with tokio
-                let close_state = self.clone();
+                // Assemble the actions into a single "tokio" packet
                 let action = read_action
                     .select2(write_action)
-                    .select2(cancel)
-                    .map(move |_| close_state.drop_connection(addr))
-                    .map_err(|_| ());
+                    .select2(cancel)                                // NOTE: This needs to come last in order for it to work
+                    .map(move |_| client.shutdown())
+                    .map_err(|_| ());                               // NOTE: I'm ignoring all errors for now
 
                 // Finally spawn the connection
                 tokio::spawn(action);
                 Ok(())
             })
-            .map_err(|err| println!("Server error: {:?}", err));
+            .map_err(|err| {
+                println!("Client error: {:?}", err)
+            });
 
-        /*
-        if let Some(addr) = parent_addr {
-            let client = TcpStream::connect(&addr)
-                .and_then(move |conn| {
+        let action = server
+            .select2(client_conn)
+            .map(|_| ())
+            .map_err(|_| ());
 
-                })
-                .map_err(|err| {
-                    println!("Client error: {:?}", err)
-                });
+        tokio::run(action);
 
-            let action = server
-                .select2(client)
-                .map_err(|_| ());
-
-            tokio::run(action);
-
-        } else {
-            tokio::run(server);
-        }
-        */
-
-        // Start the server and tokio runtime
+    } else {
         tokio::run(server);
     }
 }

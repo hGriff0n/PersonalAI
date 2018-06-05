@@ -27,7 +27,7 @@ fn main() {
     // Connect to the tcp server
     let action = TcpStream::connect(&addr)
         .and_then(move |conn| {
-        // Split the connection into reader and writer
+            // Split the connection into reader and writer
             let (writer, reader) = Framed::new(conn).split();
             let writer = WriteJson::<_, Value>::new(writer);
             let reader = ReadJson::<_, Value>::new(reader);

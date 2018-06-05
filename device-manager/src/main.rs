@@ -22,7 +22,7 @@ use std::collections::HashMap;
     // Test whether "forwarding" messages works
 // Transition over to getting the modalities to work on the individual channel
     // Figure out how to handle registration/setup
-    // Generalize this code to enable server-server-client hierarchy
+    // Unify the server/client code flow as much as possible
 // Figure out how to use futures 0.2.1 within this code
 // Once I have this implementation done, develop a python bridge package
 // Improve this code to production quality
@@ -41,11 +41,15 @@ fn main() {
     // let config_dir = app_dirs::app_root(app_dirs::AppDataType::UserConfig, &APP_INFO)
     //     .expect("Couldn't create user config directory");
 
-    // Example of how to use the config crate
+    // Quickly grab config data
+    // TODO: Extract config files from the app_dirs directory
     let mut settings = config::Config::default();
     settings
         .merge(vec![config::File::with_name("conf/conf.yaml")])
-        .unwrap();
+        .expect("Couldn't read config files");
+    // TODO: Allow command line options to override config settings
+
+    // TODO: There's a way of working with config through paths which I should use
     let settings = settings.try_into::<HashMap<String, String>>().unwrap();
 
     // Setup initial listener state
@@ -58,7 +62,11 @@ fn main() {
         .get("parent")
         .and_then(|addr| addr.parse::<SocketAddr>().ok());
 
-    // TODO: Spawn up device monitors
+    // Create the server
+    let server = internal::Server::new(parent);
+
+    // TODO: Spawn any persistent system tools and register them with the server
+        // Non-persistent tasks can be spawned by the server as needed (using tokio)
 
     // IDEA: Maybe spawn up device modalities
         // Using the plugin architecture, I could forward the path to some launcher script
@@ -66,12 +74,12 @@ fn main() {
         // Not sure how to get this right in generality (maybe use the config watcher example?)
 
     // Spawn up the server
-    internal::Server::new().spawn(addr, parent);
+    internal::spawn(server, addr);
 }
 
 // Unused because I don't want to have the config files outside of the development dir just yet
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {
-    name: "personal-AI-device_manager",
+    name: "personal-AI",
     author: "Grayson Hooper"
 };
 
