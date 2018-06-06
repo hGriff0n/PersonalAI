@@ -19,9 +19,13 @@ use std::collections::HashMap;
 
 // Develop the modalities to use this server as the dispatch communicator
     // Probably will be good to have this server query the dispatch app
-    // Develop python bridge package to buffer server inputs/etc. and handle resource contention
+    // Develop python bridge package to buffer/frame server inputs/etc. and handle resource contention
+        // Be able to receive messages from the server
+        // Be able to receive/send in "asynchronous" manner (place messages on communication queue)
+        // Be sure the package is reusable somehow
+            // Maybe look at tying this into the plugin system (plugins would provide an interface to this module)
+            // The module would load the plugin and call it, providing the queues to send/receive messages
 // Figure out how to use futures 0.2.1 within this code
-// Once I have this implementation done, develop a python bridge package
 // Improve this code to production quality
     // Handle/log errors
     // Improve the config file situation

@@ -55,12 +55,11 @@ impl Server {
 
         } else {
             let mut conns = self.conns.lock().unwrap();
-            let iter = conns.iter_mut()
-                .filter(|&(&k, _)| k != *addr);
+            let iter = conns.iter_mut();
 
             for (_to, (_, sink)) in iter {
                 sink.clone()
-                    .unbounded_send(json!({ "from": *addr }))
+                    .unbounded_send(new_msg.clone())
                     .expect("Failed to send");
             }
         }
@@ -135,12 +134,14 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             // Split the connection into reader and writer
             // Maddeningly, `conn.split` produces `(reader, writer)`
             let (writer, reader) = Framed::new(conn).split();
-            let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|_| ());
+            let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|err| { println!("Sink Error: {:?}", err); });
             let reader = ReadJson::<_, Value>::new(reader);
 
             // Define the reader action
             let read_state = parent.clone();
-            let read_action = reader.for_each(move |msg| read_state.handle_request(msg, &addr));
+            let read_action = reader
+                .for_each(move |msg| read_state.handle_request(msg, &addr))
+                .map_err(|err| { println!("Read Error: {:?}", err); });
 
             // Define the writer action
             let write_state = parent.clone();
@@ -148,7 +149,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 .map(move |msg| write_state.handle_response(msg, &addr))
                 .forward(writer)
                 .map(|_| ())
-                .map_err(|_| ());
+                .map_err(|err| { println!("Write Error: {:?}", err); });
 
             // Combine the actions into one "packet" for registration with tokio
             let close_state = parent.clone();
@@ -162,7 +163,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             tokio::spawn(action);
             Ok(())
         })
-        .map_err(|err| println!("Server error: {:?}", err));
+        .map_err(|err| println!("Server Error: {:?}", err));
 
     if let Some(paddr) = client.parent_addr {
         let client_conn = TcpStream::connect(&paddr)
