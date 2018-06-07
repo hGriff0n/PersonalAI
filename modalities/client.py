@@ -1,81 +1,101 @@
 
-import json, struct
+import asyncio, json, struct
 
-import asyncio
+# Simple class to wrap length delimited framing around socket communication
+class Socket:
+    # NOTE: I have to pass the reader and writer because init can't be async
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
 
-host = 'localhost'
-port = 6142
+    async def write(self, msg):
+        data = json.dumps(msg).encode('utf-8')
+        frame = struct.pack(">I", len(data))
+        self.writer.write(frame + data)
+        await self.writer.drain()
 
-loop = asyncio.get_event_loop()
-writer_queue = loop.create_future()
+    async def read(self):
+        len_buf = await self.reader.read(4)
+        msg_len = struct.unpack(">I", len_buf)[0]
+        buf = await self.reader.read(msg_len)
+        return json.loads(buf.decode('utf-8'))
 
-# Simple framing functions for interop with the rust server
-def send_packet(socket, msg):
-    data = json.dumps(msg)
-    frame = struct.pack(">I", len(data))
-    socket.write(frame + data.encode())
+    def close(self):
+        self.writer.close()
 
-async def read_packet(socket):
-    len_buf = await socket.read(4)
-    msg_len = struct.unpack(">I", len_buf)[0]
-    buf = await socket.read(msg_len)
-    return json.loads(buf.decode())
+# Client that automatically handles asynchronous networking communication
+# Utilizes the 'dispatch' function to handle server requests
+# Utilizes the 'broadcast' method to handle write requests
+class Client:
+    def __init__(self, socket, loop):
+        self.conn = socket
+        self.loop = loop
+        self.queue = loop.create_future()
+
+        self.threads = [
+            asyncio.ensure_future(self.handle_queries(), loop=loop),
+            asyncio.ensure_future(self.handle_requests(), loop=loop)
+        ]
+
+    # NOTE: This doesn't seem to work for the initial handshake message
+    def broadcast(self, msg):
+        if not self.queue.done():
+            self.queue.set_result(msg)
+        self.queue = self.loop.create_future()
+
+    async def handle_queries(self):
+        try:
+            cont = True
+            while cont:
+                msg = await self.conn.read()
+                cont = dispatch(msg, self)
+
+        # Let's just stop the app once the connection is lost for now
+        except ConnectionResetError:
+            print("Connection to server lost")
+            self.broadcast("quit")
+
+    async def _init_handshake(self):
+        await self.conn.write({ 'msg': 'hello' })
+
+    async def handle_requests(self):
+        await self._init_handshake()
+
+        while True:
+            msg = await self.queue
+            if msg == "quit": break
+            await self.conn.write(msg)
+
+        self.conn.close()
+
+    async def close(self):
+        await asyncio.gather(*self.threads)
 
 
-# This doesn't seem to work for the initial startup
-    # But does work for communications afterwards (why ??)
-def broadcast(msg, loop):
-    global writer_queue
-    if not writer_queue.done():
-        writer_queue.set_result(msg)
-    writer_queue = loop.create_future()
-
-
-def dispatch(msg, loop):
-    print(msg)
-    broadcast(msg, loop)
+# NOTE: This is the customization point for how the app controls
+# TODO: Figure out how to allow people to customize this
+def dispatch(msg, client):
+    client.broadcast(msg)
 
     # TODO: Add in manual shutdown event?
 
     return True
 
-async def handle_queries(reader, loop, *args):
-    try:
-        cont = True
-        while cont:
-            msg = await read_packet(reader)
-            cont = dispatch(msg, loop, *args)
-
-    # Let's just stop the app once the connection is lost for now
-    except ConnectionResetError:
-        print("Connection to server lost")
-        broadcast("quit", loop)
-
-async def handle_requests(writer):
-    global writer_queue
-    await init_handshake(writer)
-
-    while True:
-        msg = await writer_queue
-        if msg == "quit": break
-        send_packet(writer, msg)
-        await writer.drain()
-
-    writer.close()
-
-async def init_handshake(writer):
-    send_packet(writer, { 'msg': 'hello' })
-    await writer.drain()
 
 
 # https://stackoverflow.com/questions/49275895/asyncio-multiple-concurrent-servers
-async def tcp_echo_client(loop):
-    reader, writer = await asyncio.open_connection('127.0.0.1', port, loop=loop)
+async def run_client(host, port, loop):
+    reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    client = Client(Socket(reader, writer), loop)
+    await client.close()
 
-    reader = asyncio.ensure_future(handle_queries(reader, loop), loop=loop)
-    writer = asyncio.ensure_future(handle_requests(writer), loop=loop)
-    await asyncio.gather(reader, writer)
+def main():
+    host = '127.0.0.1'
+    port = 6142
 
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run_client(host, port, loop))
+    loop.close()
 
-loop.run_until_complete(tcp_echo_client(loop))
-loop.close()
+if __name__ == "__main__":
+    main()

@@ -18,16 +18,17 @@ use std::net::SocketAddr;
 use std::collections::HashMap;
 
 // Develop the modalities to use this server as the dispatch communicator
-    // Probably will be good to have this server query the dispatch app
-    // Improve the organization of the client script
-        // Group the communication methods into a class
-        // Organize the async functions together somehow
-        // Define a "plugin" interface for the dispatch/broadcast code
+    // Define a "plugin" interface for the dispatch/broadcast code
+        // Just need to settle on a way to simplify use in modalities/apps
     // Look at tying this into the plugin system (plugins would provide an interface to this module)
         // I would move the client script into the device-manager folder (for organization)
         // The modalities folder would become a "staging ground" for plugins
             // Or I could create a subfolder (keep client in modalities)
         // The module would load the plugin and call it, providing the queues to send/receive messages
+// Adapt the previous app modalities to utilize the networking code
+    // Probably will be good to have this server query the dispatch app
+    // Develop a tool to launch automatically launch components at startup
+        // Maybe include in the device-manager startup [ie. in rust] (through the config file)
 // Figure out how to use futures 0.2.1 within this code
 // Improve this code to production quality
     // Handle/log errors
@@ -36,7 +37,6 @@ use std::collections::HashMap;
 // Get working cross-device communication (move away from home ip)
     // Figure out how to handle registration/setup for modalities
     // Modify dispatch to not use hardcoded logic, instead use associated keys/etc.
-// Develop a tool to automatically launch components/add on the fly
 // I'll also work on registering modalities with the python work
 
 // TODO: Figure out how to package this "server" into a single function/class
