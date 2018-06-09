@@ -19,6 +19,8 @@ def dispatch(msg, queue):
     print(msg)
     return True
 
+# TODO: Experiment with creating a plugin architecture (and loading the cli app in through that)
+    # Work on the plugin architecture inside of `client.py'`
 # TODO: Work on `client.py` package to provie a usable interface
 # TODO: Need to add in a console lock to interleave input/output
     # This lock should be "breakable" after a little while of non-use
@@ -64,21 +66,41 @@ def run_network(queue):
     loop.run_until_complete(network_communication(queue, loop))
     loop.close()
 
-def run_main(queue):
-    while True:
-        query = input("> ")
-        if query == "quit": break
-        queue.put({ 'msg': query })
+import imp
+import os
 
-    queue.put("quit")
+PluginFolder = "./plugins"
+MainModule = "__init__"
+
+def getPlugins():
+    plugins = []
+    possibleplugins = os.listdir(PluginFolder)
+    for i in possibleplugins:
+        location = os.path.join(PluginFolder, i)
+        if not os.path.isdir(location) or not MainModule + ".py" in os.listdir(location):
+            continue
+        info = imp.find_module(MainModule, [location])
+        plugins.append({"name": i, "info": info})
+    return plugins
+
+def loadPlugin(plugin):
+    print("loading")
+    for i in getPlugins():
+        if i['name'] == plugin:
+            return imp.load_module(MainModule, *i['info'])
+    return None
 
 
 if __name__ == "__main__":
     queue = queue.Queue()
-    t = threading.Thread(target=run_network, args=(queue,))
-    t.start()
-    run_main(queue)
-    t.join()
+
+    cli = loadPlugin("cli")
+    if cli is not None:
+        t = threading.Thread(target=run_network, args=(queue,))
+        t.start()
+        cli.run(queue)
+        # t.join()
+    print("done")
 
 # API Documentation:
 #   Pyro4: https://pythonhosted.org/Pyro4/
