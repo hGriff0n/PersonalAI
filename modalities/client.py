@@ -11,6 +11,7 @@ class Socket:
     async def write(self, msg):
         data = json.dumps(msg).encode('utf-8')
         frame = struct.pack(">I", len(data))
+        print("writing")
         self.writer.write(frame + data)
         await self.writer.drain()
 
@@ -21,39 +22,41 @@ class Socket:
         return json.loads(buf.decode('utf-8'))
 
     def close(self):
+        self.writer.drain()
         self.writer.close()
+
+# NOTE: This is the customization point for how the app controls
+# TODO: Figure out how to allow people to customize this
+async def dispatch(msg, client):
+    await client.queue.put(msg)
+    return True
 
 # Client that automatically handles asynchronous networking communication
 # Utilizes the 'dispatch' function to handle server requests
-# Utilizes the 'broadcast' method to handle write requests
 class Client:
     def __init__(self, socket, loop):
         self.conn = socket
         self.loop = loop
-        self.queue = loop.create_future()
+        self.queue = asyncio.Queue()
+        global dispatch
+        self.dispatch = dispatch
 
         self.threads = [
             asyncio.ensure_future(self.handle_queries(), loop=loop),
             asyncio.ensure_future(self.handle_requests(), loop=loop)
         ]
 
-    # NOTE: This doesn't seem to work for the initial handshake message
-    def broadcast(self, msg):
-        if not self.queue.done():
-            self.queue.set_result(msg)
-        self.queue = self.loop.create_future()
-
     async def handle_queries(self):
         try:
             cont = True
             while cont:
                 msg = await self.conn.read()
-                cont = dispatch(msg, self)
+                cont = await self.dispatch(msg, self)
 
         # Let's just stop the app once the connection is lost for now
         except ConnectionResetError:
             print("Connection to server lost")
-            self.broadcast("quit")
+            await self.queue.put("quit")
 
     async def _init_handshake(self):
         await self.conn.write({ 'msg': 'hello' })
@@ -62,7 +65,7 @@ class Client:
         await self._init_handshake()
 
         while True:
-            msg = await self.queue
+            msg = await self.queue.get()
             if msg == "quit": break
             await self.conn.write(msg)
 
@@ -71,31 +74,29 @@ class Client:
     async def close(self):
         await asyncio.gather(*self.threads)
 
-
-# NOTE: This is the customization point for how the app controls
-# TODO: Figure out how to allow people to customize this
-def dispatch(msg, client):
-    client.broadcast(msg)
-
-    # TODO: Add in manual shutdown event?
-
-    return True
-
+    def register_dispatcher(self, dispatcher):
+        self.dispatch = dispatcher
 
 
 # https://stackoverflow.com/questions/49275895/asyncio-multiple-concurrent-servers
-async def run_client(host, port, loop):
+async def init_client(host, port, loop):
     reader, writer = await asyncio.open_connection(host, port, loop=loop)
-    client = Client(Socket(reader, writer), loop)
+    return Client(Socket(reader, writer), loop)
+
+async def run_client(host, port, dispatch, loop):
+    client = await init_client(host, port, loop)
+    client.register_dispatcher(dispatch)
+
     await client.close()
 
-def main():
-    host = '127.0.0.1'
-    port = 6142
 
+def start_client(host, port):
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(run_client(host, port, loop))
+    loop.run_until_complete(run_client(host, port, dispatch, loop))
     loop.close()
 
+
 if __name__ == "__main__":
-    main()
+    host = '127.0.0.1'
+    port = 6142
+    start_client(host, port)

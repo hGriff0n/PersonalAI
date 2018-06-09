@@ -19,14 +19,14 @@ def dispatch(msg, queue):
     print(msg)
     return True
 
-# TODO: Decide on whether to pursue the plugin or package interface for networking
+# TODO: Experiment with creating a plugin architecture (and loading the cli app in through that)
+    # Work on the plugin architecture inside of `client.py'`
 # TODO: Work on `client.py` package to provie a usable interface
 # TODO: Need to add in a console lock to interleave input/output
     # This lock should be "breakable" after a little while of non-use
 # TODO: Closing the server should close this app
     # I think I'm actually going to send an explicit "quit" command though
     # Would need to have a wait to stop the cli loop though
-# TODO: Add in logging (in a correct package)
 async def network_communication(queue, loop):
     host, port = '127.0.0.1', 6142
     reader, writer = await asyncio.open_connection(host, port, loop=loop)

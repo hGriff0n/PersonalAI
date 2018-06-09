@@ -14,3 +14,5 @@ data/*.m4a
 modalities/__pycache__/
 
 modalities/plugins/cli/__pycache__/
+
+*.pyc
