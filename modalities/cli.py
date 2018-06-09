@@ -19,6 +19,7 @@ def dispatch(msg, queue):
     print(msg)
     return True
 
+# TODO: Decide on whether to pursue the plugin or package interface for networking
 # TODO: Work on `client.py` package to provie a usable interface
 # TODO: Need to add in a console lock to interleave input/output
     # This lock should be "breakable" after a little while of non-use

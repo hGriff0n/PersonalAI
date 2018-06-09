@@ -19,8 +19,6 @@ def dispatch(msg, queue):
     print(msg)
     return True
 
-# TODO: Experiment with creating a plugin architecture (and loading the cli app in through that)
-    # Work on the plugin architecture inside of `client.py'`
 # TODO: Work on `client.py` package to provie a usable interface
 # TODO: Need to add in a console lock to interleave input/output
     # This lock should be "breakable" after a little while of non-use
@@ -28,7 +26,7 @@ def dispatch(msg, queue):
     # I think I'm actually going to send an explicit "quit" command though
     # Would need to have a wait to stop the cli loop though
 # TODO: Add in logging (in a correct package)
-async def network_communication(queue, loop):
+async def network_communication(queue, loop, plugin):
     host, port = '127.0.0.1', 6142
     reader, writer = await asyncio.open_connection(host, port, loop=loop)
     socket = Socket(reader, writer)
@@ -43,11 +41,12 @@ async def network_communication(queue, loop):
 
         socket.close()
 
+    # TODO: This function isn't being run (apparently unless the server was stopped)
     async def handle_queries(socket, queue):
         try:
+            print("hello")
             while True:
                 msg = await socket.read()
-                print(msg)
                 if not dispatch(msg, queue): break
 
         except ConnectionResetError:
@@ -60,43 +59,20 @@ async def network_communication(queue, loop):
         asyncio.ensure_future(handle_queries(socket, queue))
     ])
 
-def run_network(queue):
+def run_network(queue, plugin):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    loop.run_until_complete(network_communication(queue, loop))
+    loop.run_until_complete(network_communication(queue, loop, plugin))
     loop.close()
 
-import imp
-import os
-
-PluginFolder = "./plugins"
-MainModule = "__init__"
-
-def getPlugins():
-    plugins = []
-    possibleplugins = os.listdir(PluginFolder)
-    for i in possibleplugins:
-        location = os.path.join(PluginFolder, i)
-        if not os.path.isdir(location) or not MainModule + ".py" in os.listdir(location):
-            continue
-        info = imp.find_module(MainModule, [location])
-        plugins.append({"name": i, "info": info})
-    return plugins
-
-def loadPlugin(plugin):
-    print("loading")
-    for i in getPlugins():
-        if i['name'] == plugin:
-            return imp.load_module(MainModule, *i['info'])
-    return None
-
+import plugins
 
 if __name__ == "__main__":
     queue = queue.Queue()
 
-    cli = loadPlugin("cli")
+    cli = plugins.load("cli")
     if cli is not None:
-        t = threading.Thread(target=run_network, args=(queue,))
+        t = threading.Thread(target=run_network, args=(queue, cli, ))
         t.start()
         cli.run(queue)
         # t.join()
