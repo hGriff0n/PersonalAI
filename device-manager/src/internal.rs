@@ -57,10 +57,12 @@ impl Server {
             let mut conns = self.conns.lock().unwrap();
             let iter = conns.iter_mut();
 
-            for (_to, (_, sink)) in iter {
-                sink.clone()
-                    .unbounded_send(new_msg.clone())
-                    .expect("Failed to send");
+            for (to, (_, sink)) in iter {
+                // if to != addr {
+                    sink.clone()
+                        .unbounded_send(new_msg.clone())
+                        .expect("Failed to send");
+                // }
             }
         }
 

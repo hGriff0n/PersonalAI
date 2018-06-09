@@ -10,3 +10,5 @@ data/*.m4a
 
 *.lock
 */target/
+
+modalities/__pycache__/
