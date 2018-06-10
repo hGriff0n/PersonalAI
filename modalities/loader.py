@@ -8,8 +8,9 @@ import struct
 import sys
 import threading
 
-# log = logger.create('cli.log')
-# log.setLevel(logger.logging.INFO)
+from common import logger
+
+log = None
 
 # TODO: Add in logging (in a correct package)
 # TODO: Need to add in a console lock to interleave input/output
@@ -26,18 +27,20 @@ def get_messages(socket):
             yield json.loads(buf.decode('utf-8'))
 
     except ConnectionResetError:
-        print("Connection to server lost")
+        log.info("Lost connection to server")
 
     finally:
         return
 
 def send_message(socket, msg):
+    log.info("SENDING <{}>".format(msg))
     data = json.dumps(msg).encode('utf-8')
     frame = struct.pack(">I", len(data))
     socket.sendall(frame + data)
 
 def reader(plugin, socket, queue):
     for msg in get_messages(socket):
+        log.info("RECEIVED <{}>".format(msg))
         plugin.dispatch(msg, queue)
     queue.put("quit")
 
@@ -52,15 +55,24 @@ def writer(socket, queue):
 
 # Send the initial handshake information for the server
 def handshake(plugin, queue):
+    log.info("INITATING HANDSHAKE")
     queue.put({ 'msg': 'hello' })
 
 if __name__ == "__main__":
     queue = queue.Queue()
     name = sys.argv[1]
-    plugin = plugins.load("cli")
 
+    log = logger.create('loader.{}.log'.format(name))
+    log.setLevel(logger.logging.INFO)
+
+    plugin = plugins.load(name, log=log)
+
+    host, port = '127.0.0.1', 6142
     sock = socket.socket()
-    sock.connect(('127.0.0.1', 6142))
+
+    log.info("Attempting to connect to {}:{}".format(host, port))
+    sock.connect((host, port))
+    log.info("Connected to {}:{}".format(host, port))
 
     read_thread = threading.Thread(target=reader, args=(plugin, sock, queue,))
     write_thread = threading.Thread(target=writer, args=(sock, queue,))
@@ -70,11 +82,9 @@ if __name__ == "__main__":
 
     # TODO: Need an automatic way of stopping the `run` method when the server shuts down
     handshake(plugin, queue)
+    log.info("ENTERING {}".format(name))
     plugin.run(queue)
 
     write_thread.join()
     read_thread.join()
     sock.close()
-
-# API Documentation:
-#   Pyro4: https://pythonhosted.org/Pyro4/

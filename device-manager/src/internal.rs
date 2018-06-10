@@ -78,8 +78,10 @@ impl Server {
         Ok(())
     }
 
+    #[allow(unused_variables)]
     fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
         msg["resp"] = json!("World");
+        msg["text"] = json!("World");
 
         msg
     }
