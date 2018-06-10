@@ -9,10 +9,6 @@ class CliPlugin(Plugin):
             queue.put({ 'msg': query })
         queue.put("quit")
 
-    def dispatch(self, msg, queue):
-        print(msg)
-        return True
-
 # This is really simple to perform actually
     # Benefit: I don't have to declare/import the networking code every app
 # Need to add in dispatch function to enable communication to the plugin (queue communicates to the network)

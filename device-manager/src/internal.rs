@@ -53,16 +53,20 @@ impl Server {
                 }
             }
 
-        } else {
+        } else if let Some(action) = msg.get("action") {
+            if action == "quit" {
+                let mut conns = self.conns.lock().unwrap();
+                conns[&addr].0.send(()).expect("Failed to send");
+            }
+        } else{
             let mut conns = self.conns.lock().unwrap();
             let iter = conns.iter_mut();
 
             for (to, (_, sink)) in iter {
-                // if to != addr {
-                    sink.clone()
-                        .unbounded_send(new_msg.clone())
-                        .expect("Failed to send");
-                // }
+                println!("{:?} -> {:?}", to, new_msg);
+                sink.clone()
+                    .unbounded_send(new_msg.clone())
+                    .expect("Failed to send");
             }
         }
 
@@ -76,13 +80,6 @@ impl Server {
 
     fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
         msg["resp"] = json!("World");
-
-        if let Some(action) = msg.get("action") {
-            if action == "quit" {
-                let tx = &self.conns.lock().unwrap()[addr].0;
-                tx.send(()).unwrap();
-            }
-        }
 
         msg
     }
