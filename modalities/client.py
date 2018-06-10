@@ -11,7 +11,6 @@ class Socket:
     async def write(self, msg):
         data = json.dumps(msg).encode('utf-8')
         frame = struct.pack(">I", len(data))
-        print("writing")
         self.writer.write(frame + data)
         await self.writer.drain()
 
@@ -79,14 +78,10 @@ class Client:
 
 
 # https://stackoverflow.com/questions/49275895/asyncio-multiple-concurrent-servers
-async def init_client(host, port, loop):
-    reader, writer = await asyncio.open_connection(host, port, loop=loop)
-    return Client(Socket(reader, writer), loop)
-
 async def run_client(host, port, dispatch, loop):
-    client = await init_client(host, port, loop)
+    reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    client = Client(Socket(reader, writer), loop)
     client.register_dispatcher(dispatch)
-
     await client.close()
 
 

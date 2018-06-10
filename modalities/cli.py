@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 
-import asyncio
+import json
+import socket
+import struct
 import threading
 import queue
-
-from client import Socket
-
-# Immediate development work
-# Develop this to use the client package to communicate with the rust server (as a plugin)
-# Pick a development direction to follow
-    # Produce the audio and dispatch apps the same way
-# Get back to dispatch_daemon level working system
 
 # log = logger.create('cli.log')
 # log.setLevel(logger.logging.INFO)
@@ -27,44 +21,43 @@ def dispatch(msg, queue):
 # TODO: Closing the server should close this app
     # I think I'm actually going to send an explicit "quit" command though
     # Would need to have a wait to stop the cli loop though
-async def network_communication(queue, loop):
-    host, port = '127.0.0.1', 6142
-    reader, writer = await asyncio.open_connection(host, port, loop=loop)
-    socket = Socket(reader, writer)
 
-    async def handle_requests(socket, queue):
-        await socket.write({ 'msg': 'hello' })
 
+
+# TODO: Look at using select to implement this "structure" (instead of threading)
+# TODO: Implement this framework with the plugin architecture
+
+def get_messages(socket):
+    try:
         while True:
-            msg = queue.get()
-            if msg == "quit": break
-            await socket.write(msg)
+            len_buf = socket.recv(4)
+            msg_len = struct.unpack(">I", len_buf)[0]
+            buf = socket.recv(msg_len)
+            yield json.loads(buf.decode('utf-8'))
 
-        socket.close()
+    except ConnectionResetError:
+        print("Connection to server lost")
 
-    async def handle_queries(socket, queue):
-        try:
-            while True:
-                msg = await socket.read()
-                print(msg)
-                if not dispatch(msg, queue): break
+    finally:
+        return
 
-        except ConnectionResetError:
-            print("Connection to server lost")
-        finally:
-            queue.put("quit")
+def send_message(socket, msg):
+    data = json.dumps(msg).encode('utf-8')
+    frame = struct.pack(">I", len(data))
+    socket.sendall(frame + data)
 
-    asyncio.gather(*[
-        asyncio.ensure_future(handle_requests(socket, queue)),
-        asyncio.ensure_future(handle_queries(socket, queue))
-    ])
+def reader(socket, queue):
+    for msg in get_messages(socket):
+        dispatch(msg, queue)
+    queue.put("quit")
 
-def run_network(queue):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(network_communication(queue, loop))
-    loop.close()
+def writer(socket, queue):
+    while True:
+        msg = queue.get()
+        if msg == "quit": break
+        send_message(socket, msg)
 
+# TODO: Add way to "quit" this function when the app closes (maybe make this the threaded func?)
 def run_main(queue):
     while True:
         query = input("> ")
@@ -73,13 +66,23 @@ def run_main(queue):
 
     queue.put("quit")
 
-
 if __name__ == "__main__":
     queue = queue.Queue()
-    t = threading.Thread(target=run_network, args=(queue,))
-    t.start()
+    sock = socket.socket()
+    sock.connect(('127.0.0.1', 6142))
+
+    read_thread = threading.Thread(target=reader, args=(sock, queue,))
+    write_thread = threading.Thread(target=writer, args=(sock, queue,))
+
+    write_thread.start()
+    read_thread.start()
+
+    queue.put({ 'msg': 'hello' })
     run_main(queue)
-    t.join()
+
+    write_thread.join()
+    read_thread.join()
+    sock.close()
 
 # API Documentation:
 #   Pyro4: https://pythonhosted.org/Pyro4/
