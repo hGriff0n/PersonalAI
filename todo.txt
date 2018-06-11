@@ -1,5 +1,14 @@
 
 
+Short Term:
+  Hook up dispatch plugin and get system communication working
+    Need to get to the point where I can play a song from the cli app
+  Create script to start up everything to baseline level
+  Develop config system and integrate it
+  Improve logging support
+  Improve code quality
+    Improve performance (playing the music took way too long)
+
 Long Term:
   Switch over networking to use udp broadcasting to determine where the servers are
     I'm hardcoding the locations for now as that is simpler for my initial development

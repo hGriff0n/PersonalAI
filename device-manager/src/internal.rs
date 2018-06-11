@@ -46,34 +46,37 @@ impl Server {
         // }
 
         #[allow(unused_mut)]
-        let mut new_msg = json!({ "from": *addr });
+        let mut new_msg = msg.clone();
+        new_msg["from"] = json!(*addr);
 
-        if let Some(text) = msg.get("msg") {
-            new_msg["was_handshake"] = json!(text == "hello");
-        }
+        let is_handshake = msg.get("msg").map(|text| text == "hello").unwrap_or(false);
 
-        if let Some(addr) = msg.get("to") {
-            if let Some(addr) = addr.as_str() {
-                if let Ok(addr) = addr.parse::<SocketAddr>() {
-                    let mut conns = self.conns.lock().unwrap();
-                    conns[&addr].1.clone().unbounded_send(new_msg).expect("Failed to send");
-                }
-            }
+        // if let Some(addr) = msg.get("to") {
+        //     if let Some(addr) = addr.as_str() {
+        //         if let Ok(addr) = addr.parse::<SocketAddr>() {
+        //             let mut conns = self.conns.lock().unwrap();
+        //             conns[&addr].1.clone().unbounded_send(new_msg).expect("Failed to send");
+        //         }
+        //     }
 
-        } else if let Some(action) = msg.get("action") {
-            if action == "quit" {
-                let mut conns = self.conns.lock().unwrap();
-                conns[&addr].0.send(()).expect("Failed to send");
-            }
-        } else{
+        // } else if let Some(action) = msg.get("action") {
+        //     if action == "quit" {
+        //         let mut conns = self.conns.lock().unwrap();
+        //         conns[&addr].0.send(()).expect("Failed to send");
+        //     }
+
+        // } else
+         if !is_handshake {
             let mut conns = self.conns.lock().unwrap();
             let iter = conns.iter_mut();
 
             for (to, (_, sink)) in iter {
-                println!("{:?} -> {:?}", to, new_msg);
-                sink.clone()
-                    .unbounded_send(new_msg.clone())
-                    .expect("Failed to send");
+                if to != addr {
+                    println!("{:?} -> {:?}", to, new_msg);
+                    sink.clone()
+                        .unbounded_send(new_msg.clone())
+                        .expect("Failed to send");
+                }
             }
         }
 
@@ -87,8 +90,11 @@ impl Server {
 
     #[allow(unused_variables)]
     fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
-        msg["resp"] = json!("World");
-        msg["text"] = json!("World");
+        // msg["resp"] = json!("World");
+
+        // if !msg.get("was_handshake").unwrap().as_bool().unwrap() {
+        //     msg["play"] = json!("Aerosmith");
+        // }
 
         msg
     }
@@ -137,6 +143,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
 
             // Register the connection
             let addr = conn.peer_addr().unwrap();
+            println!("New connection: {}", addr);
             parent.add_connection(addr, (tx, sink));
 
             // Split the connection into reader and writer

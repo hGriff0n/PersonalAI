@@ -5,8 +5,7 @@ import threading
 from common import logger
 from plugins import Plugin
 
-# TODO: Hook up with dispatch and audio system
-    # Move them into separate "plugins"
+# TODO: Hook up with dispatch system
 # TODO: Change the logger so that I can log to separate files if I want
     # Look at moving the logger into the 'Plugin' class
 # TODO: Implement a time-keeping system

@@ -41,6 +41,7 @@ from pydub.utils import make_chunks
 
 # Temporary database for initial testing purposes
 songs = {
+    'music': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
     'Magnet': r"C:\Users\ghoop\Desktop\PersonalAI\data\Magnet.mp3",
     'Living on the Edge': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
     'Livin on the Edge': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
@@ -98,6 +99,7 @@ class AudioPlugin(Plugin):
     def dispatch(self, msg, queue):
         if 'play' in msg:
             with self.audio_control:
+                self.voice.Speak("Playing {}".format(msg['play']))
                 self._play_song(songs[msg['play']])
 
         elif 'text' in msg:

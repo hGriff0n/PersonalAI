@@ -15,8 +15,6 @@ log = None
 
 # TODO: Add in config support
     # Enable specifying the host, port, and log directory
-# TODO: Need to add in a console lock to interleave input/output
-    # This lock should be "breakable" after a little while of non-use
 # TODO: Closing the server should close this as well
 
 
