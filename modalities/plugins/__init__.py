@@ -34,6 +34,7 @@ def load(desired_plugin, log=None):
         if log is not None:
             log.info("Could not find plugin {}".format(desired_plugin))
         return None
+
     log.info("Loading plugin {}".format(desired_plugin))
     info = imp.find_module("__init__", [location])
     imp.load_module("__init__", *info)

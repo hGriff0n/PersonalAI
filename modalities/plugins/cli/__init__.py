@@ -7,6 +7,7 @@ from plugins import Plugin
 # TODO: Hook up with dispatch and audio system
     # Move them into separate "plugins"
 # TODO: Change the logger so that I can log to separate files if I want
+    # Look at moving the logger into the 'Plugin' class
 # TODO: Implement a time-keeping system
     # We probably shouldn't print messages that are too out of date
 # TODO: Implement periodic "polling" of the input loop
@@ -16,6 +17,7 @@ class CliPlugin(Plugin):
     def __init__(self):
         self.msgs = []
         self.lock = threading.Lock()
+
         self.log = logger.create('cli.log')
         self.log.setLevel(logger.logging.INFO)
 
