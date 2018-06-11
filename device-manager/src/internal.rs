@@ -16,6 +16,9 @@ use tokio_serde_json::*;
 
 type Signals = (mpsc::Sender<()>, futures::sync::mpsc::UnboundedSender<Value>);
 
+// TODO: Improve the request/response handling
+// TODO: Implement actual handshake negotiation
+
 #[derive(Clone)]
 pub struct Server {
     conns: Arc<Mutex<HashMap<SocketAddr, Signals>>>,
@@ -44,6 +47,10 @@ impl Server {
 
         #[allow(unused_mut)]
         let mut new_msg = json!({ "from": *addr });
+
+        if let Some(text) = msg.get("msg") {
+            new_msg["was_handshake"] = json!(text == "hello");
+        }
 
         if let Some(addr) = msg.get("to") {
             if let Some(addr) = addr.as_str() {

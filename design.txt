@@ -10,6 +10,10 @@ From initial reading, this paper seems to perfectly describe what I'm looking fo
 https://www.w3.org/TR/mmi-mc-discovery/
 https://www.w3.org/TR/mmi-arch/
 
+Some other sites I'd bookmarked (haven't double-checked them though):
+https://www.tutorialspoint.com/software_architecture_design/distributed_architecture.htm (SOA/Multi-tier)
+http://cse.csusb.edu/tongyu/courses/cs660/notes/distarch.php
+
 Every device will take the role of a recursive modality component, communicating with
 the central ai/server for the purpose of implementing actions and decisions. Each device
 will itself be designed as a distributed modal system, albeit with the singular

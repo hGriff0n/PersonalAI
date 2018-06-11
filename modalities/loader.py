@@ -7,6 +7,7 @@ import socket
 import struct
 import sys
 import threading
+import traceback
 
 from common import logger
 
@@ -16,7 +17,7 @@ log = None
     # Enable specifying the host, port, and log directory
 # TODO: Need to add in a console lock to interleave input/output
     # This lock should be "breakable" after a little while of non-use
-# TODO: Closing the server should close this app
+# TODO: Closing the server should close this as well
 
 
 def get_messages(socket):
@@ -40,10 +41,16 @@ def send_message(socket, msg):
     socket.sendall(frame + data)
 
 def reader(plugin, socket, queue):
-    for msg in get_messages(socket):
-        log.info("RECEIVED <{}>".format(msg))
-        plugin.dispatch(msg, queue)
-    queue.put("quit")
+    try:
+        for msg in get_messages(socket):
+            log.info("RECEIVED <{}>".format(msg))
+            plugin.dispatch(msg, queue)
+
+    except:
+        log.error("EXCEPTION: " + traceback.format_exc())
+
+    finally:
+        queue.put("quit")
 
 def writer(socket, queue):
     try:
@@ -84,7 +91,13 @@ if __name__ == "__main__":
     # TODO: Need an automatic way of stopping the `run` method when the server shuts down
     handshake(plugin, queue)
     log.info("ENTERING {}".format(name))
-    plugin.run(queue)
+
+    try:
+        plugin.run(queue)
+
+    except:
+        log.error("EXCEPTION: " + traceback.format_exc())
+        queue.put("quit")
 
     write_thread.join()
     read_thread.join()

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # from setuptools import setup, find_packages
 
 # # TODO: I have no idea whether this is accurate or not
@@ -20,13 +22,13 @@
 from os import system
 
 requires = [
-    'asyncio',
+    # 'asyncio',
     'wit',
     'PyAudio',
     'SpeechRecognition',
     'pywin32',
     'pydub',
-    'git+https://github.com/DeepHorizons/tts'  # This seems to be broken in python 3.7
+    'git+https://github.com/DeepHorizons/tts'  # This seems to be broken in python 3.6+
 ]
 
 for package in requires:
