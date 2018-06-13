@@ -36,49 +36,63 @@ impl Server {
     }
 
     // Interface methods (ie. customization points)
-    fn handle_request(&self, msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
+    fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
         println!("GOT: {:?}", msg);
 
-        // match msg.get("action") {
-        //     Some("copy") => {
-        //         tasks::CopyAction::new(self, addr).spawn(msg.get("from"), msg.get("to"))
-        //     }
-        // }
+        match msg.get("action").and_then(|act| act.as_str()) {
+            Some("handshake") => {
+                let mut roles = self.mapping.lock().unwrap();
+                let role = msg.get("hooks").unwrap()[0].as_str().unwrap();
+                println!("Adding role {} for IP {:?}", role, *addr);
+                roles.insert(role.to_string(), *addr);
+                return Ok(());
+            },
+            Some("quit") => {
+                let mut conns = self.conns.lock().unwrap();
+                conns[&addr].0.send(()).expect("Failed to close connection");
+                return Ok(());
+            },
+            // Some("copy") => {
+            //     tasks::CopyAction::new(self, addr).spawn(msg);
+            // }
+            None => {
+                return Ok(());
+            },
+            _ => ()
+        }
 
-        #[allow(unused_mut)]
-        let mut new_msg = msg.clone();
-        new_msg["from"] = json!(*addr);
+        msg["from"] = json!(*addr);
 
-        let is_handshake = msg.get("msg").map(|text| text == "hello").unwrap_or(false);
+        // TODO: Implement response splitting
+        // TODO: Allow for broadcast messages
+        if let Some(dest) = msg.get("routing").and_then(|dst| dst.as_str()) {
+            if let Some(dest) = self.mapping.lock().unwrap().get(dest) {
+                let (_, ref sink) = self.conns.lock().unwrap()[dest];
 
-        // if let Some(addr) = msg.get("to") {
-        //     if let Some(addr) = addr.as_str() {
-        //         if let Ok(addr) = addr.parse::<SocketAddr>() {
-        //             let mut conns = self.conns.lock().unwrap();
-        //             conns[&addr].1.clone().unbounded_send(new_msg).expect("Failed to send");
-        //         }
-        //     }
-
-        // } else if let Some(action) = msg.get("action") {
-        //     if action == "quit" {
-        //         let mut conns = self.conns.lock().unwrap();
-        //         conns[&addr].0.send(()).expect("Failed to send");
-        //     }
-
-        // } else
-         if !is_handshake {
-            let mut conns = self.conns.lock().unwrap();
-            let iter = conns.iter_mut();
-
-            for (to, (_, sink)) in iter {
-                if to != addr {
-                    println!("{:?} -> {:?}", to, new_msg);
-                    sink.clone()
-                        .unbounded_send(new_msg.clone())
-                        .expect("Failed to send");
-                }
+                println!("Sending {:?} to {:?}", msg, dest);
+                sink.clone()
+                    .unbounded_send(msg.clone())
+                    .expect("Failed to send");
             }
         }
+
+        // TODO: Implement defined routing
+        // TODO: Implement response splitting
+
+        // let mut new_msg = msg.clone();
+        // new_msg["from"] = json!(*addr);
+
+        // let conns = self.conns.lock().unwrap();
+        // let iter = conns.iter();
+
+        // for (to, (_, sink)) in iter {
+        //     if to != addr {
+        //         println!("{:?} -> {:?}", to, new_msg);
+        //         sink.clone()
+        //             .unbounded_send(new_msg.clone())
+        //             .expect("Failed to send");
+        //     }
+        // }
 
         Ok(())
     }
@@ -108,7 +122,7 @@ impl Server {
         self.conns.lock().unwrap().insert(addr, signals);
     }
 
-    fn drop_connection(&self, addr: SocketAddr) {
+    fn drop_connection(&mut self, addr: SocketAddr) {
         self.conns.lock().unwrap().remove(&addr);
     }
 
@@ -153,13 +167,13 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             let reader = ReadJson::<_, Value>::new(reader);
 
             // Define the reader action
-            let read_state = parent.clone();
+            let mut read_state = parent.clone();
             let read_action = reader
                 .for_each(move |msg| read_state.handle_request(msg, &addr))
                 .map_err(|err| { println!("Read Error: {:?}", err); });
 
             // Define the writer action
-            let write_state = parent.clone();
+            let mut write_state = parent.clone();
             let write_action = source
                 .map(move |msg| write_state.handle_response(msg, &addr))
                 .forward(writer)
@@ -167,7 +181,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 .map_err(|err| { println!("Write Error: {:?}", err); });
 
             // Combine the actions into one "packet" for registration with tokio
-            let close_state = parent.clone();
+            let mut close_state = parent.clone();
             let action = read_action
                 .select2(write_action)
                 .select2(cancel)
@@ -200,12 +214,12 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 sink.unbounded_send(json!({ "action": "register" })).unwrap();
 
                 // Define the reader action
-                let read_state = client.clone();
+                let mut read_state = client.clone();
                 let read_action = reader
                     .for_each(move |msg| read_state.handle_server_request(msg));
 
                 // Define the writer action
-                let write_state = client.clone();
+                let mut write_state = client.clone();
                 let write_action = source
                     .map(move |msg| write_state.handle_server_response(msg))
                     .forward(writer)

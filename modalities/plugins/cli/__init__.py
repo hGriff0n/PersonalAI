@@ -3,6 +3,7 @@
 import threading
 
 from common import logger
+from common.msg import Message
 from plugins import Plugin
 
 # TODO: Hook up with dispatch system
@@ -25,6 +26,7 @@ class CliPlugin(Plugin):
         if len(self.msgs) != 0:
             for msg in self.msgs:
                 print(msg)
+
             self.msgs = []
 
     def run(self, queue):
@@ -37,8 +39,9 @@ class CliPlugin(Plugin):
                 self.log.info("STOPPING")
                 break
 
-            # msg = self.Message({ 'msg': query })
-            msg = { 'msg': query }
+            msg = Message(None)
+            msg.dispatch(query)
+
             queue.put(msg)
             self.log.info("SENT <{}>".format(msg))
 
@@ -48,9 +51,12 @@ class CliPlugin(Plugin):
         if 'text' in msg:
             with self.lock:
                 self.msgs.append(msg['text'])
-            self.log.info("RECEIVED <{}>".format(msg['text']))
 
+        self.log.info("RECEIVED <{}>".format(msg))
         return True
+
+    def get_hooks(self):
+        return [ 'cli' ]
 
 # Issues with the current framework
     # I can't exactly spawn plugins at runtime (current architecture focused on one plugin per process)

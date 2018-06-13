@@ -3,6 +3,7 @@
 import threading
 
 from common import logger
+from common.msg import Message
 from plugins import Plugin
 
 from wit import Wit
@@ -12,6 +13,7 @@ from wit import Wit
 # TODO: Add in the capacity for basic routing capabilities (ie. send music request from cli to audio app)
     # I'm not sure where this capacity will reside in the full system architecture though
     # I'm not even sure where **this** app will reside though, so I'm just going to go ahead
+# TODO: Improve code quality and naming
 
 
 class DispatchPlugin(Plugin):
@@ -28,62 +30,74 @@ class DispatchPlugin(Plugin):
         while True:
             continue
 
+    # TODO: Refactor to acount for the message changes
+    # I think the message I get back has the 'ip' of the sending process
     def dispatch(self, msg, queue):
-        self.log.info("Received <{}>".format(msg))
-        if 'msg' in msg:
-            action = self.client.message(msg['msg'])
-            self.log.info("MSG <{}>".format(str(action)))
+        if 'dispatch' in msg:
+            msg['dispatch'] = self.client.message(msg['dispatch'])
+            self.log.info("MSG <{}>".format(msg['dispatch']))
+            self.perform_dispatch(msg, queue)
+            return
 
-            return self.perform_dispatch(action, queue)
-
-        if 'stop' in msg:
-            queue.send('quit')
-            return False
+        if 'stop' in msg and msg['stop']:
+            queue.put('quit')
+            return
 
         self.log.info("Received unusable json communication")
         self.log.info("COMM <{}>".format(msg))
-        return True
 
     def perform_dispatch(self, msg, queue):
-        action = msg['entities']
+        quest = msg['dispatch']['entities']
+        answer = Message(msg['from'])
 
-        if 'intent' in action:
+        if 'intent' in quest:
             # TODO: Dispatch on the intents
-            self.log.info("INTENTS <{}>".format(action['intent']))
+            self.log.info("INTENTS <{}>".format(quest['intent']))
 
-            intent = action['intent'][0]
-            answer = { 'stop': ('stop' == intent['value']), 'to_sender': True }
+            intent = quest['intent'][0]
+            answer['stop'] = ('stop' == intent['value'])
 
             if intent['value'] == "play_music":
                 song = 'Magnet'
 
-                if 'search_query' in action:
-                    song = action['search_query'][0]['value']
+                if 'search_query' in quest:
+                    song = quest['search_query'][0]['value']
 
                 self.log.info("PLAYING <{}>".format(song))
+
+                # NOTE: Here I assume the server is responsible for splitting the messages
                 answer['play'] = song
-                answer['to_sender'] = False
+                answer.action('play')
+                answer.message("Playing {}".format(song))
+                answer.send_to('audio')
 
             else:
-                answer['text'] = "I can't do that"
+                answer.action('unk')
+                answer.message("I can't do that")
 
-            queue.put(answer)
-
-        elif 'greetings' in action:
+        elif 'greetings' in quest:
             self.log.info("GREETING")
-            queue.put({ 'text': 'Hello', 'to_sender': True })
+            answer.action('greet')
+            answer.message("Hello")
 
-        elif 'thanks' in action:
+        elif 'thanks' in quest:
             self.log.info("GREETING")
-            queue.put({ 'text': 'Your welcome', 'to_sender': True })
+            answer.action('ack')
+            answer.message("You're welcome")
 
-        elif 'bye' in action:
+        elif 'bye' in quest:
             self.log.info("GOODBYE")
-            queue.put({ 'text': 'Goodbye', 'stop': True, 'to_sender': True })
-            return False
+            answer.message("Goodbye")
+            answer.action('bye')
+            answer['stop'] = True
+            # queue.put("quit")
 
         else:
             self.log.info("Unknown action")
-            queue.put({ 'text': "I have no idea what you meant", 'to_sender': True })
+            answer.action('unk')
+            answer.message("I have no idea what you meant")
 
-        return True
+        queue.put(answer)
+
+    def get_hooks(self):
+        return [ 'dispatch' ]

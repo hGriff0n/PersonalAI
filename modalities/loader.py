@@ -10,6 +10,7 @@ import threading
 import traceback
 
 from common import logger
+from common.msg import Message
 
 log = None
 
@@ -24,7 +25,7 @@ def get_messages(socket):
             len_buf = socket.recv(4)
             msg_len = struct.unpack(">I", len_buf)[0]
             buf = socket.recv(msg_len)
-            yield json.loads(buf.decode('utf-8'))
+            yield Message(json.loads(buf.decode('utf-8')))
 
     except ConnectionResetError:
         log.info("Lost connection to server")
@@ -34,6 +35,8 @@ def get_messages(socket):
 
 def send_message(socket, msg):
     log.info("SENDING <{}>".format(msg))
+    if isinstance(msg, Message):
+        msg = msg.finalize()
     data = json.dumps(msg).encode('utf-8')
     frame = struct.pack(">I", len(data))
     socket.sendall(frame + data)
@@ -54,15 +57,16 @@ def writer(socket, queue):
     try:
         while True:
             msg = queue.get()
-            if msg == "quit": break
+            if msg == 'quit': break
             send_message(socket, msg)
+
     finally:
-        send_message(socket, { 'action': 'quit' })
+        send_message(socket, Message({ 'action': 'quit' }))
 
 # Send the initial handshake information for the server
 def handshake(plugin, queue):
     log.info("INITATING HANDSHAKE")
-    queue.put({ 'msg': 'hello' })
+    queue.put(Message({ 'action': 'handshake', 'hooks': plugin.get_hooks() }))
 
 if __name__ == "__main__":
     queue = queue.Queue()

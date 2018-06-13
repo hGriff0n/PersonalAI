@@ -1,11 +1,16 @@
 
 
 Short Term:
-  Hook up dispatch plugin and get system communication working
-    Need to get to the point where I can play a song from the cli app
+  Get system communication working in a more ad-hoc way
+    I need to make sure the audio app doesn't "speak" any ACK messages
+      More broadly, don't say `ACK` when the results are shown through you
+      Be sure to send 'ACK' portions to the sending app (split if different)
   Create script to start up everything to baseline level
-  Develop config system and integrate it
+    Utilize config system to determine what apps to start up
+      Develop config system and integrate it
+    Run the cli app "inline" if it is loaded (ie. transition into cli)
   Improve logging support
+    Add logging to the rust server
   Improve code quality
     Improve performance (playing the music took way too long)
 

@@ -4,6 +4,7 @@ import os
 import threading
 
 from common import logger
+from common.msg import Message
 from plugins import Plugin
 
 # STT / TTS
@@ -17,22 +18,21 @@ from pydub import AudioSegment
 from pydub.utils import make_chunks
 
 # Short term dev work
-# TODO: Enable utilizing resources across apps
-#   Move audio playing back into this app
-
+# TODO: I think there's some difficulty with multiple transmissions in the audio app
+    # It seems the mic picks up the voice, resending the results to the dispatcher
+    # Probably because the "speaking" happens somewhat asynchronously
+# TODO: Improve shutdown when the server stops ("run" doesn't quit)
 
 # Long term dev work
 # TODO: Improve interactivity of AI
 #   For instance, say what "song" is playing when I want to play music
 #   Work on modifying the beep tone to be more "pleasant" (its too loud for one)
 #   Work on making the voice a bit louder (I can't hear it)
-# TODO: Look at replacing asyncio with Trio
 # TODO: Implement a database (or something) to track all local music files
 #   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
 #     NOTE: This may be handled by server not dispatching "play" events to the cli app (in which case I need to rework the control flow of this app)
 #   I'll probably have to implement a queuing/thread system to handle networked requests
 # TODO: Implement resource contention resolution (accounting for audio usage)
-#   Cli app should not have to wait for a song to finish playing to interact, audio does have to wait
 #   Look into adding a "wake word" for these situations
 # TODO: Add in spotify playback (once the web api allows it)
 #   Look at alternate approaches to music streaming
@@ -77,6 +77,7 @@ class AudioPlugin(Plugin):
                             played_beep = True
 
                         audio = rec.listen(source, 1, None)
+                    query = rec.recognize_google(audio)
 
                 except sr.WaitTimeoutError:
                     continue
@@ -90,22 +91,28 @@ class AudioPlugin(Plugin):
                     raise
 
                 else:
-                    query = rec.recognize_google(audio)
                     self.log.info("HEARD <{}>".format(query))
-                    queue.put({ 'msg': query })
+                    self.send_message(query, queue)
                     played_beep = False
 
 
-    def dispatch(self, msg, queue):
-        if 'play' in msg:
-            with self.audio_control:
-                self.voice.Speak("Playing {}".format(msg['play']))
-                self._play_song(songs[msg['play']])
+    def send_message(self, query, queue):
+        msg = Message('audio')
+        msg.dispatch(query)
+        queue.put(msg)
 
-        elif 'text' in msg:
+
+    def dispatch(self, msg, queue):
+        if 'text' in msg:
             self.voice.Speak(msg['text'])
 
-        return 'stop' not in msg
+        if 'action' in msg:
+            if msg['action'] == 'play':
+                with self.audio_control:
+                    self._play_song(songs[msg['play']])
+
+        # if msg['stop']:
+        #     queue.put("quit")
 
 
     def _play_song(self, song):
@@ -124,6 +131,9 @@ class AudioPlugin(Plugin):
 
         stream.stop_stream()
         stream.close()
+
+    def get_hooks(self):
+        return [ 'audio' ]
 
 # API Documentation:
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
