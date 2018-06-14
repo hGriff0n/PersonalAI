@@ -18,14 +18,11 @@ from pydub import AudioSegment
 from pydub.utils import make_chunks
 
 # Short term dev work
-# TODO: I think there's some difficulty with multiple transmissions in the audio app
-    # It seems the mic picks up the voice, resending the results to the dispatcher
-    # Probably because the "speaking" happens somewhat asynchronously
 # TODO: Improve shutdown when the server stops ("run" doesn't quit)
+    # Can't quit out of running audio sample
 
 # Long term dev work
 # TODO: Improve interactivity of AI
-#   For instance, say what "song" is playing when I want to play music
 #   Work on modifying the beep tone to be more "pleasant" (its too loud for one)
 #   Work on making the voice a bit louder (I can't hear it)
 # TODO: Implement a database (or something) to track all local music files
@@ -77,7 +74,7 @@ class AudioPlugin(Plugin):
                             played_beep = True
 
                         audio = rec.listen(source, 1, None)
-                    query = rec.recognize_google(audio)
+                        query = rec.recognize_google(audio)
 
                 except sr.WaitTimeoutError:
                     continue

@@ -10,9 +10,6 @@ from wit import Wit
 
 # NOTE: This app is wholely responsible for receiving a 'msg' json object from the server and running it through
     # wit.ai to determine what the message is wanting to perform in the context of the system
-# TODO: Add in the capacity for basic routing capabilities (ie. send music request from cli to audio app)
-    # I'm not sure where this capacity will reside in the full system architecture though
-    # I'm not even sure where **this** app will reside though, so I'm just going to go ahead
 # TODO: Improve code quality and naming
 
 
@@ -30,8 +27,6 @@ class DispatchPlugin(Plugin):
         while True:
             continue
 
-    # TODO: Refactor to acount for the message changes
-    # I think the message I get back has the 'ip' of the sending process
     def dispatch(self, msg, queue):
         if 'dispatch' in msg:
             msg['dispatch'] = self.client.message(msg['dispatch'])

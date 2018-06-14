@@ -63,36 +63,49 @@ impl Server {
 
         msg["from"] = json!(*addr);
 
-        // TODO: Implement response splitting
-        // TODO: Allow for broadcast messages
+        // TODO: Remove duplication of the code base
         if let Some(dest) = msg.get("routing").and_then(|dst| dst.as_str()) {
             if let Some(dest) = self.mapping.lock().unwrap().get(dest) {
+                if dest != addr {
+                    let new_msg = json!({ "from": *addr, "routing": "sender" });
+                    new_msg["text"] = msg["text"];
+                    new_msg["stop"] = msg["stop"];
+
+                    let (_, ref sink) = self.conns.lock().unwrap()[addr];
+
+                    println!("Sending {:?} to {:?}", new_msg, addr);
+                    sink.clone()
+                        .unbounded_send(new_msg)
+                        .expect("Failed to send");
+                }
+
                 let (_, ref sink) = self.conns.lock().unwrap()[dest];
 
                 println!("Sending {:?} to {:?}", msg, dest);
                 sink.clone()
                     .unbounded_send(msg.clone())
                     .expect("Failed to send");
+
+            } else if dest == "sender" {
+                let (_, ref sink) = self.conns.lock().unwrap()[addr];
+
+                println!("Sending {:?} to {:?}", msg, addr);
+                sink.clone()
+                    .unbounded_send(msg.clone())
+                    .expect("Failed to send");
+
+            } else if dest == "broadcast" {
+                let conns = self.conns.lock().unwrap();
+                let iter = conns.iter();
+
+                for (&dest, (_, sink)) in iter {
+                    println!("Sending {:?} to {:?}", msg, dest);
+                    sink.clone()
+                        .unbounded_send(msg.clone())
+                        .expect("Failed to send");
+                }
             }
         }
-
-        // TODO: Implement defined routing
-        // TODO: Implement response splitting
-
-        // let mut new_msg = msg.clone();
-        // new_msg["from"] = json!(*addr);
-
-        // let conns = self.conns.lock().unwrap();
-        // let iter = conns.iter();
-
-        // for (to, (_, sink)) in iter {
-        //     if to != addr {
-        //         println!("{:?} -> {:?}", to, new_msg);
-        //         sink.clone()
-        //             .unbounded_send(new_msg.clone())
-        //             .expect("Failed to send");
-        //     }
-        // }
 
         Ok(())
     }
@@ -102,7 +115,7 @@ impl Server {
         Ok(())
     }
 
-    #[allow(unused_variables)]
+    #[allow(unused_variables, unused_mut)]
     fn handle_response(&self, mut msg: Value, addr: &SocketAddr) -> Value {
         // msg["resp"] = json!("World");
 
@@ -173,6 +186,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 .map_err(|err| { println!("Read Error: {:?}", err); });
 
             // Define the writer action
+            #[allow(unused_mut)]
             let mut write_state = parent.clone();
             let write_action = source
                 .map(move |msg| write_state.handle_response(msg, &addr))
@@ -214,11 +228,13 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 sink.unbounded_send(json!({ "action": "register" })).unwrap();
 
                 // Define the reader action
+                #[allow(unused_mut)]
                 let mut read_state = client.clone();
                 let read_action = reader
                     .for_each(move |msg| read_state.handle_server_request(msg));
 
                 // Define the writer action
+                #[allow(unused_mut)]
                 let mut write_state = client.clone();
                 let write_action = source
                     .map(move |msg| write_state.handle_server_response(msg))

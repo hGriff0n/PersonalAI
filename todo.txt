@@ -1,6 +1,7 @@
 
 
 Short Term:
+  Make sure I can play a song from the cli app
   Get system communication working in a more ad-hoc way
     I need to make sure the audio app doesn't "speak" any ACK messages
       More broadly, don't say `ACK` when the results are shown through you
@@ -8,11 +9,13 @@ Short Term:
   Create script to start up everything to baseline level
     Utilize config system to determine what apps to start up
       Develop config system and integrate it
+      Might be able to remove config system integration from individual apps then
     Run the cli app "inline" if it is loaded (ie. transition into cli)
   Improve logging support
     Add logging to the rust server
   Improve code quality
-    Improve performance (playing the music took way too long)
+    Improve performance (playing the music takes way too long)
+    Fix various bugs and irregularities in the various plugins
 
 Long Term:
   Switch over networking to use udp broadcasting to determine where the servers are
