@@ -25,7 +25,8 @@ def get_messages(socket):
             len_buf = socket.recv(4)
             msg_len = struct.unpack(">I", len_buf)[0]
             buf = socket.recv(msg_len)
-            yield Message(json.loads(buf.decode('utf-8')))
+            msg = json.loads(buf.decode('utf-8'))
+            yield Message({ k: v for k, v in msg.items() if v is not None })
 
     except ConnectionResetError:
         log.info("Lost connection to server")

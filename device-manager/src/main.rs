@@ -85,6 +85,7 @@ fn main() {
 }
 
 // Unused because I don't want to have the config files outside of the development dir just yet
+#[allow(dead_code)]
 const APP_INFO: app_dirs::AppInfo = app_dirs::AppInfo {
     name: "personal-AI",
     author: "Grayson Hooper"

@@ -34,6 +34,10 @@ class CliPlugin(Plugin):
                 self._print_all()
 
             query = input("> ")
+            if query == "":
+                self._print_all()
+                continue
+
             if query == "quit":
                 self.log.info("STOPPING")
                 break

@@ -37,7 +37,7 @@ impl Server {
 
     // Interface methods (ie. customization points)
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
-        println!("GOT: {:?}", msg);
+        println!("GOT: {:?} from {:?}", msg, addr);
 
         match msg.get("action").and_then(|act| act.as_str()) {
             Some("handshake") => {
@@ -61,22 +61,28 @@ impl Server {
             _ => ()
         }
 
+        let sender_addr = msg["from"].as_str().and_then(|addr| addr.parse::<SocketAddr>().ok());
         msg["from"] = json!(*addr);
 
         // TODO: Remove duplication of the code base
-        if let Some(dest) = msg.get("routing").and_then(|dst| dst.as_str()) {
-            if let Some(dest) = self.mapping.lock().unwrap().get(dest) {
-                if dest != addr {
-                    let new_msg = json!({ "from": *addr, "routing": "sender" });
-                    new_msg["text"] = msg["text"];
-                    new_msg["stop"] = msg["stop"];
+        let dest_opt = msg.get("routing").and_then(|dst| dst.as_str()).and_then(|dest| Some(dest.to_string()));
+        if let Some(dest) = dest_opt {
+            if let Some(dest) = self.mapping.lock().unwrap().get(&dest) {
 
-                    let (_, ref sink) = self.conns.lock().unwrap()[addr];
+                // Send the ACK message to the creating app
+                if let Some(sender) = sender_addr {
+                    if *dest != sender {
+                        let mut new_msg = json!({ "from": sender, "routing": "sender" });
+                        new_msg["text"] = msg["text"].take();
+                        new_msg["stop"] = msg["stop"].clone();
 
-                    println!("Sending {:?} to {:?}", new_msg, addr);
-                    sink.clone()
-                        .unbounded_send(new_msg)
-                        .expect("Failed to send");
+                        let (_, ref sink) = self.conns.lock().unwrap()[&sender];
+
+                        println!("Sending {:?} to {:?}", new_msg, sender);
+                        sink.clone()
+                            .unbounded_send(new_msg)
+                            .expect("Failed to send");
+                    }
                 }
 
                 let (_, ref sink) = self.conns.lock().unwrap()[dest];

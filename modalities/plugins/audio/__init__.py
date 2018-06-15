@@ -68,13 +68,16 @@ class AudioPlugin(Plugin):
         with self.mic as source:
             while True:
                 try:
+                    audio = None
+
                     with self.audio_control:
                         if not played_beep:
                             self._play_song("data\\low_beep.mp3")
                             played_beep = True
 
                         audio = rec.listen(source, 1, None)
-                        query = rec.recognize_google(audio)
+
+                    query = rec.recognize_google(audio)
 
                 except sr.WaitTimeoutError:
                     continue
@@ -100,13 +103,16 @@ class AudioPlugin(Plugin):
 
 
     def dispatch(self, msg, queue):
-        if 'text' in msg:
-            self.voice.Speak(msg['text'])
-
         if 'action' in msg:
             if msg['action'] == 'play':
                 with self.audio_control:
+                    if 'text' in msg:
+                        self.voice.Speak(msg['text'])
                     self._play_song(songs[msg['play']])
+
+        elif 'text' in msg:
+            with self.audio_control:
+                self.voice.Speak(msg['text'])
 
         # if msg['stop']:
         #     queue.put("quit")

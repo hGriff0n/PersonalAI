@@ -1,5 +1,5 @@
 [package]
-name = "device-client"
+name = "device-manager"
 version = "0.1.0"
 authors = ["Grayson Hooper <ghooper96@gmail.com>"]
 
