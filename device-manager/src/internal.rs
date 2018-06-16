@@ -37,13 +37,14 @@ impl Server {
 
     // Interface methods (ie. customization points)
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), tokio::io::Error> {
-        println!("GOT: {:?} from {:?}", msg, addr);
+        info!("Got {:?} from {:?}", msg, addr);
 
         match msg.get("action").and_then(|act| act.as_str()) {
             Some("handshake") => {
                 let mut roles = self.mapping.lock().unwrap();
                 let role = msg.get("hooks").unwrap()[0].as_str().unwrap();
-                println!("Adding role {} for IP {:?}", role, *addr);
+
+                info!("Adding role {} for IP {:?}", role, *addr);
                 roles.insert(role.to_string(), *addr);
                 return Ok(());
             },
@@ -78,7 +79,7 @@ impl Server {
 
                         let (_, ref sink) = self.conns.lock().unwrap()[&sender];
 
-                        println!("Sending {:?} to {:?}", new_msg, sender);
+                        info!("Sending {:?} to {:?}", new_msg, sender);
                         sink.clone()
                             .unbounded_send(new_msg)
                             .expect("Failed to send");
@@ -87,7 +88,7 @@ impl Server {
 
                 let (_, ref sink) = self.conns.lock().unwrap()[dest];
 
-                println!("Sending {:?} to {:?}", msg, dest);
+                info!("Sending {:?} to {:?}", msg, dest);
                 sink.clone()
                     .unbounded_send(msg.clone())
                     .expect("Failed to send");
@@ -95,7 +96,7 @@ impl Server {
             } else if dest == "sender" {
                 let (_, ref sink) = self.conns.lock().unwrap()[addr];
 
-                println!("Sending {:?} to {:?}", msg, addr);
+                info!("Sending {:?} to {:?}", msg, addr);
                 sink.clone()
                     .unbounded_send(msg.clone())
                     .expect("Failed to send");
@@ -105,7 +106,7 @@ impl Server {
                 let iter = conns.iter();
 
                 for (&dest, (_, sink)) in iter {
-                    println!("Sending {:?} to {:?}", msg, dest);
+                    info!("Sending {:?} to {:?}", msg, dest);
                     sink.clone()
                         .unbounded_send(msg.clone())
                         .expect("Failed to send");
@@ -176,20 +177,20 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
 
             // Register the connection
             let addr = conn.peer_addr().unwrap();
-            println!("New connection: {}", addr);
+            info!("New connection: {}", addr);
             parent.add_connection(addr, (tx, sink));
 
             // Split the connection into reader and writer
             // Maddeningly, `conn.split` produces `(reader, writer)`
             let (writer, reader) = Framed::new(conn).split();
-            let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|err| { println!("Sink Error: {:?}", err); });
+            let writer = WriteJson::<_, Value>::new(writer).sink_map_err(|err| { error!("Sink Error: {:?}", err); });
             let reader = ReadJson::<_, Value>::new(reader);
 
             // Define the reader action
             let mut read_state = parent.clone();
             let read_action = reader
                 .for_each(move |msg| read_state.handle_request(msg, &addr))
-                .map_err(|err| { println!("Read Error: {:?}", err); });
+                .map_err(|err| { error!("Read Error: {:?}", err); });
 
             // Define the writer action
             #[allow(unused_mut)]
@@ -198,7 +199,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 .map(move |msg| write_state.handle_response(msg, &addr))
                 .forward(writer)
                 .map(|_| ())
-                .map_err(|err| { println!("Write Error: {:?}", err); });
+                .map_err(|err| { error!("Write Error: {:?}", err); });
 
             // Combine the actions into one "packet" for registration with tokio
             let mut close_state = parent.clone();
@@ -212,7 +213,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             tokio::spawn(action);
             Ok(())
         })
-        .map_err(|err| println!("Server Error: {:?}", err));
+        .map_err(|err| error!("Server Error: {:?}", err));
 
     if let Some(paddr) = client.parent_addr {
         let client_conn = TcpStream::connect(&paddr)
@@ -260,7 +261,7 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
                 Ok(())
             })
             .map_err(|err| {
-                println!("Client error: {:?}", err)
+                error!("Client error: {:?}", err)
             });
 
         let action = server
