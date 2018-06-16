@@ -31,6 +31,7 @@ def launch_device(config):
     manager = config['manager']
     manager_exe = '{}/device-manager.exe'.format(manager['path'])
     del manager['path']
+    del manager['stdio-log']
     procs = [ spawn_with_args(manager_exe, manager)]
 
 

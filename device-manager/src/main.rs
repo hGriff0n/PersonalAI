@@ -5,6 +5,9 @@ extern crate tokio_serde_json;
 #[macro_use] extern crate serde_json;
 extern crate futures;
 extern crate clap;
+#[macro_use] extern crate log;
+extern crate fern;
+extern crate chrono;
 
 mod internal;
 mod comm;
@@ -16,6 +19,7 @@ mod comm;
 use std::net::SocketAddr;
 
 use clap::{App, Arg};
+use fern::colors::{Color, ColoredLevelConfig};
 
 // Figure out how to use futures 0.2.1 within this code
 // Improve this code to production quality
@@ -29,18 +33,16 @@ use clap::{App, Arg};
 // I'll also work on registering modalities with the python work
 
 fn main() {
-    // Parse the command line arguments
-    let args = App::new("Device Manager")
-        .version("0.1")
-        .author("Grayson Hooper <ghooper96@gmail.com>")
-        .about("Manages device state and communication")
-        .arg(Arg::with_name("addr")
-            .long("addr")
-            .value_name("IP")
-            .help("Listening port and address for the manager")
-            .takes_value(true))
-        .get_matches();
+    let args = get_command_args();
 
+    // Setup the logger
+    let log_level = args.value_of("log-level")
+        .unwrap_or("warn")
+        .parse::<log::LevelFilter>()
+        .unwrap();
+    setup_logging(log_level, args.is_present("stdio-log")).expect("Failed to initialize logging");
+
+    trace!("Logger setup properly");
 
     // Setup initial listener state
     let addr = args.value_of("addr")
@@ -48,6 +50,8 @@ fn main() {
         .parse::<SocketAddr>()
         .unwrap();
     let parent = None;
+
+    // TODO: Log all unmatched arguments (How do I do that?)
 
     // Create the server
     let server = internal::Server::new(parent);
@@ -57,6 +61,81 @@ fn main() {
 
     // Spawn up the server
     internal::spawn(server, addr);
+}
+
+
+    // Parse the command line arguments
+fn get_command_args<'a>() -> clap::ArgMatches<'a> {
+    App::new("Device Manager")
+        .version("0.1")
+        .author("Grayson Hooper <ghooper96@gmail.com>")
+        .about("Manages device state and communication")
+        .arg(Arg::with_name("addr")
+            .long("addr")
+            .value_name("IP")
+            .help("Listening port and address for the manager")
+            .takes_value(true))
+        .arg(Arg::with_name("log-level")
+            .long("log-level")
+            .value_name("LEVEL")
+            .help("Logging message output level")
+            .takes_value(true))
+        .arg(Arg::with_name("stdio-log")
+            .long("stdio-log")
+            .help("Control whether messages should be printed to stdout"))
+        .get_matches()
+}
+
+
+fn setup_logging(level: log::LevelFilter, io_logging: bool) -> Result<(), fern::InitError> {
+    let colors_line = ColoredLevelConfig::new()
+        .error(Color::Red)
+        .warn(Color::Yellow)
+        .info(Color::White)
+        .debug(Color::White)
+        .trace(Color::BrightBlack);
+
+    let colors_level = colors_line.clone().debug(Color::Green);
+
+    let file_logger = fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "[{date}][{target}:{line}][{level}] {message}",
+                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                target = record.file().unwrap_or("UNK"),
+                line = record.line().unwrap_or(0),
+                level = record.level(),
+                message = message,
+            ));
+        })
+        .chain(fern::log_file("device-manager.log")?);
+
+    let io_logger = fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{color_line}[{date}][{target}:{line}][{level}{color_line}] {message}\x1B[0m",
+                color_line = format_args!("\x1B[{}m", colors_line.get_color(&record.level()).to_fg_str()),
+                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                target = record.file().unwrap_or("UNK"),
+                line = record.line().unwrap_or(0),
+                level = colors_level.color(record.level()),
+                message = message,
+            ));
+        })
+        .chain(std::io::stdout());
+
+    let mut logger = fern::Dispatch::new()
+        .level(log::LevelFilter::Warn)
+        .level_for("device-manager", level)
+        .level_for("device_manager", level)
+        .chain(file_logger);
+
+    if io_logging {
+        logger = logger.chain(io_logger)
+    }
+
+    logger.apply()?;
+    Ok(())
 }
 
 // API Documentation:

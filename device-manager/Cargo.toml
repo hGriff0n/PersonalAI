@@ -11,3 +11,6 @@ futures = "0.1.21"
 tokio-io = "0.1.7"
 serde_json = "1.0.20"
 clap = "2.31.2"
+fern = { version = "0.5.5", features = ["colored"] }
+chrono = "0.4.3"
+log = "0.4.2"
