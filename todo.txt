@@ -6,13 +6,17 @@ Short Term:
       Check that it's not recognizing the AC
   Create script to start up everything to baseline level
     Remove the need to hardcode the plugin directory
-      This means adding arguments to plugins/etc. to take a base directory (gotten from config)
-  Adapt rust server to start taking arguments through the command line
-    I'm using clap-rs to produce the argument parser
-      Look at including the yaml dependency too (https://docs.rs/clap/2.31.2/clap/)
-      This would enable me to put the parser code into the same spot for rust and python
-        Python version: https://github.com/fmenabe/python-clg
-        NOTE: I want to produce valid args, not parse them (but I do for the plugins)
+      Add a plugin-dir argument to the launcher
+        Need to figure out how to layer the config parsers
+          Want to be able to run the launcher specific stuff first, then the plugin stuff
+            Could use positional arguments (ie. <launcher> --plugin-args <plugin>)
+  Add in config support to the server and apps
+    Utilize python-clg to produce a command parser for the plugin loader (https://github.com/fmenabe/python-clg)
+      Settle on the usage behavior (ie. how the user specifies the args the plugin supports)
+        Currently, the syntax is given through an `arg.yaml` file
+        NOTE: The file has to exist in the same directory as the python code
+      The loader will parse the arguments into a dictionary and provide it to the plugin
+        This package enables the loader to not care about what it's parsing
   Improve logging support
     Convert rust output to use logging instead
     Split logging for plugins into separate files
@@ -28,6 +32,10 @@ Short Term:
         In case the root path is not considered as such during app running
 
 Long Term:
+  Figure out how the device manager is supposed to act if I add in an AI node
+    I suppose in the final system, the AI node gets setup first, so the server addr exists
+    We can also use the udp broadcast system to handle this possibility
+      Would need to modify the launcher script to wait until the manager has found the server
   Switch over networking to use udp broadcasting to determine where the servers are
     I'm hardcoding the locations for now as that is simpler for my initial development
 // https://github.com/jholtmann/ip_discovery - can use this script during client startup

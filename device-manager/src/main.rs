@@ -1,8 +1,10 @@
+
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_serde_json;
 #[macro_use] extern crate serde_json;
 extern crate futures;
+extern crate clap;
 
 mod internal;
 mod comm;
@@ -11,14 +13,13 @@ mod comm;
 // Collecting and dispatching requests to the global server from modalities
 // While maintaining and handling system level state/operations
 
-use std::env;
 use std::net::SocketAddr;
+
+use clap::{App, Arg};
 
 // Figure out how to use futures 0.2.1 within this code
 // Improve this code to production quality
     // Handle/log errors
-    // Improve the config file situation
-        // Figure out how to split config files (to allow for spawning device-manager/system-manager from the same codebase)
     // Improve the process of abstracting server development
         // In case I want to be able to provide different server impls
             // I know how to do it, can't get the compiler to agree
@@ -28,10 +29,24 @@ use std::net::SocketAddr;
 // I'll also work on registering modalities with the python work
 
 fn main() {
-    // TODO: Grab server data from the command line parameters (using clap)
+    // Parse the command line arguments
+    let args = App::new("Device Manager")
+        .version("0.1")
+        .author("Grayson Hooper <ghooper96@gmail.com>")
+        .about("Manages device state and communication")
+        .arg(Arg::with_name("addr")
+            .long("addr")
+            .value_name("IP")
+            .help("Listening port and address for the manager")
+            .takes_value(true))
+        .get_matches();
+
 
     // Setup initial listener state
-    let addr = "127.0.0.1:6142".parse::<SocketAddr>().unwrap();
+    let addr = args.value_of("addr")
+        .unwrap_or("127.0.0.1:6142")
+        .parse::<SocketAddr>()
+        .unwrap();
     let parent = None;
 
     // Create the server
@@ -45,4 +60,6 @@ fn main() {
 }
 
 // API Documentation:
+//  tokio: https://github.com/tokio-rs/tokio
 //  tokio-serde-json: https://github.com/carllerche/tokio-serde-json
+//  clap: https://github.com/kbknapp/clap-rs
