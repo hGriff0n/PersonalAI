@@ -14,7 +14,7 @@ from wit import Wit
 
 
 class DispatchPlugin(Plugin):
-    def __init__(self):
+    def __init__(self, config=None):
         self.log = logger.create('dispatch.log')
         self.log.setLevel(logger.logging.INFO)
 

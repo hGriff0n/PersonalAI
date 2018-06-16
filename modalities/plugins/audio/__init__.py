@@ -47,7 +47,7 @@ songs = {
 }
 
 class AudioPlugin(Plugin):
-    def __init__(self):
+    def __init__(self, config=None):
         self.speaker = pyaudio.PyAudio()
         self.mic = sr.Microphone()
         self.voice = win32com.client.Dispatch('SAPI.SpVoice')

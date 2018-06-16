@@ -3,17 +3,7 @@
 Short Term:
   Create script to start up everything to baseline level
     Remove the need to hardcode the plugin directory
-      Add a plugin-dir argument to the launcher
-        Need to figure out how to layer the config parsers
-          Want to be able to run the launcher specific stuff first, then the plugin stuff
-            Could use positional arguments (ie. <launcher> --plugin-args <plugin>)
-  Add in config support to the plugin apps
-    Utilize python-clg to produce a command parser for the plugin loader (https://github.com/fmenabe/python-clg)
-      Settle on the usage behavior (ie. how the user specifies the args the plugin supports)
-        Currently, the syntax is given through an `cmd_args.yaml` file
-        NOTE: The file has to exist in the same directory as the python code
-      The loader will parse the arguments into a dictionary and provide it to the plugin
-        This package enables the loader to not care about what it's parsing
+      Add a plugin-dir argument to the launcher/loader
   Improve logging support
     Convert rust output to use logging instead
     Split logging for plugins into separate files

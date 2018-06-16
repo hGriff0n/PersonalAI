@@ -14,7 +14,7 @@ from plugins import Plugin
     # I should be able to "switch" out of input to print messages that are pilling up
 
 class CliPlugin(Plugin):
-    def __init__(self):
+    def __init__(self, config=None):
         self.msgs = []
         self.lock = threading.Lock()
 

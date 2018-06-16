@@ -9,6 +9,8 @@ import sys
 import threading
 import traceback
 
+import argparse
+
 from common import logger
 from common.msg import Message
 
@@ -75,15 +77,23 @@ def handshake(plugin, queue):
 if __name__ == "__main__":
     queue = queue.Queue()
 
-    # TODO: Add in command line arg handling
-    name = sys.argv[1]
+    # Parse the command line for the loader arguments
+    parser = argparse.ArgumentParser(description='Load personalai plugin')
+    parser.add_argument('plugin', nargs=1, help='plugin to load')
+    [loader_args, plugin_args] = parser.parse_known_args()
+    loader_args = vars(loader_args)
 
+
+    # Load the specified plugin
+    name = loader_args['plugin'][0]
 
     log = logger.create('loader.{}.log'.format(name))
     log.setLevel(logger.logging.INFO)
 
-    plugin = plugins.load(name, log=log)
+    plugin = plugins.load(name, log=log, args=plugin_args)
 
+
+    # Launch the plugin script
     host, port = '127.0.0.1', 6142
     sock = socket.socket()
 
