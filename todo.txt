@@ -1,22 +1,31 @@
 
 
 Short Term:
-  Get system communication working in a more ad-hoc way
-    Closing the scripts needs to stop the audio from playing
+  Closing the scripts needs to stop the audio from playing
+    Audio needs to stop sending a beep every second
+      Check that it's not recognizing the AC
   Create script to start up everything to baseline level
-    Utilize config system to determine what apps to start up
-      Develop config system and integrate it
-      Might be able to remove config system integration from individual apps then
-    Run the cli app "inline" if it is loaded (ie. transition into cli)
-      Only works if the rust server has actual logging support
-      Make sure that everything works even if the cli is not run
     Remove the need to hardcode the plugin directory
+      This means adding arguments to plugins/etc. to take a base directory (gotten from config)
+  Adapt rust server to start taking arguments through the command line
+    I'm using clap-rs to produce the argument parser
+      Look at including the yaml dependency too (https://docs.rs/clap/2.31.2/clap/)
+      This would enable me to put the parser code into the same spot for rust and python
+        Python version: https://github.com/fmenabe/python-clg
+        NOTE: I want to produce valid args, not parse them (but I do for the plugins)
   Improve logging support
-    Add logging to the rust server
+    Convert rust output to use logging instead
+    Split logging for plugins into separate files
+      The 'loader' stuff should not log to the plugin files
+    Log any received config options that are not used/recognized
   Improve code quality
     Improve performance (playing the music takes way too long)
     Fix various bugs and irregularities in the various plugins
     Harden up dispatch for unexpected inputs
+    Improve the pathing for the configuration files
+      Streamline the paths so they are always based on a common root
+      Then add in adjustment code to transform the relative paths for the app
+        In case the root path is not considered as such during app running
 
 Long Term:
   Switch over networking to use udp broadcasting to determine where the servers are
