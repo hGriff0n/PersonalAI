@@ -1,19 +1,16 @@
 
 
 Short Term:
-  Closing the scripts needs to stop the audio from playing
-    Audio needs to stop sending a beep every second
-      Check that it's not recognizing the AC
   Create script to start up everything to baseline level
     Remove the need to hardcode the plugin directory
       Add a plugin-dir argument to the launcher
         Need to figure out how to layer the config parsers
           Want to be able to run the launcher specific stuff first, then the plugin stuff
             Could use positional arguments (ie. <launcher> --plugin-args <plugin>)
-  Add in config support to the server and apps
+  Add in config support to the plugin apps
     Utilize python-clg to produce a command parser for the plugin loader (https://github.com/fmenabe/python-clg)
       Settle on the usage behavior (ie. how the user specifies the args the plugin supports)
-        Currently, the syntax is given through an `arg.yaml` file
+        Currently, the syntax is given through an `cmd_args.yaml` file
         NOTE: The file has to exist in the same directory as the python code
       The loader will parse the arguments into a dictionary and provide it to the plugin
         This package enables the loader to not care about what it's parsing
@@ -30,6 +27,7 @@ Short Term:
       Streamline the paths so they are always based on a common root
       Then add in adjustment code to transform the relative paths for the app
         In case the root path is not considered as such during app running
+  Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Long Term:
   Figure out how the device manager is supposed to act if I add in an AI node

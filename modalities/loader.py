@@ -42,6 +42,7 @@ def send_message(socket, msg):
     frame = struct.pack(">I", len(data))
     socket.sendall(frame + data)
 
+# NOTE: This function automatically finishes when the server drops the connection
 def reader(plugin, socket, queue):
     try:
         for msg in get_messages(socket):
@@ -54,6 +55,7 @@ def reader(plugin, socket, queue):
     finally:
         queue.put("quit")
 
+# NOTE: This function must decide to stop sending messages to the server
 def writer(socket, queue):
     try:
         while True:
@@ -69,9 +71,13 @@ def handshake(plugin, queue):
     log.info("INITATING HANDSHAKE")
     queue.put(Message({ 'action': 'handshake', 'hooks': plugin.get_hooks() }))
 
+
 if __name__ == "__main__":
     queue = queue.Queue()
+
+    # TODO: Add in command line arg handling
     name = sys.argv[1]
+
 
     log = logger.create('loader.{}.log'.format(name))
     log.setLevel(logger.logging.INFO)
@@ -91,15 +97,21 @@ if __name__ == "__main__":
     write_thread.start()
     read_thread.start()
 
-    # TODO: Need an automatic way of stopping the `run` method when the server shuts down
     handshake(plugin, queue)
     log.info("ENTERING {}".format(name))
 
     try:
-        plugin.run(queue)
+        # NOTE: This function doesn't directly interacting with anything outside of this program
+        # Therefore, we have to check whether we need to continue running outside of the function
+        while plugin.run(queue):
+            if not write_thread.is_alive() or not read_thread.is_alive():
+                log.info("Stopping because a thread has stopped")
+                break
 
     except:
         log.error("EXCEPTION: " + traceback.format_exc())
+
+    finally:
         queue.put("quit")
 
     write_thread.join()

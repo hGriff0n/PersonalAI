@@ -29,26 +29,24 @@ class CliPlugin(Plugin):
             self.msgs = []
 
     def run(self, queue):
-        while True:
-            with self.lock:
-                self._print_all()
+        with self.lock:
+            self._print_all()
 
-            query = input("> ")
-            if query == "":
-                self._print_all()
-                continue
+        query = input("> ")
+        if query == "":
+            self._print_all()
+            return True
 
-            if query == "quit":
-                self.log.info("STOPPING")
-                break
+        if query == "quit":
+            self.log.info("STOPPING")
+            return False
 
-            msg = Message(None)
-            msg.dispatch(query)
+        msg = Message(None)
+        msg.dispatch(query)
+        queue.put(msg)
+        self.log.info("SENT <{}>".format(msg))
 
-            queue.put(msg)
-            self.log.info("SENT <{}>".format(msg))
-
-        queue.put("quit")
+        return True
 
     def dispatch(self, msg, queue):
         if 'text' in msg:

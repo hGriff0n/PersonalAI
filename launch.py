@@ -14,7 +14,9 @@ def spawn_with_args(program, arg_dict, shell=None):
     if not isinstance(program, list):
         program = [ program ]
 
-    program.extend('--{}={}'.format(k, v) for k, v in arg_dict.items())
+    if arg_dict is not None:
+        program.extend('--{}={}'.format(k, v) for k, v in arg_dict.items())
+
     if shell is not None and shell:
         return Popen(program, shell=True)
 
@@ -31,7 +33,7 @@ def launch_device(config):
     manager = config['manager']
     manager_exe = '{}/device-manager.exe'.format(manager['path'])
     del manager['path']
-    del manager['stdio-log']
+    if 'stdio-log' in manager: del manager['stdio-log']
     procs = [ spawn_with_args(manager_exe, manager)]
 
 
@@ -46,14 +48,17 @@ def launch_device(config):
 
     # Spawn the cli plugin last cause this will "take over" the command line
     if len(cli) == 1:
-        spawn_plugin('cli', cli).wait()
-
-    print("Waiting for modalities")
-
+        spawn_plugin('cli', cli[0]).wait()
 
     # Wait for the modalities to finish running
-    for proc in procs:
-        proc.wait()
+    print("Waiting for modalities")
+    try:
+        for proc in procs:
+            proc.wait()
+
+    except KeyboardInterrupt:
+        for proc in procs:
+            proc.kill()
 
 
 def launch_ai_node(config):

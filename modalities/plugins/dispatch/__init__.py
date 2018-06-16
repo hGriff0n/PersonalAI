@@ -24,8 +24,7 @@ class DispatchPlugin(Plugin):
     # I don't think I actually do much here
     # We can't exit this loop properly
     def run(self, queue):
-        while True:
-            continue
+        return True
 
     def dispatch(self, msg, queue):
         if 'dispatch' in msg:

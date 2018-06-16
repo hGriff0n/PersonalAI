@@ -53,47 +53,45 @@ class AudioPlugin(Plugin):
         self.voice = win32com.client.Dispatch('SAPI.SpVoice')
         self.audio_control = threading.Lock()
 
+        self.played_beep = False
+
         self.log = logger.create('audio.log')
         self.log.setLevel(logger.logging.INFO)
+
+        rec = sr.Recognizer()
+        with self.mic as source:
+            rec.adjust_for_ambient_noise(source)
 
 
     def run(self, queue):
         rec = sr.Recognizer()
-        with self.audio_control:
-            with self.mic as source:
-                rec.adjust_for_ambient_noise(source)
-
-        played_beep = False
 
         with self.mic as source:
-            while True:
-                try:
-                    audio = None
+            try:
+                audio = None
 
-                    with self.audio_control:
-                        if not played_beep:
-                            self._play_song("data\\low_beep.mp3")
-                            played_beep = True
+                with self.audio_control:
+                    if not self.played_beep:
+                        self._play_song("data\\low_beep.mp3")
+                        self.played_beep = True
 
-                        audio = rec.listen(source, 1, None)
+                    audio = rec.listen(source, 1, None)
 
-                    query = rec.recognize_google(audio)
+                query = rec.recognize_google(audio)
 
-                except sr.WaitTimeoutError:
-                    continue
+            except sr.WaitTimeoutError:
+                return True
 
-                except sr.UnknownValueError:
-                    self.log.error("Couldn't recognize audio")
-                    played_beep = False
-                    continue
+            except sr.UnknownValueError:
+                self.log.error("Couldn't recognize audio")
+                return True
 
-                except Exception:
-                    raise
+            else:
+                self.log.info("HEARD <{}>".format(query))
+                self.send_message(query, queue)
+                self.played_beep = False
 
-                else:
-                    self.log.info("HEARD <{}>".format(query))
-                    self.send_message(query, queue)
-                    played_beep = False
+        return True
 
 
     def send_message(self, query, queue):
@@ -109,6 +107,7 @@ class AudioPlugin(Plugin):
                     if 'text' in msg:
                         self.voice.Speak(msg['text'])
                     self._play_song(songs[msg['play']])
+                self.played_beep = False
 
         elif 'text' in msg:
             with self.audio_control:

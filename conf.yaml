@@ -9,5 +9,6 @@ plugins:
 manager:
   path: device-manager/target/debug
   addr: 127.0.0.1:6142
+  log-level: debug
 
 plugin_dir: modalities/plugins

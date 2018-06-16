@@ -40,6 +40,8 @@ fn main() {
         .unwrap_or("warn")
         .parse::<log::LevelFilter>()
         .unwrap();
+
+    // TODO: Add the ability to set the log directory
     setup_logging(log_level, args.is_present("stdio-log")).expect("Failed to initialize logging");
 
     trace!("Logger setup properly");
@@ -51,13 +53,19 @@ fn main() {
         .unwrap();
     let parent = None;
 
+    trace!("Parsed addresses");
+
     // TODO: Log all unmatched arguments (How do I do that?)
 
     // Create the server
     let server = internal::Server::new(parent);
 
+    trace!("Created server");
+
     // TODO: Spawn any persistent system tools and register them with the server
         // Non-persistent tasks can be spawned by the server as needed (using tokio)
+
+    trace!("Spawned persistant tasks");
 
     // Spawn up the server
     internal::spawn(server, addr);
