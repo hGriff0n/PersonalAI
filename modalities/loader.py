@@ -79,7 +79,8 @@ if __name__ == "__main__":
 
     # Parse the command line for the loader arguments
     parser = argparse.ArgumentParser(description='Load personalai plugin')
-    parser.add_argument('plugin', nargs=1, help='plugin to load')
+    parser.add_argument('plugin', help='plugin to load')
+    parser.add_argument('--plugin-dir', type=str, help='location of plugins')
     [loader_args, plugin_args] = parser.parse_known_args()
     loader_args = vars(loader_args)
 
@@ -90,7 +91,7 @@ if __name__ == "__main__":
     log = logger.create('loader.{}.log'.format(name))
     log.setLevel(logger.logging.INFO)
 
-    plugin = plugins.load(name, log=log, args=plugin_args)
+    plugin = plugins.load(name, log=log, args=plugin_args, _dir=loader_args['plugin_dir'])
 
 
     # Launch the plugin script

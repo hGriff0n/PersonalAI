@@ -1,5 +1,3 @@
-
-
 plugins:
   audio:
     data: modalities/data

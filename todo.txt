@@ -1,11 +1,7 @@
 
 
 Short Term:
-  Create script to start up everything to baseline level
-    Remove the need to hardcode the plugin directory
-      Add a plugin-dir argument to the launcher/loader
   Improve logging support
-    Convert rust output to use logging instead
     Split logging for plugins into separate files
       The 'loader' stuff should not log to the plugin files
     Log any received config options that are not used/recognized
@@ -13,6 +9,7 @@ Short Term:
     Improve performance (playing the music takes way too long)
     Fix various bugs and irregularities in the various plugins
     Harden up dispatch for unexpected inputs
+      Get "quit" to work in dispatch
     Improve the pathing for the configuration files
       Streamline the paths so they are always based on a common root
       Then add in adjustment code to transform the relative paths for the app
