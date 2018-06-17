@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
+import logging
 import threading
 
-from common import logger
 from common.msg import Message
 from plugins import Plugin
 
@@ -13,12 +13,12 @@ from plugins import Plugin
     # I should be able to "switch" out of input to print messages that are pilling up
 
 class CliPlugin(Plugin):
-    def __init__(self, config=None):
+    def __init__(self, logger, config=None):
         self.msgs = []
         self.lock = threading.Lock()
 
-        self.log = logger.create('cli.log')
-        self.log.setLevel(logger.logging.INFO)
+        self.log = logger
+        self.log.setLevel(logging.INFO)
 
     def _print_all(self):
         if len(self.msgs) != 0:

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
+import logging
 import threading
 
 from wit import Wit
 
-from common import logger
 from common.msg import Message
 from plugins import Plugin
 
@@ -14,9 +14,9 @@ from plugins import Plugin
 
 
 class DispatchPlugin(Plugin):
-    def __init__(self, config=None):
-        self.log = logger.create('dispatch.log')
-        self.log.setLevel(logger.logging.INFO)
+    def __init__(self, logger, config=None):
+        self.log = logger
+        self.log.setLevel(logging.INFO)
 
         self.client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=self.log)
         return

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import threading
 
-from common import logger
 from common.msg import Message
 from plugins import Plugin
 
@@ -45,7 +45,7 @@ songs = {
 }
 
 class AudioPlugin(Plugin):
-    def __init__(self, config=None):
+    def __init__(self, logger, config=None):
         self.speaker = pyaudio.PyAudio()
         self.mic = sr.Microphone()
         self.voice = win32com.client.Dispatch('SAPI.SpVoice')
@@ -53,8 +53,8 @@ class AudioPlugin(Plugin):
 
         self.played_beep = False
 
-        self.log = logger.create('audio.log')
-        self.log.setLevel(logger.logging.INFO)
+        self.log = logger
+        self.log.setLevel(logging.INFO)
 
         rec = sr.Recognizer()
         with self.mic as source:

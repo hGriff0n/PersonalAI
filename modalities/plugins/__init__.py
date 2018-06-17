@@ -7,9 +7,12 @@ import os
 import clg
 import yaml
 
+from common import logger
+
 
 loaded_plugin = None
 plugin_config_args = None
+plugin_loger = None
 
 
 class Plugin:
@@ -20,7 +23,8 @@ class Plugin:
         super().__init_subclass__(**kwargs)
 
         global loaded_plugin
-        loaded_plugin = cls(plugin_config_args)
+        global plugin_logger
+        loaded_plugin = cls(plugin_logger, plugin_config_args)
 
     @abc.abstractmethod
     def run(self, queue):
@@ -67,13 +71,18 @@ class Plugin:
         return []
 
 
-def load(desired_plugin, log=None, args=None, _dir=None):
+def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     # Make sure the plugin exists
     if _dir is None: _dir = r"C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins"
     location = os.path.join(_dir, desired_plugin)
     if not os.path.isdir(location) or not "__init__.py" in os.listdir(location):
         if log is not None: log.info("Could not find plugin {}".format(desired_plugin))
         return None
+
+    # Create the plugin's logger
+    global plugin_logger
+    plugin_logger = logger.create('loader.log', name='__loader__', log_dir=log_dir)
+    log.setLevel(logger.logging.INFO)
 
     # Load the command parser
     if args is None: args = []

@@ -16,8 +16,6 @@ from common.msg import Message
 
 log = None
 
-# TODO: Setting the log directory should also affect the plugin logger
-    # Basically we need to create the logger for the user
 
 # Wrap server communication to automatically handle framing (as required by the Rust server)
 def get_messages(socket):
@@ -97,7 +95,7 @@ if __name__ == "__main__":
     log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'])
     log.setLevel(logger.logging.INFO)
 
-    plugin = plugins.load(name, log=log, args=plugin_args, _dir=loader_args['plugin_dir'])
+    plugin = plugins.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
     if plugin is None:
         log.error("Couldn't load plugin {}".format(name))
         exit()
