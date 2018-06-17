@@ -1,18 +1,20 @@
 
+# Text/log files
+*.log
+resources.txt
+
+
+# Python files
+*/__pycache__/
+*.pyc
 test\.py
 
-*.log
 
-apps/common/__pycache__/
-
+# Test data files
 data/Magnet.mp3
 data/*.m4a
 
+
+# Cargo/Rust files
 *.lock
 */target/
-
-modalities/__pycache__/
-
-modalities/plugins/cli/__pycache__/
-
-*.pyc

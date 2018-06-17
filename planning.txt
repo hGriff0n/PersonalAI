@@ -5,16 +5,6 @@ Finished:
   Basic text-to-speech
 
 Steps:
-  Get basic text-to-action nlp working
-    Figure out how to organize wit.ai training
-      Not sure about whether to group everything into the 'intent' entity or to make unique entities
-      'intent' seems to help for having multiple entities in one query
-    Figure out how to have multiple entities within one query
-  Develop cli app to the same "work-level" as the audio app
-  Develop server/app architecture
-    Look at developing core server engine in rust
-    Farm out app and tool development to python
-      How are the "actions" going to be handled (they should be apps in their own right)
   Set aside some time to learn how to perform speech recognition/nlp stuff on my own
 
 Issues:
