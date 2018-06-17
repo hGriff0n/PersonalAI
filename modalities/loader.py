@@ -88,13 +88,13 @@ if __name__ == "__main__":
     # Load the specified plugin
     name = loader_args['plugin'][0]
 
-    log = logger.create('loader.{}.log'.format(name))
+    log = logger.create('loader.log', name='__loader__')
     log.setLevel(logger.logging.INFO)
 
     plugin = plugins.load(name, log=log, args=plugin_args, _dir=loader_args['plugin_dir'])
 
 
-    # Launch the plugin script
+    # Launch the networking threads (for communicating with the device manager)
     host, port = '127.0.0.1', 6142
     sock = socket.socket()
 
@@ -108,11 +108,12 @@ if __name__ == "__main__":
     write_thread.start()
     read_thread.start()
 
+
+    # Run the selected plugin
     handshake(plugin, queue)
-    log.info("ENTERING {}".format(name))
 
     try:
-        # NOTE: This function doesn't directly interacting with anything outside of this program
+        # NOTE: This function doesn't directly interact with anything outside of this program
         # Therefore, we have to check whether we need to continue running outside of the function
         while plugin.run(queue):
             if not write_thread.is_alive() or not read_thread.is_alive():

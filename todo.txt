@@ -1,10 +1,6 @@
 
 
 Short Term:
-  Improve logging support
-    Split logging for plugins into separate files
-      The 'loader' stuff should not log to the plugin files
-    Log any received config options that are not used/recognized
   Improve code quality
     Improve performance (playing the music takes way too long)
     Fix various bugs and irregularities in the various plugins
@@ -15,6 +11,13 @@ Short Term:
       Then add in adjustment code to transform the relative paths for the app
         In case the root path is not considered as such during app running
   Find a way to press ctrl-c in cli app and have it raise in parent app
+
+Produce a short video of the project
+
+Medium Term:
+  Move file location to the server
+    Convert music selection to using the server data
+    Move out of hardcoding the music files
 
 Long Term:
   Figure out how the device manager is supposed to act if I add in an AI node
