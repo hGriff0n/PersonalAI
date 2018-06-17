@@ -1,6 +1,7 @@
 
 
 Short Term:
+  Create the logger for the user
   Improve code quality
     Improve performance (playing the music takes way too long)
     Provide a static method in 'Message' that produces a "quit" Message

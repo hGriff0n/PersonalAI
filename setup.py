@@ -16,7 +16,7 @@
 #     dependency_links=[
 #         'https://github.com/DeepHorizons/tts/tarball/master#egg=package-1.0'
 #     ],
-#     include_package_data=True,
+#     include_package_data=True
 # )
 
 from os import system
@@ -28,10 +28,13 @@ requires = [
     'SpeechRecognition',
     'pywin32',
     'pydub',
+    'clg',
+    'yaml',
+    'anyconfig',
     'git+https://github.com/DeepHorizons/tts'  # This seems to be broken in python 3.6+
 ]
 
 for package in requires:
-    system("pip install {}".format(package))
+    system("pip install {} --user".format(package))
 
 print("Be sure to install libav or ffmpeg for pydub to work on non-wav files")
