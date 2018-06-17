@@ -31,6 +31,10 @@ class Message(MutableMapping):
     def finalize(self):
         return self.msg
 
+    @staticmethod
+    def quit():
+        return "quit"
+
 
     def __str__(self):
         return str(self.msg)

@@ -1,12 +1,13 @@
 plugins:
   audio:
-    data: modalities/data
+    data: C:\Users\ghoop\Desktop\PersonalAI\modalities\data
   cli:
   dispatch:
 
 manager:
-  path: device-manager/target/debug
+  path: C:\Users\ghoop\Desktop\PersonalAI\device-manager\target\debug\device-manager.exe
   addr: 127.0.0.1:6142
   log-level: debug
 
-plugin_dir: modalities/plugins
+plugin_dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
+loader:  C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py

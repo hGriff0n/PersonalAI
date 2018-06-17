@@ -21,24 +21,24 @@ class DispatchPlugin(Plugin):
         self.client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=self.log)
         return
 
-    # I don't think I actually do much here
-    # We can't exit this loop properly
     def run(self, queue):
         return True
 
     def dispatch(self, msg, queue):
+        if 'stop' in msg and msg['stop']:
+            queue.put(Message.quit())
+            return False
+
         if 'dispatch' in msg:
             msg['dispatch'] = self.client.message(msg['dispatch'])
             self.log.info("MSG <{}>".format(msg['dispatch']))
             self.perform_dispatch(msg, queue)
-            return
 
-        if 'stop' in msg and msg['stop']:
-            queue.put('quit')
-            return
+        else:
+            self.log.info("Received unusable json communication")
+            self.log.info("COMM <{}>".format(msg))
 
-        self.log.info("Received unusable json communication")
-        self.log.info("COMM <{}>".format(msg))
+        return True
 
     def perform_dispatch(self, msg, queue):
         quest = msg['dispatch']['entities']
@@ -84,7 +84,6 @@ class DispatchPlugin(Plugin):
             answer.message("Goodbye")
             answer.action('bye')
             answer['stop'] = True
-            # queue.put("quit")
 
         else:
             self.log.info("Unknown action")

@@ -24,14 +24,16 @@ def spawn_with_args(program, arg_dict, shell=None):
 
 # Wrapper for simplifying plugin spawning
 # Also automatically special cases the shell to only spawn for the cli plugin
-def spawn_plugin(plugin, arg_dict):
-    return spawn_with_args(['python', 'modalities/loader.py', plugin], arg_dict, plugin == 'cli')
+def spawn_plugin(plugin, arg_dict, loader=None):
+    if loader is None:
+        loader = 'modalities/loader.py'
+    return spawn_with_args(['python', loader, plugin], arg_dict, plugin == 'cli')
 
 
 def launch_device(config):
     # Launch the device manager
     manager = config['manager']
-    manager_exe = '{}/device-manager.exe'.format(manager['path'])
+    manager_exe = manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
     procs = [ spawn_with_args(manager_exe, manager)]
@@ -44,11 +46,11 @@ def launch_device(config):
 
     # Launch all plugins
     for name, plugin in plugins.items():
-        procs.append(spawn_plugin(name, plugin))
+        procs.append(spawn_plugin(name, plugin, loader=config['loader']))
 
     # Spawn the cli plugin last cause this will "take over" the command line
     if len(cli) == 1:
-        spawn_plugin('cli', cli[0]).wait()
+        spawn_plugin('cli', cli[0], loader=config['loader']).wait()
 
     # Wait for the modalities to finish running
     print("Waiting for modalities")

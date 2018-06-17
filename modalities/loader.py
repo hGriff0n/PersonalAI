@@ -47,14 +47,16 @@ def reader(plugin, socket, queue):
     try:
         for msg in get_messages(socket):
             log.info("RECEIVED <{}>".format(msg))
+            if msg['action'] == Message.quit():
+                break
+
             if not plugin.dispatch(msg, queue):
+                queue.put(Message.quit())
                 break
 
     except:
         log.error("EXCEPTION: " + traceback.format_exc())
-
-    finally:
-        queue.put("quit")
+        queue.put(Message.quit())
 
 
 # NOTE: This function must decide to stop sending messages to the server
@@ -62,11 +64,12 @@ def writer(socket, queue):
     try:
         while True:
             msg = queue.get()
-            if msg == 'quit': break
+            if msg == Message.quit(): break
             send_message(socket, msg)
 
     finally:
-        send_message(socket, Message({ 'action': 'quit' }))
+        # NOTE: The server quit message is different from the internal quit message
+        send_message(socket, Message({ 'action': 'quit', 'routing': 'broadcast', 'stop': True }))
 
 
 # Send the initial handshake information for the server
@@ -131,7 +134,7 @@ if __name__ == "__main__":
         log.error("EXCEPTION: " + traceback.format_exc())
 
     finally:
-        queue.put("quit")
+        queue.put(Message.quit())
 
     write_thread.join()
     read_thread.join()

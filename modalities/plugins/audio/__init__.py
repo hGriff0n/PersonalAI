@@ -73,16 +73,15 @@ class AudioPlugin(Plugin):
                         self._play_song("data\\low_beep.mp3")
                         self.played_beep = True
 
-                    audio = rec.listen(source, 0.5, None)
+                    audio = rec.listen(source, 0.4, None)
 
                 query = rec.recognize_google(audio)
 
             except sr.WaitTimeoutError:
-                return True
+                ()
 
             except sr.UnknownValueError:
                 self.log.error("Couldn't recognize audio")
-                return True
 
             else:
                 self.log.info("HEARD <{}>".format(query))
@@ -112,7 +111,8 @@ class AudioPlugin(Plugin):
                 self.voice.Speak(msg['text'])
 
         # if msg['stop']:
-        #     queue.put("quit")
+        #     queue.put(Message.quit())
+        return True
 
 
     def _play_song(self, song):

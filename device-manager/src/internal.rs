@@ -51,7 +51,7 @@ impl Server {
             Some("quit") => {
                 let mut conns = self.conns.lock().unwrap();
                 conns[&addr].0.send(()).expect("Failed to close connection");
-                return Ok(());
+                // return Ok(());
             },
             // Some("copy") => {
             //     tasks::CopyAction::new(self, addr).spawn(msg);
@@ -73,13 +73,13 @@ impl Server {
                 // Send the ACK message to the creating app
                 if let Some(sender) = sender_addr {
                     if *dest != sender {
-                        let mut new_msg = json!({ "from": sender, "routing": "sender" });
+                        let mut new_msg = json!({ "from": sender, "routing": "sender" , "action": "ack" });
                         new_msg["text"] = msg["text"].take();
                         new_msg["stop"] = msg["stop"].clone();
 
                         let (_, ref sink) = self.conns.lock().unwrap()[&sender];
 
-                        info!("Sending {:?} to {:?}", new_msg, sender);
+                        info!("Acking {:?} to {:?}", new_msg, sender);
                         sink.clone()
                             .unbounded_send(new_msg)
                             .expect("Failed to send");
@@ -96,7 +96,7 @@ impl Server {
             } else if dest == "sender" {
                 let (_, ref sink) = self.conns.lock().unwrap()[addr];
 
-                info!("Sending {:?} to {:?}", msg, addr);
+                info!("Responding {:?} to {:?}", msg, addr);
                 sink.clone()
                     .unbounded_send(msg.clone())
                     .expect("Failed to send");
@@ -106,10 +106,12 @@ impl Server {
                 let iter = conns.iter();
 
                 for (&dest, (_, sink)) in iter {
-                    info!("Sending {:?} to {:?}", msg, dest);
-                    sink.clone()
-                        .unbounded_send(msg.clone())
-                        .expect("Failed to send");
+                    if dest != *addr {
+                        info!("Broadcasting {:?} to {:?}", msg, dest);
+                        sink.clone()
+                            .unbounded_send(msg.clone())
+                            .expect("Failed to send");
+                    }
                 }
             }
         }

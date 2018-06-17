@@ -1,17 +1,13 @@
 
 
 Short Term:
-  Improve code quality
-    Improve performance (playing the music takes way too long)
-    Provide a static method in 'Message' that produces a "quit" Message
-      Change loader to match against this message to determine quitting
-        Or I could just have the method return "quit" (or do both)
-    Harden up dispatch for unexpected inputs
-      Get "quit" to work in dispatch
-    Improve the pathing for the configuration files
-      Streamline the paths so they are always based on a common root
-      Then add in adjustment code to transform the relative paths for the app
-        In case the root path is not considered as such during app running
+  Get 'quit' to work (wit isn't recognizing it properly)
+    The dispatch app and the server keep running way too long
+      There's an issue with the quit dispatch getting thrown around too casually
+    I think the server has no conception of "shutting down" yet
+  Improve the logging support with split files
+    Putting all the loader stuff into one file slightly hurts the ability to debug the plugins
+      The split is great for debugging plugin-specific code though (keep it)
   Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project

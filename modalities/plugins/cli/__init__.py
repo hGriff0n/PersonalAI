@@ -40,7 +40,7 @@ class CliPlugin(Plugin):
             self.log.info("STOPPING")
             return False
 
-        msg = Message(None)
+        msg = Message('cli')
         msg.dispatch(query)
         queue.put(msg)
         self.log.info("SENT <{}>".format(msg))

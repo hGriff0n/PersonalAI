@@ -41,8 +41,11 @@ fn main() {
         .parse::<log::LevelFilter>()
         .unwrap();
 
+    let log_dir = args.value_of("log-dir")
+        .unwrap_or("./log");
+
     // TODO: Add the ability to set the log directory
-    setup_logging(log_level, args.is_present("stdio-log")).expect("Failed to initialize logging");
+    setup_logging(log_level, log_dir, args.is_present("stdio-log")).expect("Failed to initialize logging");
 
     trace!("Logger setup properly");
 
@@ -91,11 +94,16 @@ fn get_command_args<'a>() -> clap::ArgMatches<'a> {
         .arg(Arg::with_name("stdio-log")
             .long("stdio-log")
             .help("Control whether messages should be printed to stdout"))
+        .arg(Arg::with_name("log-dir")
+            .long("log-dir")
+            .help("Log directory location")
+            .value_name("DIR")
+            .takes_value(true))
         .get_matches()
 }
 
 
-fn setup_logging(level: log::LevelFilter, io_logging: bool) -> Result<(), fern::InitError> {
+fn setup_logging<'a>(level: log::LevelFilter, log_dir: &'a str, io_logging: bool) -> Result<(), fern::InitError> {
     let colors_line = ColoredLevelConfig::new()
         .error(Color::Red)
         .warn(Color::Yellow)
@@ -116,7 +124,7 @@ fn setup_logging(level: log::LevelFilter, io_logging: bool) -> Result<(), fern::
                 message = message,
             ));
         })
-        .chain(fern::log_file("device-manager.log")?);
+        .chain(fern::log_file(format!("{}/device-manager.log", log_dir))?);
 
     let io_logger = fern::Dispatch::new()
         .format(move |out, message, record| {
