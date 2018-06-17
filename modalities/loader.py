@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import plugins
 import queue
@@ -9,18 +10,15 @@ import sys
 import threading
 import traceback
 
-import argparse
-
 from common import logger
 from common.msg import Message
 
+
 log = None
 
-# TODO: Add in config support
-    # Enable specifying the host, port, and log directory
-# TODO: Closing the server should close this as well
+# TODO: Setting the log directory should also affect the plugin logger
 
-
+# Wrap server communication to automatically handle framing (as required by the Rust server)
 def get_messages(socket):
     try:
         while True:
@@ -44,18 +42,21 @@ def send_message(socket, msg):
     frame = struct.pack(">I", len(data))
     socket.sendall(frame + data)
 
+
 # NOTE: This function automatically finishes when the server drops the connection
 def reader(plugin, socket, queue):
     try:
         for msg in get_messages(socket):
             log.info("RECEIVED <{}>".format(msg))
-            plugin.dispatch(msg, queue)
+            if not plugin.dispatch(msg, queue):
+                break
 
     except:
         log.error("EXCEPTION: " + traceback.format_exc())
 
     finally:
         queue.put("quit")
+
 
 # NOTE: This function must decide to stop sending messages to the server
 def writer(socket, queue):
@@ -68,6 +69,7 @@ def writer(socket, queue):
     finally:
         send_message(socket, Message({ 'action': 'quit' }))
 
+
 # Send the initial handshake information for the server
 def handshake(plugin, queue):
     log.info("INITATING HANDSHAKE")
@@ -79,8 +81,11 @@ if __name__ == "__main__":
 
     # Parse the command line for the loader arguments
     parser = argparse.ArgumentParser(description='Load personalai plugin')
-    parser.add_argument('plugin', help='plugin to load')
+    parser.add_argument('plugin', type=str, nargs=1, help='plugin to load')
     parser.add_argument('--plugin-dir', type=str, help='location of plugins')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='ip address of the host server')
+    parser.add_argument('--port', default=6142, help='port that the server is listening on')
+    parser.add_argument('--log-dir', type=str, default='.', help='location to write log files')
     [loader_args, plugin_args] = parser.parse_known_args()
     loader_args = vars(loader_args)
 
@@ -88,14 +93,17 @@ if __name__ == "__main__":
     # Load the specified plugin
     name = loader_args['plugin'][0]
 
-    log = logger.create('loader.log', name='__loader__')
+    log = logger.create('{}/loader.log'.format(loader_args['log_dir']), name='__loader__')
     log.setLevel(logger.logging.INFO)
 
     plugin = plugins.load(name, log=log, args=plugin_args, _dir=loader_args['plugin_dir'])
+    if plugin is None:
+        log.error("Couldn't load plugin {}".format(name))
+        exit()
 
 
     # Launch the networking threads (for communicating with the device manager)
-    host, port = '127.0.0.1', 6142
+    host, port = loader_args['host'], loader_args['port']
     sock = socket.socket()
 
     log.info("Attempting to connect to {}:{}".format(host, port))
@@ -109,7 +117,7 @@ if __name__ == "__main__":
     read_thread.start()
 
 
-    # Run the selected plugin
+    # Run the plugin
     handshake(plugin, queue)
 
     try:
@@ -129,3 +137,5 @@ if __name__ == "__main__":
     write_thread.join()
     read_thread.join()
     sock.close()
+
+# API Documentation:

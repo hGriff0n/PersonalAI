@@ -3,7 +3,9 @@
 Short Term:
   Improve code quality
     Improve performance (playing the music takes way too long)
-    Fix various bugs and irregularities in the various plugins
+    Provide a static method in 'Message' that produces a "quit" Message
+      Change loader to match against this message to determine quitting
+        Or I could just have the method return "quit" (or do both)
     Harden up dispatch for unexpected inputs
       Get "quit" to work in dispatch
     Improve the pathing for the configuration files

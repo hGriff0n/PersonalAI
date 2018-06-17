@@ -6,8 +6,7 @@ from common import logger
 from common.msg import Message
 from plugins import Plugin
 
-# TODO: Change the logger so that I can log to separate files if I want
-    # Look at moving the logger into the 'Plugin' class
+# TODO: Look at moving the logger into the 'Plugin' class
 # TODO: Implement a time-keeping system
     # We probably shouldn't print messages that are too out of date
 # TODO: Implement periodic "polling" of the input loop
@@ -59,8 +58,4 @@ class CliPlugin(Plugin):
     def get_hooks(self):
         return [ 'cli' ]
 
-# Issues with the current framework
-    # I can't exactly spawn plugins at runtime (current architecture focused on one plugin per process)
-        # Not an issue persay, it works for me but it's not generally how plugins are viewed
-        # Honestly, each modality is a plugin for the rust device manager, why do i need the extra level of indirection?
-    # Where would logging statements get sent?
+# API Documentation:

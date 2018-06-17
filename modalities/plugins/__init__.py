@@ -7,14 +7,15 @@ import os
 import clg
 import yaml
 
-# TODO: Look at having methods to create messages
-    # Would be helpful as communication gets more complicated to setup record-keeping details
 
 loaded_plugin = None
 plugin_config_args = None
 
+
 class Plugin:
-    """Base class for all plugins. Singleton instances of subclasses are created automatically and stored in Plugin.plugins class field."""
+    """
+    Base class for all plugins. Singleton instances of subclasses are created automatically by loader.py
+    """
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -23,15 +24,46 @@ class Plugin:
 
     @abc.abstractmethod
     def run(self, queue):
-        """Direct interfacing method for running the basic plugin"""
-        pass
+        """
+        Direct interfacing methdod for running the basic plugin behavior.
+
+        NOTE: Plugins must implement this method as a single pass returning a boolean
+        They should not handle "continuous" running, the loading framework handles this for them
+        This is implemented so that the plugin does not hang if the server connection
+        Is closed, but that fact is communicated (or used) properly within this method
+
+        :param self:
+        :param queue: Communication queue for sending server messages
+            NOTE: Use the `Message` package to place messages onto this queue (or "quit" for ending)
+            NOTE: Do not read from the queue (messages are automatically popped by the writer thread)
+        :returns: A boolean value indicating whether to continue running the plugin or not
+        """
+        return True
 
     def dispatch(self, msg, queue):
-        """Secondary method for sending messages to the plugin"""
+        """
+        Callback that is invoked for every message that the plugin receives from the connected server
+
+        NOTE: Plugins must implement this message as a single pass, otherwise the reading thread hangs
+
+        :param self:
+        :param msg: Json message that was received from the server
+        :param queue: Communication queue for sending server messages
+            NOTE: Use the `Message` package to place messages onto this queue (or "quit" for ending)
+            NOTE: Do not read from the queue (messages are automatically popped by the writer thread)
+        :returns: A boolean value indicating whether to continue reading from the server
+        """
         return True
 
     def get_hooks(self):
-        """Method used for determining what capabilities the plugin supports (for system communication)"""
+        """
+        Method used for determining what capabilities the plugin supports
+
+        NOTE: This method will change a lot in the near future
+
+        :param self:
+        :returns: A list indicating the subscribed "modalities" that this plugin provides
+        """
         return []
 
 
@@ -58,3 +90,6 @@ def load(desired_plugin, log=None, args=None, _dir=None):
     log.info("Loaded plugin {}".format(desired_plugin))
 
     return loaded_plugin
+
+# API Documentation:
+#   python-clg: https://github.com/fmenabe/python-clg

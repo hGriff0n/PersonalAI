@@ -17,14 +17,12 @@ import pyaudio
 from pydub import AudioSegment
 from pydub.utils import make_chunks
 
-# Short term dev work
-# TODO: Improve shutdown when the server stops ("run" doesn't quit)
-    # Can't quit out of running audio sample
-
 # Long term dev work
 # TODO: Improve interactivity of AI
 #   Work on modifying the beep tone to be more "pleasant" (its too loud for one)
 #   Work on making the voice a bit louder (I can't hear it)
+#   Move resetting the 'play_beep' code to the dispatch app
+#     We can still accept input before then, but this should eliminate some annoyance with using the plugin to play music
 # TODO: Implement a database (or something) to track all local music files
 #   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
 #     NOTE: This may be handled by server not dispatching "play" events to the cli app (in which case I need to rework the control flow of this app)
@@ -75,7 +73,7 @@ class AudioPlugin(Plugin):
                         self._play_song("data\\low_beep.mp3")
                         self.played_beep = True
 
-                    audio = rec.listen(source, 1, None)
+                    audio = rec.listen(source, 0.5, None)
 
                 query = rec.recognize_google(audio)
 
