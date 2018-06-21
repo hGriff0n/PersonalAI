@@ -5,9 +5,6 @@ Short Term:
     The dispatch app and the server keep running way too long
       There's an issue with the quit dispatch getting thrown around too casually
     I think the server has no conception of "shutting down" yet
-  Improve the logging support with split files
-    Putting all the loader stuff into one file slightly hurts the ability to debug the plugins
-      The split is great for debugging plugin-specific code though (keep it)
   Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project

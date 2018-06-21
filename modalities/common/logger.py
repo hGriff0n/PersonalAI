@@ -2,12 +2,13 @@
 
 import logging
 
-def create(file, name=None, log_dir=None):
+def create(file, name=None, log_dir=None, fmt=None):
     if name is None: name = __name__
     if log_dir is None: log_dir = '.'
 
     hdlr = logging.FileHandler("{}/{}".format(log_dir, file))
-    fmt = logging.Formatter('%(asctime)s <%(levelname)s> %(message)s')
+    if fmt is None: fmt = "%(asctime)s <%(levelname)s> %(message)s"
+    fmt = logging.Formatter(fmt)
     hdlr.setFormatter(fmt)
 
     logger = logging.getLogger(name)

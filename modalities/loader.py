@@ -95,7 +95,7 @@ if __name__ == "__main__":
     # Load the specified plugin
     name = loader_args['plugin'][0]
 
-    log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'])
+    log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
     log.setLevel(logger.logging.INFO)
 
     plugin = plugins.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
