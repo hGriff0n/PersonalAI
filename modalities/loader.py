@@ -13,9 +13,7 @@ import traceback
 from common import logger
 from common.msg import Message
 
-
 log = None
-
 
 # Wrap server communication to automatically handle framing (as required by the Rust server)
 def get_messages(socket):
@@ -47,11 +45,16 @@ def reader(plugin, socket, queue):
     try:
         for msg in get_messages(socket):
             log.info("RECEIVED <{}>".format(msg))
+
+            # Handle quitting from the server
             if msg['action'] == Message.quit():
                 break
 
-            if not plugin.dispatch(msg, queue):
-                queue.put(Message.quit())
+            # Try to dispatch the received message
+            # TODO: Adapt to allow for signifying 'stop' or 'quit'
+            keep_alive = plugin.dispatch(msg, queue)
+            if Message.is_quit(keep_alive):
+                queue.put(keep_alive)
                 break
 
     except:
@@ -64,12 +67,17 @@ def writer(socket, queue):
     try:
         while True:
             msg = queue.get()
-            if msg == Message.quit(): break
+
+            # Handle quit through the user plugin
+            if Message.is_quit(msg):
+                break
+
             send_message(socket, msg)
 
     finally:
-        # NOTE: The server quit message is different from the internal quit message
-        send_message(socket, Message({ 'action': 'quit', 'routing': 'broadcast', 'stop': True }))
+        if msg != Message.stop():
+            send_message(socket, Message({ 'action': 'quit', 'routing': 'broadcast', 'stop': True }))
+
 
 
 # Send the initial handshake information for the server
@@ -134,7 +142,8 @@ if __name__ == "__main__":
         log.error("EXCEPTION: " + traceback.format_exc())
 
     finally:
-        queue.put(Message.quit())
+        queue.put(Message.stop())
+        send_message(sock, Message({ 'action': 'stop' }))
 
     write_thread.join()
     read_thread.join()

@@ -26,8 +26,7 @@ class DispatchPlugin(Plugin):
 
     def dispatch(self, msg, queue):
         if 'stop' in msg and msg['stop']:
-            queue.put(Message.quit())
-            return False
+            return Message.stop()
 
         if 'dispatch' in msg:
             msg['dispatch'] = self.client.message(msg['dispatch'])
@@ -38,7 +37,7 @@ class DispatchPlugin(Plugin):
             self.log.info("Received unusable json communication")
             self.log.info("COMM <{}>".format(msg))
 
-        return True
+        return ""
 
     def perform_dispatch(self, msg, queue):
         quest = msg['dispatch']['entities']

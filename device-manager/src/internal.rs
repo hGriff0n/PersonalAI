@@ -24,6 +24,7 @@ pub struct Server {
     conns: Arc<Mutex<HashMap<SocketAddr, Signals>>>,
     mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
     parent_addr: Option<SocketAddr>,
+    is_shutdown: bool
 }
 
 impl Server {
@@ -31,7 +32,8 @@ impl Server {
         Self{
             conns: Arc::new(Mutex::new(HashMap::new())),
             mapping: Arc::new(Mutex::new(HashMap::new())),
-            parent_addr: parent_addr
+            parent_addr: parent_addr,
+            is_shutdown: false
         }
     }
 
@@ -48,7 +50,7 @@ impl Server {
                 roles.insert(role.to_string(), *addr);
                 return Ok(());
             },
-            Some("quit") => {
+            Some("stop") => {
                 let mut conns = self.conns.lock().unwrap();
                 conns[&addr].0.send(()).expect("Failed to close connection");
                 // return Ok(());
@@ -140,8 +142,12 @@ impl Server {
         msg
     }
 
-    fn add_connection(&self, addr: SocketAddr, signals: Signals) {
-        self.conns.lock().unwrap().insert(addr, signals);
+    fn add_connection(&self, addr: SocketAddr, signals: Signals) -> bool {
+        if self.is_shutdown {
+            self.conns.lock().unwrap().insert(addr, signals);
+        }
+
+        self.is_shutdown
     }
 
     fn drop_connection(&mut self, addr: SocketAddr) {
@@ -180,7 +186,9 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
             // Register the connection
             let addr = conn.peer_addr().unwrap();
             info!("New connection: {}", addr);
-            parent.add_connection(addr, (tx, sink));
+            if parent.add_connection(addr, (tx, sink)) {
+                return Ok(());
+            }
 
             // Split the connection into reader and writer
             // Maddeningly, `conn.split` produces `(reader, writer)`
@@ -231,7 +239,9 @@ pub fn spawn(server: Server, listen_addr: SocketAddr) {
 
                 // Setup the communication channel
                 let (sink, source) = futures::sync::mpsc::unbounded::<Value>();
-                client.add_connection(paddr, (tx, sink.clone()));
+                if client.add_connection(paddr, (tx, sink.clone())) {
+                    return Ok(())
+                }
 
                 // Unilaterally send a message to the server
                 sink.unbounded_send(json!({ "action": "register" })).unwrap();

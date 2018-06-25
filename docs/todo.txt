@@ -1,18 +1,32 @@
 
 
 Short Term:
-  Get 'quit' to work (wit isn't recognizing it properly)
-    The dispatch app and the server keep running way too long
-      There's an issue with the quit dispatch getting thrown around too casually
-    I think the server has no conception of "shutting down" yet
+  Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
+    It seems that audio is somehow becoming "disconnected" from the normal system
+      It's a byproduct of the song playing (For some reason, hogs all of the processes' resources)
+    Have wit recognize 'quit' and 'stop'
+      Remove the hardcoding of these commands within the apps?
+        May not be possible as the apps would get stuck in the next iteration
+      Enable a system to allow for data to be passed through the device-manager without being used
+    Enable the server to shutdown through the quit commands
+      Add the "cancel" futures to the main server threads as well (ie. the ones I have for every client connection)
+      I could add code in `launch.py`, but that wouldn't work if new modalities are added during runtime
+      Might want to have a "special" app that I can use to control the server directly
   Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project
 
 Medium Term:
-  Move file location to the server
+  Vastly improve the available music files
+  Move file location to the server?
     Convert music selection to using the server data
+      See if I can implement streaming in some way
     Move out of hardcoding the music files
+    Look at adding a system to require waiting on server response before continuing
+  It would be nice if the server could spawn up "One-time use" plugins as needed
+    Need to figure out a way to integrate the plugin architecture across AI/device/etc. plugins
+  Improve the handshaking procedure to actually have some degree of security and utility
+    Current system only works because I have everything hardcoded
 
 Long Term:
   Figure out how the device manager is supposed to act if I add in an AI node

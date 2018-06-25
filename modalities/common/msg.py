@@ -35,7 +35,16 @@ class Message(MutableMapping):
     def quit():
         return "quit"
 
+    @staticmethod
+    def stop():
+        return "stop"
 
+    @staticmethod
+    def is_quit(msg):
+        return msg == Message.quit() or msg == Message.stop()
+
+
+    # Methods to make the message mimic it's underlying dict typing
     def __str__(self):
         return str(self.msg)
 

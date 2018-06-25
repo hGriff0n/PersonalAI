@@ -38,6 +38,7 @@ class CliPlugin(Plugin):
 
         if query == "quit":
             self.log.info("STOPPING")
+            queue.put(Message({ 'action': 'quit', 'routing': 'broadcast' }))
             return False
 
         msg = Message('cli')
@@ -53,7 +54,7 @@ class CliPlugin(Plugin):
                 self.msgs.append(msg['text'])
 
         self.log.info("RECEIVED <{}>".format(msg))
-        return True
+        return ""
 
     def get_hooks(self):
         return [ 'cli' ]

@@ -78,7 +78,7 @@ class AudioPlugin(Plugin):
                 query = rec.recognize_google(audio)
 
             except sr.WaitTimeoutError:
-                ()
+                pass
 
             except sr.UnknownValueError:
                 self.log.error("Couldn't recognize audio")
@@ -110,11 +110,11 @@ class AudioPlugin(Plugin):
             with self.audio_control:
                 self.voice.Speak(msg['text'])
 
-        # if msg['stop']:
-        #     queue.put(Message.quit())
-        return True
+        # if msg['stop']: return Message.stop()
+        return ""
 
 
+    # TODO: This somehow blocks other threads from executing, notably the read and write threads
     def _play_song(self, song):
         _, ext = os.path.splitext(song)
         seg = AudioSegment.from_file(song, ext[1:])
@@ -126,6 +126,7 @@ class AudioPlugin(Plugin):
                         output=True)
 
         # Split audio into half-second chunks to allow for interrupts
+            # Is this actually allowing for interrupts?
         for chunk in make_chunks(seg, 500):
             stream.write(chunk._data)
 
