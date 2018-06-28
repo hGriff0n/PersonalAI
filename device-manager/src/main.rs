@@ -9,8 +9,10 @@ extern crate clap;
 extern crate fern;
 extern crate chrono;
 
-mod internal;
 mod comm;
+
+mod servers;
+mod spawn;
 
 // This program acts as the interaction manager for the individual device,
 // Collecting and dispatching requests to the global server from modalities
@@ -60,18 +62,14 @@ fn main() {
 
     // TODO: Log all unmatched arguments (How do I do that?)
 
-    // Create the server
-    let server = internal::Server::new(parent);
-
-    trace!("Created server");
-
+    // TODO: Figure out how these will interact with the new system
     // TODO: Spawn any persistent system tools and register them with the server
         // Non-persistent tasks can be spawned by the server as needed (using tokio)
 
     trace!("Spawned persistant tasks");
 
     // Spawn up the server
-    internal::spawn(server, addr);
+    spawn::serve(addr, parent);
 }
 
 
