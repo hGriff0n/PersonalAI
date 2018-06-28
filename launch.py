@@ -1,5 +1,6 @@
 #! /usr/bin/env/python3
 
+import os
 from subprocess import Popen, PIPE
 import sys
 
@@ -33,7 +34,7 @@ def spawn_plugin(plugin, arg_dict, loader=None):
 def launch_device(config):
     # Launch the device manager
     manager = config['manager']
-    manager_exe = manager['path']
+    manager_exe =  manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
     procs = [ spawn_with_args(manager_exe, manager)]
@@ -64,7 +65,16 @@ def launch_device(config):
 
 
 def launch_ai_node(config):
-    return
+    pass
+
+def clean(config):
+    if 'log-dir' not in config:
+        config['log-dir'] = './log'
+
+    for root, _dirs, files in os.walk(config['log-dir']):
+        for f in files:
+            os.unlink(os.path.join(root, f))
+
 
 
 if __name__ == "__main__":
@@ -82,6 +92,9 @@ if __name__ == "__main__":
 
         elif mode == "brain":
             launch_ai_node(anyconfig.load(sys.argv[2]))
+
+        elif mode == "clean":
+            clean(anyconfig.load(sys.argv[2]))
 
         else:
             print("Unrecognized mode argument `{}`".format(mode))
