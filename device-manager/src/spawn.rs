@@ -65,7 +65,12 @@ fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: Serv
 
 
 pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
-    let manager = servers::DeviceManager::new(parent);
+    // Setup stop communication
+    let (tx, cancel) = mpsc::channel();
+    let cancel = comm::FutureChannel::new(cancel);
+
+    // Create manager
+    let manager = servers::DeviceManager::new(parent, tx.clone());
 
     let server = TcpListener::bind(&addr)
         .unwrap()
@@ -74,7 +79,7 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
         .map_err(|err| error!("Server Error: {:?}", err));
 
     if let Some(paddr) = parent {
-        let negotiator = servers::AiClient::new();
+        let negotiator = servers::AiClient::new(tx.clone());
 
         let client = TcpStream::connect(&paddr)
             .and_then(move |conn| Ok(spawn_connection(conn, negotiator.clone())))
@@ -82,12 +87,18 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
 
         let device = server
             .join(client)
-            .map(|_| ())
-            .map_err(|_| ());
+            .select2(cancel)
+            .map(|_| { trace!("Closing device") })
+            .map_err(|_err| { error!("Closing error") });
 
         tokio::run(device);
 
     } else {
-        tokio::run(server);
+        let device = server
+            .select2(cancel)
+            .map(|_| { trace!("Closing device") })
+            .map_err(|_err| { error!("Closing error") });
+
+        tokio::run(device);
     }
 }

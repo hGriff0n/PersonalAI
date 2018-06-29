@@ -34,7 +34,7 @@ def spawn_plugin(plugin, arg_dict, loader=None):
 def launch_device(config):
     # Launch the device manager
     manager = config['manager']
-    manager_exe =  manager['path']
+    manager_exe = manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
     procs = [ spawn_with_args(manager_exe, manager)]

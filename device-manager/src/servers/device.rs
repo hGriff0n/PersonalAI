@@ -13,14 +13,16 @@ pub struct DeviceManager {
     conns: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,
     mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
     parent_addr: Option<SocketAddr>,
+    cancel: Closer,
 }
 
 impl DeviceManager {
-    pub fn new(parent_addr: Option<SocketAddr>) -> Self {
+    pub fn new(parent_addr: Option<SocketAddr>, cancel: Closer) -> Self {
         Self{
             conns: Arc::new(Mutex::new(HashMap::new())),
             mapping: Arc::new(Mutex::new(HashMap::new())),
             parent_addr: parent_addr,
+            cancel: cancel
         }
     }
 }

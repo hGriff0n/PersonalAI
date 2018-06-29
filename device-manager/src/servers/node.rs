@@ -9,11 +9,15 @@ use tokio::io::Error;
 use super::traits::*;
 
 #[derive(Clone)]
-pub struct AiClient {}
+pub struct AiClient {
+    cancel: Closer
+}
 
 impl AiClient {
-    pub fn new() -> Self {
-        Self{}
+    pub fn new(cancel: Closer) -> Self {
+        Self{
+            cancel: cancel
+        }
     }
 }
 
