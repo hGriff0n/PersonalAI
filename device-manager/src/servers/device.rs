@@ -41,9 +41,26 @@ impl BasicServer for DeviceManager {
 
                 return Ok(());
             },
+            // TODO: Rewrite these to make use of the 'drop_connection' method
             Some("stop") => {
-                let mut conns = self.conns.lock().unwrap();
-                conns[&addr].0.send(()).expect("Failed to close connection");
+                {
+                    let mut conns = self.conns.lock().unwrap();
+                    conns[&addr].0.send(()).expect("Failed to close connection");
+                }
+
+                self.drop_connection(*addr);
+                return Ok(());
+            },
+            Some("quit") => {
+                let conns = self.conns.lock().unwrap();
+
+                for (caddr, (close, _)) in conns.iter() {
+                    info!("Closing connection to {:?}", caddr);
+                    close.send(()).expect("Failed to close connection");
+                }
+
+                info!("Closing self");
+                self.cancel.send(()).expect("Failed to close connection");
                 return Ok(());
             },
             None => {

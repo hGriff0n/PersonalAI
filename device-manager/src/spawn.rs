@@ -64,6 +64,7 @@ fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: Serv
 }
 
 
+// TODO: This should allow us to shut-down the server from within, but it doesn't. Why?
 pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
     // Setup stop communication
     let (tx, cancel) = mpsc::channel();
@@ -79,16 +80,30 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
         .map_err(|err| error!("Server Error: {:?}", err));
 
     if let Some(paddr) = parent {
-        let negotiator = servers::AiClient::new(tx.clone());
+        // Setup stop communication
+        let (ntx, ncancel) = mpsc::channel();
+        let ncancel = comm::FutureChannel::new(ncancel);
+
+        let client_tx = ntx.clone();
+        #[allow(unused_must_use)]
+        let server = server
+            .select2(cancel)
+            .map(move |_| { client_tx.send(()); })
+            .map_err(|_| ());
+
+        // Create ai client
+        let negotiator = servers::AiClient::new(ntx.clone());
 
         let client = TcpStream::connect(&paddr)
             .and_then(move |conn| Ok(spawn_connection(conn, negotiator.clone())))
             .map_err(|err| { error!("Client error: {:?}", err) });
 
+        let server_tx = tx.clone();
+        #[allow(unused_must_use)]
         let device = server
             .join(client)
-            .select2(cancel)
-            .map(|_| { trace!("Closing device") })
+            .select2(ncancel)
+            .map(move |_| { server_tx.send(()); trace!("Closing device") })
             .map_err(|_err| { error!("Closing error") });
 
         tokio::run(device);
@@ -101,4 +116,6 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
 
         tokio::run(device);
     }
+
+    info!("System Shutdown");
 }

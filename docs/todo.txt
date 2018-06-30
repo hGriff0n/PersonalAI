@@ -2,7 +2,8 @@
 
 Short Term:
   Refactor the rust server to improve utility and composability
-    Enable the server to shutdown through the quit commands (possible in tokio?)
+    Switch quit/stop code to using drop connection
+    Keep track of connection roles and "un-register" them
   Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
     It seems that audio is somehow becoming "disconnected" from the normal system
       It's a byproduct of the song playing (For some reason, hogs all of the processes' resources)
@@ -11,6 +12,7 @@ Short Term:
         May not be possible as the apps would get stuck in the next iteration
       Enable a system to allow for data to be passed through the device-manager without being used
     Might want to have a "special" app that I can use to control the server directly
+    Fix the device-manager refusing to stop running
   Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project
