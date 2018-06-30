@@ -12,6 +12,7 @@ use super::traits::*;
 pub struct DeviceManager {
     conns: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,
     mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
+    roles: Arc<Mutex<HashMap<SocketAddr, String>>>,
     parent_addr: Option<SocketAddr>,
     cancel: Closer,
 }
@@ -21,9 +22,19 @@ impl DeviceManager {
         Self{
             conns: Arc::new(Mutex::new(HashMap::new())),
             mapping: Arc::new(Mutex::new(HashMap::new())),
+            roles: Arc::new(Mutex::new(HashMap::new())),
             parent_addr: parent_addr,
             cancel: cancel
         }
+    }
+
+    fn on_connection_close(&self, conns: &HashMap<SocketAddr, (Closer, Communicator)>, addr: SocketAddr) {
+        let mut roles = self.roles.lock().unwrap();
+        let role = roles.get(&addr).unwrap().to_owned();
+        roles.remove(&addr);
+
+        self.mapping.lock().unwrap().remove(&role);
+        conns[&addr].0.send(()).expect("Failed to close connection");
     }
 }
 
@@ -34,29 +45,21 @@ impl BasicServer for DeviceManager {
         // Perform server actions if requested
         match msg.get("action").and_then(|act| act.as_str()) {
             Some("handshake") => {
-                let mut roles = self.mapping.lock().unwrap();
-
                 let role = msg.get("hooks").unwrap()[0].as_str().unwrap();
-                roles.insert(role.to_string(), *addr);
+                self.mapping.lock().unwrap().insert(role.to_string(), *addr);
+                self.roles.lock().unwrap().insert(*addr, role.to_string());
 
                 return Ok(());
             },
-            // TODO: Rewrite these to make use of the 'drop_connection' method
             Some("stop") => {
-                {
-                    let mut conns = self.conns.lock().unwrap();
-                    conns[&addr].0.send(()).expect("Failed to close connection");
-                }
-
                 self.drop_connection(*addr);
                 return Ok(());
             },
             Some("quit") => {
                 let conns = self.conns.lock().unwrap();
 
-                for (caddr, (close, _)) in conns.iter() {
-                    info!("Closing connection to {:?}", caddr);
-                    close.send(()).expect("Failed to close connection");
+                for (caddr, (_close, _)) in conns.iter() {
+                    self.on_connection_close(&conns, *caddr);
                 }
 
                 info!("Closing self");
@@ -147,6 +150,8 @@ impl BasicServer for DeviceManager {
     }
 
     fn drop_connection(&self, addr: SocketAddr) {
-        self.conns.lock().unwrap().remove(&addr);
+        let mut conns = self.conns.lock().unwrap();
+        self.on_connection_close(&conns, addr);
+        conns.remove(&addr);
     }
 }
