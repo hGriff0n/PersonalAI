@@ -2,7 +2,7 @@
 
 Short Term:
   Refactor the rust server to improve utility and composability
-    Enable the server to shutdown through the quit commands
+    Enable the server to shutdown through the quit commands (possible in tokio?)
   Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
     It seems that audio is somehow becoming "disconnected" from the normal system
       It's a byproduct of the song playing (For some reason, hogs all of the processes' resources)

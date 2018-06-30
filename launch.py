@@ -75,7 +75,30 @@ def clean(config):
         for f in files:
             os.unlink(os.path.join(root, f))
 
+def build(_config):
+    os.chdir('device-manager')
+    ret = os.system("cargo build")
+    os.chdir('..')
+    return ret
 
+
+def main(args, conf):
+    for mode in sys.argv[1:]:
+        if mode == "device":
+            launch_device(conf)
+
+        elif mode == "brain":
+            launch_ai_node(conf)
+
+        elif mode == "clean":
+            clean(conf)
+
+        elif mode == "build":
+            if build(conf) != 0:
+                return
+
+        else:
+            print("Unrecognized mode argument `{}`".format(mode))
 
 if __name__ == "__main__":
     argc = len(sys.argv)
@@ -83,21 +106,9 @@ if __name__ == "__main__":
         print("Requires at least one cli argument")
 
     else:
-        if argc < 3:
-            sys.argv.append('conf.yaml')
+        conf = anyconfig.load('conf.yaml')
+        main(sys.argv[1:], conf)
 
-        mode = sys.argv[1]
-        if mode == "device":
-            launch_device(anyconfig.load(sys.argv[2]))
-
-        elif mode == "brain":
-            launch_ai_node(anyconfig.load(sys.argv[2]))
-
-        elif mode == "clean":
-            clean(anyconfig.load(sys.argv[2]))
-
-        else:
-            print("Unrecognized mode argument `{}`".format(mode))
 
 # API Documentation:
 #   anyconfig: https://github.com/ssato/python-anyconfig
