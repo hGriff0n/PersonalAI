@@ -4,7 +4,7 @@ import logging
 import threading
 
 from common.msg import Message
-from plugins import Plugin
+from common.plugins import Plugin
 
 # TODO: Look at moving the logger into the 'Plugin' class
 # TODO: Implement a time-keeping system

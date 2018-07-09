@@ -6,7 +6,7 @@ import threading
 from wit import Wit
 
 from common.msg import Message
-from plugins import Plugin
+from common.plugins import Plugin
 
 # NOTE: This app is wholely responsible for receiving a 'msg' json object from the server and running it through
     # wit.ai to determine what the message is wanting to perform in the context of the system

@@ -12,6 +12,7 @@ import traceback
 
 from common import logger
 from common.msg import Message
+import common.plugins as plugin_system
 
 log = None
 
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
     log.setLevel(logger.logging.INFO)
 
-    plugin = plugins.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
+    plugin = plugin_system.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
     if plugin is None:
         log.error("Couldn't load plugin {}".format(name))
         exit()

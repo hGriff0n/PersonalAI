@@ -2,12 +2,11 @@
 
 Short Term:
   Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
-    It seems that audio is somehow becoming "disconnected" from the normal system
-      It's a byproduct of the song playing (For some reason, hogs all of the processes' resources)
     Have wit recognize 'quit' and 'stop'
       Remove the hardcoding of these commands within the apps?
         May not be possible as the apps would get stuck in the next iteration
-      Enable a system to allow for data to be passed through the device-manager without being used
+    Might want to swap out for LUIS (or even roll my own solution)
+  Enable a system to allow for data to be passed through the device-manager without being used
     Might want to have a "special" app that I can use to control the server directly
     Fix the device-manager refusing to stop running
   Find a way to press ctrl-c in cli app and have it raise in parent app
@@ -16,17 +15,23 @@ Produce a short video of the project
 
 Medium Term:
   Vastly improve the available music files
-  Move file location to the server?
-    Convert music selection to using the server data
-      See if I can implement streaming in some way
-    Move out of hardcoding the music files
-    Look at adding a system to require waiting on server response before continuing
+    Look at fselect for producing the file list
+      It's not developed as a library perse though
+      The idea for this is that the dispatch app would request the manager to select a file
+        The manager would then forward that file on to the audio app
+        TODO: See if I can't come up with a better procedure
+      Idea 2: The server provides a set of "services" (API) that utilities can use
+        This "File search" is one of them: Give the query json, get the file path
+        The dispatch app queries the server for this path and sends the response to the audio app
   It would be nice if the server could spawn up "One-time use" plugins as needed
     Need to figure out a way to integrate the plugin architecture across AI/device/etc. plugins
   Improve the handshaking procedure to actually have some degree of security and utility
     Current system only works because I have everything hardcoded
 
 Long Term:
+  Look at splitting system to automatically create ai node by default
+    This would allow for keeping the device manager to simple behavior
+    Also simplifies the procedure for interacting with multi-device systems
   Figure out how the device manager is supposed to act if I add in an AI node
     I suppose in the final system, the AI node gets setup first, so the server addr exists
     We can also use the udp broadcast system to handle this possibility

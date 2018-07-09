@@ -4,9 +4,6 @@ import logging
 import os
 import threading
 
-from common.msg import Message
-from plugins import Plugin
-
 # STT / TTS
 import speech_recognition as sr
 # from tts.sapi import Sapi as Client     # Why is this taking a long time
@@ -16,6 +13,9 @@ import win32com.client
 import pyaudio
 from pydub import AudioSegment
 from pydub.utils import make_chunks
+
+from common.msg import Message
+from common.plugins import Plugin
 
 # Long term dev work
 # TODO: Improve interactivity of AI
@@ -127,7 +127,7 @@ class AudioPlugin(Plugin):
 
         # Split audio into half-second chunks to allow for interrupts
             # Is this actually allowing for interrupts?
-        for chunk in make_chunks(seg, 500):
+        for chunk in make_chunks(seg, 300):
             stream.write(chunk._data)
 
         stream.stop_stream()
