@@ -1,10 +1,19 @@
+extern crate futures;
+extern crate tokio;
+extern crate tokio_io;
+extern crate tokio_serde_json;
+#[macro_use] extern crate serde_json;
+#[macro_use] extern crate log;
+
+pub mod spawn;
+pub mod comm;
 
 use std::net::SocketAddr;
 use std::sync::mpsc;
 
-use futures;
 use serde_json::Value;
 use tokio::io::Error;
+
 
 pub type Closer = mpsc::Sender<()>;
 pub type Communicator = futures::sync::mpsc::UnboundedSender<Value>;

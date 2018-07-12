@@ -6,14 +6,15 @@ use std::net::SocketAddr;
 use serde_json::Value;
 use tokio::io::Error;
 
-use super::traits::*;
+use server;
+use server::{Closer, Communicator};
 
 #[derive(Clone)]
-pub struct AiClient {
+pub struct AiManager {
     cancel: Closer
 }
 
-impl AiClient {
+impl AiManager {
     pub fn new(cancel: Closer) -> Self {
         Self{
             cancel: cancel
@@ -22,7 +23,7 @@ impl AiClient {
 }
 
 #[allow(unused_mut, unused_variables)]
-impl BasicServer for AiClient {
+impl server::BasicServer for AiManager {
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), Error> {
         Ok(())
     }

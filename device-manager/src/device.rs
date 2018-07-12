@@ -6,7 +6,8 @@ use std::sync::{Arc, Mutex};
 use serde_json::Value;
 use tokio::io::Error;
 
-use super::traits::*;
+use server;
+use server::{Closer, Communicator};
 
 #[derive(Clone)]
 pub struct DeviceManager {
@@ -38,12 +39,16 @@ impl DeviceManager {
     }
 }
 
-impl BasicServer for DeviceManager {
+impl server::BasicServer for DeviceManager {
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), Error> {
         info!("Got {:?} from {:?}", msg, addr);
 
         // Perform server actions if requested
         match msg.get("action").and_then(|act| act.as_str()) {
+            Some("file") => {
+
+                return Ok(())
+            },
             Some("handshake") => {
                 let role = msg.get("hooks").unwrap()[0].as_str().unwrap();
                 self.mapping.lock().unwrap().insert(role.to_string(), *addr);

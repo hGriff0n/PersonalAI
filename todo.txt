@@ -9,27 +9,39 @@ Short Term:
   Enable a system to allow for data to be passed through the device-manager without being used
     Might want to have a "special" app that I can use to control the server directly
     Fix the device-manager refusing to stop running
+  Complete the process of extracting the ai-manager into a separate "project"
+    Change the launch script to launch it first
+    Change the device-manager to require an address to connect to
+    Look at moving the dipatch modality into the ai-manager orbit
+      May want to keep one for local usage however
   Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project
 
 Medium Term:
   Vastly improve the available music files
+    last option is to produce my own file search engine
+      this engine should be very modular in all regards
+        so have file-type level indexers (so music files are parsed by metadata, text files could be parsed by their contents, have a default)
+      use ML to implement the searching
+        make sure to put this project on github (advertise to community?)
+    os-query may be a better platform to develop off of (maybe make rust bindings for it)
+      Need to see if it can perform queries on music files (introspection beyond mp3 is nice)
     Look at fselect for producing the file list
-      It's not developed as a library perse though
-      The idea for this is that the dispatch app would request the manager to select a file
-        The manager would then forward that file on to the audio app
-        TODO: See if I can't come up with a better procedure
-      Idea 2: The server provides a set of "services" (API) that utilities can use
+      It's not developed as a library per-se though
+      The server provides a set of "services" (API) that utilities can use
         This "File search" is one of them: Give the query json, get the file path
         The dispatch app queries the server for this path and sends the response to the audio app
+      Come up with a generalizable way of producing these api endpoints (and their implementations)
   It would be nice if the server could spawn up "One-time use" plugins as needed
-    Need to figure out a way to integrate the plugin architecture across AI/device/etc. plugins
   Improve the handshaking procedure to actually have some degree of security and utility
     Current system only works because I have everything hardcoded
 
 Long Term:
   Look at splitting system to automatically create ai node by default
+    NOTE: This means that the device manager is not responsible for spawning up the ai server
+      The ai server is a separate process which handles it's own communication
+      This means that we put the 'servers' code into a separate crate for reuse
     This would allow for keeping the device manager to simple behavior
     Also simplifies the procedure for interacting with multi-device systems
   Figure out how the device manager is supposed to act if I add in an AI node

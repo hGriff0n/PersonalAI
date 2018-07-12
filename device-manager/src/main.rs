@@ -1,18 +1,17 @@
 
 extern crate tokio;
-extern crate tokio_io;
-extern crate tokio_serde_json;
 #[macro_use] extern crate serde_json;
 extern crate futures;
+
 extern crate clap;
 #[macro_use] extern crate log;
 extern crate fern;
 extern crate chrono;
 
-mod comm;
+extern crate server;
 
-mod servers;
-mod spawn;
+mod device;
+mod serve;
 
 // This program acts as the interaction manager for the individual device,
 // Collecting and dispatching requests to the global server from modalities
@@ -24,11 +23,6 @@ use clap::{App, Arg};
 use fern::colors::{Color, ColoredLevelConfig};
 
 // Figure out how to use futures 0.2.1 within this code
-// Improve this code to production quality
-    // Handle/log errors
-    // Improve the process of abstracting server development
-        // In case I want to be able to provide different server impls
-            // I know how to do it, can't get the compiler to agree
 // Get working cross-device communication (move away from home ip)
     // Figure out how to handle registration/setup for modalities
     // Modify dispatch to not use hardcoded logic, instead use associated keys/etc.
@@ -69,7 +63,7 @@ fn main() {
     trace!("Spawned persistant tasks");
 
     // Spawn up the server
-    spawn::serve(addr, parent);
+    serve::serve(addr, parent);
 }
 
 
