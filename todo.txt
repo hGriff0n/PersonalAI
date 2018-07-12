@@ -1,7 +1,10 @@
 
 
 Short Term:
-  Fix the issues caused by the python package reordering
+  Fix the issues with the various scripts
+    Don't have error messages piped to stdout
+    Ctrl+c doesn't seem to exit cli plugin
+      Should exit cli and parent plugin
   Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
     Have wit recognize 'quit' and 'stop'
       Remove the hardcoding of these commands within the apps?
@@ -11,11 +14,8 @@ Short Term:
     Might want to have a "special" app that I can use to control the server directly
     Fix the device-manager refusing to stop running
   Complete the process of extracting the ai-manager into a separate "project"
-    Make sure the communication works
-      Implement the ai-manager main (and etc.)
     Look at moving the dipatch modality into the ai-manager orbit
       May want to keep one for local usage however
-  Find a way to press ctrl-c in cli app and have it raise in parent app
 
 Produce a short video of the project
 
@@ -37,6 +37,8 @@ Medium Term:
   It would be nice if the server could spawn up "One-time use" plugins as needed
   Improve the handshaking procedure to actually have some degree of security and utility
     Current system only works because I have everything hardcoded
+  Improve launch script to incorporate some file watching
+    Automatically run `setup.py install --user` if anything in the setup script/packages have changed
 
 Long Term:
   Look at splitting system to automatically create ai node by default

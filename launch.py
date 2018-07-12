@@ -112,6 +112,9 @@ def main(args, conf):
         elif mode == "clean":
             clean(conf)
 
+        elif mode == "debug":
+            os.system("$Env:RUST_BACKTRACE=1")
+
         elif mode == "build":
             if build(conf) != 0:
                 return

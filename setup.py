@@ -21,7 +21,7 @@ setup(name='PersonalAI',
 #     dependency_links=[
 #         'https://github.com/DeepHorizons/tts/tarball/master#egg=package-1.0'
 #     ],
-    data_files=[('data', ['data/*'])],
+    # data_files=[('data', ['data/*'])],
     )
 
 print("Be sure to install libav or ffmpeg for pydub to work on non-wav files")

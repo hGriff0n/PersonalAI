@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import plugins
 import queue
 import socket
 import struct

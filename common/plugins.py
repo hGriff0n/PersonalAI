@@ -7,7 +7,7 @@ import os
 import clg
 import yaml
 
-from utils import logger
+from common import logger
 
 
 loaded_plugin = None
