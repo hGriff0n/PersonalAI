@@ -31,11 +31,12 @@ impl DeviceManager {
 
     fn on_connection_close(&self, conns: &HashMap<SocketAddr, (Closer, Communicator)>, addr: SocketAddr) {
         let mut roles = self.roles.lock().unwrap();
-        let role = roles.get(&addr).unwrap().to_owned();
-        roles.remove(&addr);
+        if let Some(role) = roles.get(&addr).map(|role| role.to_owned()) {
+            roles.remove(&addr);
 
-        self.mapping.lock().unwrap().remove(&role);
-        conns[&addr].0.send(()).expect("Failed to close connection");
+            self.mapping.lock().unwrap().remove(&role);
+            conns[&addr].0.send(()).expect("Failed to close connection");
+        }
     }
 }
 
