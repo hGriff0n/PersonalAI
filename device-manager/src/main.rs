@@ -50,7 +50,7 @@ fn main() {
         .unwrap_or("127.0.0.1:6142")
         .parse::<SocketAddr>()
         .unwrap();
-    let parent = None;
+    let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
 
     trace!("Parsed addresses");
 
@@ -67,7 +67,7 @@ fn main() {
 }
 
 
-    // Parse the command line arguments
+// Parse the command line arguments
 fn get_command_args<'a>() -> clap::ArgMatches<'a> {
     App::new("Device Manager")
         .version("0.1")

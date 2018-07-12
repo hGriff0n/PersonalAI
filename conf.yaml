@@ -4,10 +4,17 @@ plugins:
   cli:
   dispatch:
 
-manager:
+device-manager:
   path: C:\Users\ghoop\Desktop\PersonalAI\device-manager\target\debug\device-manager.exe
   addr: 127.0.0.1:6142
-  log-level: debug
+  log-level: trace
+
+ai-manager:
+  path: C:\Users\ghoop\Desktop\PersonalAI\ai-manager\target\debug\ai-manager.exe
+  addr: 127.0.0.1:6141
+  log-level: error
+
+
 
 plugin_dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
 loader:  C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py

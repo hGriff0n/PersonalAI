@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 # TODO: Figure out how to get the rust exectuable built from this script
 setup(name='PersonalAI',
-    packages=[ 'common', 'modalities', 'modalities.plugins' ],
+    packages=[ 'common' ],
     url='https://github.com/hGriff0n/PersonalAI',
     description='personal ai platform',
     long_description=open('README.md').read(),

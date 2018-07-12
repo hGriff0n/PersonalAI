@@ -1,6 +1,7 @@
 
 
 Short Term:
+  Fix the issues caused by the python package reordering
   Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
     Have wit recognize 'quit' and 'stop'
       Remove the hardcoding of these commands within the apps?
@@ -10,8 +11,8 @@ Short Term:
     Might want to have a "special" app that I can use to control the server directly
     Fix the device-manager refusing to stop running
   Complete the process of extracting the ai-manager into a separate "project"
-    Change the launch script to launch it first
-    Change the device-manager to require an address to connect to
+    Make sure the communication works
+      Implement the ai-manager main (and etc.)
     Look at moving the dipatch modality into the ai-manager orbit
       May want to keep one for local usage however
   Find a way to press ctrl-c in cli app and have it raise in parent app

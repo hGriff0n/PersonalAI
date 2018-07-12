@@ -1,5 +1,6 @@
 
 extern crate tokio;
+#[allow(unused_imports)]
 #[macro_use] extern crate serde_json;
 extern crate futures;
 
@@ -17,8 +18,129 @@ mod serve;
 // Collecting and dispatching requests from the individual devices
 // And intermediating between them and the ai modality programs
 
-// TODO: Implement this with the same degree of accuracy that I have with device-manager
+use std::net::SocketAddr;
+
+use clap::{App, Arg};
+use fern::colors::{Color, ColoredLevelConfig};
 
 fn main() {
-    println!("Hello, world!");
+    let args = get_command_args();
+
+    // Setup the logger
+    let log_level = args.value_of("log-level")
+        .unwrap_or("warn")
+        .parse::<log::LevelFilter>()
+        .unwrap();
+
+    let log_dir = args.value_of("log-dir")
+        .unwrap_or("./log");
+
+    // TODO: Add the ability to set the log directory
+    setup_logging(log_level, log_dir, args.is_present("stdio-log")).expect("Failed to initialize logging");
+
+    trace!("Logger setup properly");
+
+    // Setup initial listener state
+    let addr = args.value_of("addr")
+        .unwrap_or("127.0.0.1:6142")
+        .parse::<SocketAddr>()
+        .unwrap();
+
+    trace!("Parsed addresses");
+
+    // TODO: Log all unmatched arguments (How do I do that?)
+
+    // TODO: Figure out how these will interact with the new system
+    // TODO: Spawn any persistent system tools and register them with the server
+        // Non-persistent tasks can be spawned by the server as needed (using tokio)
+
+    trace!("Spawned persistant tasks");
+
+    // Spawn up the server
+    serve::serve(addr);
 }
+
+
+// Parse the command line arguments
+fn get_command_args<'a>() -> clap::ArgMatches<'a> {
+    App::new("Device Manager")
+        .version("0.1")
+        .author("Grayson Hooper <ghooper96@gmail.com>")
+        .about("Manages device state and communication")
+        .arg(Arg::with_name("addr")
+            .long("addr")
+            .value_name("IP")
+            .help("Listening port and address for the manager")
+            .takes_value(true))
+        .arg(Arg::with_name("log-level")
+            .long("log-level")
+            .value_name("LEVEL")
+            .help("Logging message output level")
+            .takes_value(true))
+        .arg(Arg::with_name("stdio-log")
+            .long("stdio-log")
+            .help("Control whether messages should be printed to stdout"))
+        .arg(Arg::with_name("log-dir")
+            .long("log-dir")
+            .help("Log directory location")
+            .value_name("DIR")
+            .takes_value(true))
+        .get_matches()
+}
+
+
+fn setup_logging<'a>(level: log::LevelFilter, log_dir: &'a str, io_logging: bool) -> Result<(), fern::InitError> {
+    let colors_line = ColoredLevelConfig::new()
+        .error(Color::Red)
+        .warn(Color::Yellow)
+        .info(Color::White)
+        .debug(Color::White)
+        .trace(Color::BrightBlack);
+
+    let colors_level = colors_line.clone().debug(Color::Green);
+
+    let file_logger = fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "[{date}][{target}:{line}][{level}] {message}",
+                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                target = record.file().unwrap_or("UNK"),
+                line = record.line().unwrap_or(0),
+                level = record.level(),
+                message = message,
+            ));
+        })
+        .chain(fern::log_file(format!("{}/ai-manager.log", log_dir))?);
+
+    let io_logger = fern::Dispatch::new()
+        .format(move |out, message, record| {
+            out.finish(format_args!(
+                "{color_line}[{date}][{target}:{line}][{level}{color_line}] {message}\x1B[0m",
+                color_line = format_args!("\x1B[{}m", colors_line.get_color(&record.level()).to_fg_str()),
+                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                target = record.file().unwrap_or("UNK"),
+                line = record.line().unwrap_or(0),
+                level = colors_level.color(record.level()),
+                message = message,
+            ));
+        })
+        .chain(std::io::stdout());
+
+    let mut logger = fern::Dispatch::new()
+        .level(log::LevelFilter::Warn)
+        .level_for("device-manager", level)
+        .level_for("device_manager", level)
+        .chain(file_logger);
+
+    if io_logging {
+        logger = logger.chain(io_logger)
+    }
+
+    logger.apply()?;
+    Ok(())
+}
+
+// API Documentation:
+//  tokio: https://github.com/tokio-rs/tokio
+//  tokio-serde-json: https://github.com/carllerche/tokio-serde-json
+//  clap: https://github.com/kbknapp/clap-rs

@@ -32,22 +32,35 @@ def spawn_plugin(plugin, arg_dict, loader=None):
 
 
 def launch_device(config):
+    procs = []
+
+    # Launch the ai manager
+    if 'ai-manager' in config:
+        manager = config['ai-manager']
+        manager_exe = manager['path']
+        del manager['path']
+        if 'stdio-log' in manager: del manager['stdio-log']
+        procs.append(spawn_with_args(manager_exe, manager))
+
+        # TODO: Spawn ai modalities
+
+
     # Launch the device manager
-    manager = config['manager']
+    manager = config['device-manager']
     manager_exe = manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
-    procs = [ spawn_with_args(manager_exe, manager)]
+    procs.append(spawn_with_args(manager_exe, manager))
 
 
-    # Split out the plugins (cause we need to special case the cli plugin (if it exists))
+    # Split out the modalities (cause we need to special case the cli plugin (if it exists))
+    # TODO: Shouldn't this be based on the folder structure (if it's a plugin system? - that may be bad in the future, i feel)
     plugins = config['plugins']
     cli = [plugins['cli']] if 'cli' in plugins else []
-    plugins = { k:v for k, v in plugins.items() if 'cli' != k }
+    del plugins['cli']
 
     # Launch all plugins
-    for name, plugin in plugins.items():
-        procs.append(spawn_plugin(name, plugin, loader=config['loader']))
+    procs.extend(spawn_plugin(name, plugin, loader=config['loader']) for name, plugin in plugins.items())
 
     # Spawn the cli plugin last cause this will "take over" the command line
     if len(cli) == 1:
@@ -76,9 +89,15 @@ def clean(config):
             os.unlink(os.path.join(root, f))
 
 def build(_config):
-    os.chdir('device-manager')
+    os.chdir('ai-manager')
     ret = os.system("cargo build")
     os.chdir('..')
+
+    if ret == 0:
+        os.chdir('device-manager')
+        ret = os.system("cargo build")
+        os.chdir('..')
+
     return ret
 
 

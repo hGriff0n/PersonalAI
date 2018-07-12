@@ -4,7 +4,7 @@ use std::sync::mpsc;
 
 use tokio;
 use tokio::prelude::*;
-use tokio::net::TcpListener;
+use tokio::net::{ TcpListener, TcpStream };
 
 use server::comm;
 use server::spawn::spawn_connection;
@@ -20,42 +20,32 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
 
     // Create manager
     let manager = DeviceManager::new(parent, tx.clone());
+    let ai_client = manager.clone();
 
+
+    // Spawn the listening server
     let server = TcpListener::bind(&addr)
         .unwrap()
         .incoming()
         .for_each(move |conn| Ok(spawn_connection(conn, manager.clone())))
         .map_err(|err| error!("Server Error: {:?}", err));
 
-    if let Some(_paddr) = parent {
-        // Setup stop communication
-        // let (ntx, ncancel) = mpsc::channel();
-        // let ncancel = comm::FutureChannel::new(ncancel);
 
-        // let client_tx = ntx.clone();
-        // #[allow(unused_must_use)]
-        // let server = server
-        //     .select2(cancel)
-        //     .map(move |_| { client_tx.send(()); })
-        //     .map_err(|_| ());
+    // If there is an ai server running (ie. a "parent server") connect to it
+    if let Some(paddr) = parent {
+        let client = TcpStream::connect(&paddr)
+            .and_then(move |conn| Ok(spawn_connection(conn, ai_client)))
+            .map_err(|err| { error!("Client error: {:?}", err) });
 
-        // // Create ai client
-        // let negotiator = AiClient::new(ntx.clone());
+        let device = server
+            .join(client)
+            .select2(cancel)
+            .map(move |_| { trace!("Closing device") })
+            .map_err(|_err| { error!("Closing error") });
 
-        // let client = TcpStream::connect(&paddr)
-        //     .and_then(move |conn| Ok(spawn_connection(conn, negotiator.clone())))
-        //     .map_err(|err| { error!("Client error: {:?}", err) });
+        tokio::run(device);
 
-        // let server_tx = tx.clone();
-        // #[allow(unused_must_use)]
-        // let device = server
-        //     .join(client)
-        //     .select2(ncancel)
-        //     .map(move |_| { server_tx.send(()); trace!("Closing device") })
-        //     .map_err(|_err| { error!("Closing error") });
-
-        // tokio::run(device);
-
+    // Otherwise, just start listening
     } else {
         let device = server
             .select2(cancel)
