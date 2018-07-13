@@ -1,0 +1,6 @@
+
+If the audio app keeps failing with unanticipated host errors:
+  Make sure that apps have access to the microphone (in Windows settings)
+
+If I can't delete files in the log directory due to admin permissions:
+  I probably need to restart (voodoo magic is going on)

@@ -19,6 +19,7 @@ class CliPlugin(Plugin):
 
         self.log = logger
         self.log.setLevel(logging.INFO)
+        self.log.info("Finished initialization")
 
     def _print_all(self):
         if len(self.msgs) != 0:
@@ -50,6 +51,7 @@ class CliPlugin(Plugin):
 
     def dispatch(self, msg, queue):
         if 'text' in msg:
+            self.log.debug("Received text action")
             with self.lock:
                 self.msgs.append(msg['text'])
 

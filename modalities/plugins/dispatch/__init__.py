@@ -15,11 +15,11 @@ from common.plugins import Plugin
 
 class DispatchPlugin(Plugin):
     def __init__(self, logger, config=None):
+        self.client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
+
         self.log = logger
         self.log.setLevel(logging.INFO)
-
-        self.client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=self.log)
-        return
+        self.log.info("Finished initialization")
 
     def run(self, queue):
         return True

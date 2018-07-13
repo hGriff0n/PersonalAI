@@ -56,8 +56,10 @@ def launch_device(config):
     # Split out the modalities (cause we need to special case the cli plugin (if it exists))
     # TODO: Shouldn't this be based on the folder structure (if it's a plugin system? - that may be bad in the future, i feel)
     plugins = config['plugins']
-    cli = [plugins['cli']] if 'cli' in plugins else []
-    del plugins['cli']
+    cli = []
+    if 'cli' in plugins:
+        cli.append(plugins['cli'])
+        del plugins['cli']
 
     # Launch all plugins
     procs.extend(spawn_plugin(name, plugin, loader=config['loader']) for name, plugin in plugins.items())

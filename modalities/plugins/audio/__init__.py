@@ -47,23 +47,22 @@ songs = {
 class AudioPlugin(Plugin):
     def __init__(self, logger, config=None):
         self.speaker = pyaudio.PyAudio()
-        self.mic = sr.Microphone()
         self.voice = win32com.client.Dispatch('SAPI.SpVoice')
-        self.audio_control = threading.Lock()
 
+        self.mic = sr.Microphone()
+        self.rec = sr.Recognizer()
+        with self.mic as source:
+            self.rec.adjust_for_ambient_noise(source)
+
+        self.audio_control = threading.Lock()
         self.played_beep = False
 
         self.log = logger
         self.log.setLevel(logging.INFO)
-
-        rec = sr.Recognizer()
-        with self.mic as source:
-            rec.adjust_for_ambient_noise(source)
+        self.log.info("Finished initialization")
 
 
     def run(self, queue):
-        rec = sr.Recognizer()
-
         with self.mic as source:
             try:
                 audio = None
@@ -73,9 +72,9 @@ class AudioPlugin(Plugin):
                         self._play_song("data\\low_beep.mp3")
                         self.played_beep = True
 
-                    audio = rec.listen(source, 0.4, None)
+                    audio = self.rec.listen(source, 0.4, None)
 
-                query = rec.recognize_google(audio)
+                query = self.rec.recognize_google(audio)
 
             except sr.WaitTimeoutError:
                 pass
@@ -100,13 +99,19 @@ class AudioPlugin(Plugin):
     def dispatch(self, msg, queue):
         if 'action' in msg:
             if msg['action'] == 'play':
+                self.log.debug("Received play action")
+
                 with self.audio_control:
                     if 'text' in msg:
                         self.voice.Speak(msg['text'])
+
+                    self.log.debug("Playing {} <{}>".format(msg['play'], songs[msg['play']]))
                     self._play_song(songs[msg['play']])
+
                 self.played_beep = False
 
         elif 'text' in msg:
+            self.log.debug("Received text action")
             with self.audio_control:
                 self.voice.Speak(msg['text'])
 
@@ -135,6 +140,9 @@ class AudioPlugin(Plugin):
 
     def get_hooks(self):
         return [ 'audio' ]
+
+# if __name__ == "__main__":
+
 
 # API Documentation:
 #   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
