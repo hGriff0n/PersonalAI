@@ -19,4 +19,4 @@ data/*.m4a
 
 # Cargo/Rust files
 *.lock
-*/target/
+**/target/

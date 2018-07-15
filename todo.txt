@@ -1,21 +1,25 @@
 
 
 Short Term:
-  Fix the issues with the various scripts
-    Don't have error messages piped to stdout
-    Ctrl+c doesn't seem to exit cli plugin
-      Should exit cli and parent plugin
-  Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
-    Have wit recognize 'quit' and 'stop'
-      Remove the hardcoding of these commands within the apps?
-        May not be possible as the apps would get stuck in the next iteration
-    Might want to swap out for LUIS (or even roll my own solution)
-  Enable a system to allow for data to be passed through the device-manager without being used
-    Might want to have a "special" app that I can use to control the server directly
-    Fix the device-manager refusing to stop running
-  Complete the process of extracting the ai-manager into a separate "project"
-    Look at moving the dipatch modality into the ai-manager orbit
-      May want to keep one for local usage however
+  Implement file system searcher to handle music files
+    Reverse Engineer File Metadata parsing
+      Basically should have the same (read) capabilities as taglib
+        (Can't run locally for some reason, don't think I can debug)
+    Implement modular and multi-threaded file crawler
+      Should be able to load "plugins" to handle specific file types
+      Should have the traits to work on Linux and Windows
+      Do a lot of performance work to make it really fast
+        Look at ripgrep (blog and codereview)
+    Implement indexer to run off of the results of the crawler
+      The crawler will put data into a queue for the indexer to work off of
+    Develop basic search system just to see the capabilities
+    Turn a lot of these "sub-projects" into usable crates
+  Move dispatch modality into ai-manager orbit
+    Rewrite routing process inside of device-manager
+      Think about how the new flow will act/look and optimize on that
+    Implement handling inside of the ai-manager
+      See what aspects I'd be able to extract into the server crate
+    Extract loader.py into the common (or scripts) directory
 
 Produce a short video of the project
 
@@ -39,14 +43,10 @@ Medium Term:
     Current system only works because I have everything hardcoded
   Improve launch script to incorporate some file watching
     Automatically run `setup.py install --user` if anything in the setup script/packages have changed
+      Automatically run "build" if cargo modules change
 
 Long Term:
-  Look at splitting system to automatically create ai node by default
-    NOTE: This means that the device manager is not responsible for spawning up the ai server
-      The ai server is a separate process which handles it's own communication
-      This means that we put the 'servers' code into a separate crate for reuse
-    This would allow for keeping the device manager to simple behavior
-    Also simplifies the procedure for interacting with multi-device systems
+  Develop my own NLP system for decoding the purpose of messages (Wit doesn't seem to want to adapt)
   Figure out how the device manager is supposed to act if I add in an AI node
     I suppose in the final system, the AI node gets setup first, so the server addr exists
     We can also use the udp broadcast system to handle this possibility
@@ -55,3 +55,11 @@ Long Term:
     I'm hardcoding the locations for now as that is simpler for my initial development
 // https://github.com/jholtmann/ip_discovery - can use this script during client startup
             // https://gist.github.com/rsolomo/8703190
+
+Errors/Fixes:
+  Fix the device-manager refusing to stop running
+    It's some wierd nonsense with tokio
+  Fix the issues with quit/stop behavior (Seem to have brought everything to a halt)
+    Have wit recognize 'quit' and 'stop'
+      Wit is absolutely unable to recognize 'quit' as anything other than a search query
+    Might want to swap out for LUIS (or even roll my own solution)
