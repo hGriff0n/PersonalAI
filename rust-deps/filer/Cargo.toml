@@ -5,3 +5,5 @@ authors = ["Grayson Hooper <ghooper96@gmail.com>"]
 
 [dependencies]
 walkdir = "2.1.4"
+
+tags = { path="../tags" }

@@ -1,5 +1,5 @@
 
-// extern crate tags;
+extern crate tags;
 extern crate walkdir;
 
 use std::time::SystemTime;
@@ -8,6 +8,7 @@ use walkdir::{DirEntry, WalkDir};
 
 // For testing
 use std::fs::File;
+use std::io;
 use std::io::prelude::*;
 use std::path::Path;
 use std::collections::HashMap;
@@ -29,7 +30,30 @@ struct MusicHandler;
 // TODO: Need parsing library for this
 impl FileHandler for MusicHandler {
     fn write(&self, entry: &DirEntry, file: &mut File) {
-        file.write(format!("Music: {}\n", entry.path().display()).as_bytes());
+        match tags::get(entry.path()) {
+            Ok(music_file) => {
+                let tags = music_file.tag();
+
+                file.write(format!("Recognized Music: {}\n", entry.path().display()).as_bytes());
+                if let Some(title) = tags.title() {
+                    file.write(format!("  Title: {}\n", &title).as_bytes());
+                }
+
+                if let Some(artist) = tags.artist() {
+                    file.write(format!("  Artist: {}\n", &artist).as_bytes());
+                }
+
+                if let Some(album) = tags.album() {
+                    file.write(format!("  Album: {}\n", &album).as_bytes());
+                }
+            },
+            Err(ref e) if e.kind() == io::ErrorKind::Other => {
+                file.write(format!("Unrecognized Music: {}\n", entry.path().display()).as_bytes());
+            },
+            Err(e) => {
+                file.write(format!("Error reading {}: {:?}\n", entry.path().display(), e).as_bytes());
+            },
+        }
     }
 }
 
@@ -55,6 +79,7 @@ fn main() {
     let mut handlers: HashMap<String, Box<FileHandler>> = HashMap::new();
     handlers.insert("mp3".to_string(), Box::new(MusicHandler));
     handlers.insert("m4a".to_string(), Box::new(MusicHandler));
+    handlers.insert("mp4".to_string(), Box::new(MusicHandler));
 
     // Time everything
     let mut num_files: u64 = 0;
@@ -86,13 +111,9 @@ fn main() {
     }
 }
 
+// How to improve this blacklist matching
 fn is_relevant_file(entry: &DirEntry) -> bool {
-    if let Ok(_) = entry.metadata().map(|e| e.is_file()) {
-        return true;
-    }
-
     if let Some(file_name) = entry.path().file_name() {
-        // How to improve this blacklist matching
         if file_name == "$RECYCLE.BIN"
           || file_name == "Windows.old"
           || file_name == "Windows"

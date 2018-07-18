@@ -2,18 +2,18 @@
 
 Short Term:
   Implement file system searcher to handle music files
-    Reverse Engineer File Metadata parsing
-      Basically should have the same (read) capabilities as taglib
-        (Can't run locally for some reason, don't think I can debug)
-    Implement modular and multi-threaded file crawler
-      Should be able to load "plugins" to handle specific file types
-      Should have the traits to work on Linux and Windows
+    Reverse Engineer File Metadata parsing for mp3 files
+    Implement modular file crawler
+      Should be able to dynamically load "plugins" to handle specific file types
+        Work on making this doable at runtime (add a pause to main)
       Do a lot of performance work to make it really fast
+        Work on making this multi-threaded
         Look at ripgrep (blog and codereview)
     Implement indexer to run off of the results of the crawler
       The crawler will put data into a queue for the indexer to work off of
     Develop basic search system just to see the capabilities
     Turn a lot of these "sub-projects" into usable crates
+      This is especially the case for 'tags' (as it's replacing taglib)
   Move dispatch modality into ai-manager orbit
     Rewrite routing process inside of device-manager
       Think about how the new flow will act/look and optimize on that

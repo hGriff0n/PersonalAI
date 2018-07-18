@@ -69,7 +69,9 @@ impl server::BasicServer for DeviceManager {
                 }
 
                 info!("Closing self");
-                self.cancel.send(()).expect("Failed to close connection");
+
+                #[allow(unused_must_use)]
+                self.cancel.send(());//.expect("Failed to close connection");
                 return Ok(());
             },
             None => {
