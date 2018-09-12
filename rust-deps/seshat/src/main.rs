@@ -1,9 +1,9 @@
 
+extern crate array_tool;
 extern crate tags;
 extern crate walkdir;
 
-use std::time::SystemTime;
-
+use array_tool::vec::*;
 use walkdir::{DirEntry, WalkDir};
 
 // For testing
@@ -13,9 +13,34 @@ use std::io;
 use std::io::prelude::*;
 use std::path::Path;
 use std::rc;
+use std::time::SystemTime;
 
 struct Index {
-    pub map: HashMap<String, u64>
+    pub map: HashMap<String, u64>,
+    pub file_map: HashMap<String, Vec<String>>,
+    pub song_list: HashMap<String, HashMap<String, Vec<String>>>,
+}
+
+impl Index {
+    pub fn add_map(&mut self, tags: &[String], path: String) {
+        for s in tags {
+            for word in s.split(" ") {
+                self.file_map
+                    .entry(word.to_string())
+                    .or_insert(Vec::new())
+                    .push(path.clone());
+            }
+        }
+    }
+
+    pub fn search(&self, query: String) -> Vec<Vec<String>> {
+        query.to_lowercase()
+            .split(" ")
+            .map(|word| self.file_map.get(word)
+                .and_then(|vec| Some(vec.clone()))
+                .unwrap_or(Vec::new()))
+            .collect()
+    }
 }
 
 trait FileHandler {
@@ -25,40 +50,36 @@ trait FileHandler {
 struct DefaultHandler;
 
 impl FileHandler for DefaultHandler {
-    fn write(&self, entry: &DirEntry, _index: &mut Index, file: &mut File) {
-        // file.write(format!("{}\n", entry.path().display()).as_bytes());
-    }
+    fn write(&self, _entry: &DirEntry, _index: &mut Index, _file: &mut File) {}
 }
 
 struct MusicHandler;
 
-// TODO: Need to implement utf-8 handling for mp3 files (possibly - it seems the errors are from unicode encoding at any rate)
-// TODO: Some results from mp3 parsing have extra characters appended to them (Beyonce 4: Album is reported as 4T)
-    // There's some errors in the mp3 parsing (or in the music files)
 impl FileHandler for MusicHandler {
+    #[allow(unused_must_use)]
     fn write(&self, entry: &DirEntry, index: &mut Index, file: &mut File) {
         // println!("Reading file {}", entry.path().display());
-        match tags::get(entry.path()) {
+        match tags::load(entry.path()) {
             Ok(music_file) => {
-                let tags = music_file.tag();
+                let tag = music_file.tag();
 
-                // file.write(format!("Recognized Music: {}\n", entry.path().display()).as_bytes());
-                if let Some(title) = tags.title() {
-                    file.write(format!("  Title: {}\n", &title).as_bytes());
-                }
+                let artist = tag.artist().unwrap_or("Unkown".to_string());
+                let album = tag.album().unwrap_or("Unknown".to_string());
+                let title = tag.title().unwrap_or("Unknown".to_string());
 
-                if let Some(artist) = tags.artist() {
-                    file.write(format!("  Artist: {}\n", &artist).as_bytes());
+                let path_string = entry.path()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
 
-                    index.map
-                        .entry(artist)
-                        .and_modify(|e| *e += 1)
-                        .or_insert(1);
-                }
+                index.add_map(&[title.to_lowercase(), artist.to_lowercase(), album.to_lowercase()], path_string);
 
-                if let Some(album) = tags.album() {
-                    file.write(format!("  Album: {}\n", &album).as_bytes());
-                }
+                index.song_list
+                    .entry(artist)
+                    .or_insert(HashMap::new())
+                    .entry(album)
+                    .or_insert(Vec::new())
+                    .push(title);
             },
             Err(ref e) if e.kind() == io::ErrorKind::Other => {
                 file.write(format!("Unrecognized Music: {}\n", entry.path().display()).as_bytes());
@@ -71,6 +92,19 @@ impl FileHandler for MusicHandler {
 }
 
 
+// TODO: I really need to put some focus into clear up the indexing system
+    // Counterpoint - I really have no clue how to implement the indexing
+    // I need to add some extra information to the indices to improve ranking
+        // eg. what if "Aerosmith" corresponds to a song AND the artist ??? which gets played
+// TODO: Improve memory efficiency (I'm having to use a lot of clones when I don't need to)
+// TODO: Improve accuracy of results
+    // Lowercase all words when they go into the index (TODO: possible downsides?)
+    // Handle mis-spellings and short forms of words
+// TODO: Make the search engine tools into a library
+    // Also need to figure out server integration
+// TODO: Figure out how to properly multithread the engine (or at least some parts of it)
+    // I shouldn't be running the indexer every time I run 'main'
+        // I should also probably save it to a file somehow
 
 fn main() {
     // Open the output test file
@@ -96,7 +130,7 @@ fn main() {
     let now = SystemTime::now();
 
     // Start working on the indexer
-    let mut index = Index{ map: HashMap::new() };
+    let mut index = Index{ map: HashMap::new(), song_list: HashMap::new(), file_map: HashMap::new() };
 
     // Crawl through the filesystem
     for entry in fs_walker {
@@ -119,6 +153,13 @@ fn main() {
         println!("Visited {} files in ERR seconds", num_files);
     }
 
+    let search_results = index.search("imagine Dragons".to_string());
+    let mut final_results = search_results[0].clone();
+    for result in &search_results[1..] {
+        final_results = final_results.intersect(result.to_vec());
+    }
+    println!("{:#?}", final_results);
+    // println!("{:#?}", &search_results[3]);
     // println!("{:#?}", index.map);
 }
 

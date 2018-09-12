@@ -1,5 +1,5 @@
 [package]
-name = "filer"
+name = "seshat"
 version = "0.1.0"
 authors = ["Grayson Hooper <ghooper96@gmail.com>"]
 
@@ -7,3 +7,4 @@ authors = ["Grayson Hooper <ghooper96@gmail.com>"]
 walkdir = "2.1.4"
 
 tags = { path="../tags" }
+array_tool = "1.0.3"
