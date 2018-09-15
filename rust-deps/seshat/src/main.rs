@@ -1,5 +1,10 @@
 
+#[macro_use]
+extern crate serde_derive;
+
 extern crate array_tool;
+extern crate serde;
+extern crate serde_json;
 extern crate tags;
 extern crate walkdir;
 
@@ -57,7 +62,6 @@ impl handle::FileHandler for MusicHandler {
 // TODO: Figure out how to properly multithread the engine (or at least some parts of it)
     // I shouldn't be running the indexer every time I run 'main'
         // I should also probably save it to a file somehow
-// TODO: Add ability to save/store index to a file
     // TODO: Add ability to offload intermediate results to files
 // TODO: Improve memory efficiency (I'm having to use a lot of clones when I don't need to)
 // TODO: Make the search engine tools into a library
@@ -85,7 +89,7 @@ fn main() {
     let now = SystemTime::now();
 
     // Start working on the indexer
-    let mut idx = index::Index::new();
+    let mut idx = index::Index::from_file("index.json");
     let num_files = crawler.crawl(WalkDir::new("C:\\"), &mut idx, &mut output);
 
     if let Ok(time) = now.elapsed() {
@@ -94,6 +98,8 @@ fn main() {
         println!("Visited {} files in ERR seconds", num_files);
     }
 
-    let search_results = search::default_search("imagine Dragons", &idx);
+    let search_results = search::default_search("muse", &idx);
     println!("{:#?}", search_results);
+
+    idx.write_file("index.json");
 }
