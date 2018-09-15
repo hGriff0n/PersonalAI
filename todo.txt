@@ -2,42 +2,40 @@
 
 Short Term:
   Implement file system searcher to handle music files
-    Reverse Engineer File Metadata parsing for mp3 files
-    Implement modular file crawler
-      Should be able to dynamically load "plugins" to handle specific file types
-        Work on making this doable at runtime (add a pause to main)
-      Do a lot of performance work to make it really fast
-        Work on making this multi-threaded
-        Look at ripgrep (blog and codereview)
-    Implement indexer to run off of the results of the crawler
-      The crawler will put data into a queue for the indexer to work off of
-    Develop basic search system just to see the capabilities
-    Turn a lot of these "sub-projects" into usable crates
-      This is especially the case for 'tags' (as it's replacing taglib)
+    Improve modularity of the system (turn it into a library)
+    Add ability to dynamically load "plugins" for specific file types
+    Improve system performance and granularity
+      Split the indexer/crawler into separate (multithreaded?) stages
+        The crawler puts data into a queue for the indexer to work off of
+      Look at ripgrep (blog and codereview) for ideas
+      Improve usage of rust features, streamline memory usage particularly
+    Improve granularity of results
+      I should be able to search only music files, etc.
+      Look into making an sql-esque interface
   Move dispatch modality into ai-manager orbit
     Rewrite routing process inside of device-manager
       Think about how the new flow will act/look and optimize on that
     Implement handling inside of the ai-manager
       See what aspects I'd be able to extract into the server crate
     Extract loader.py into the common (or scripts) directory
+  Integrate 'Seshat' into the ai-manager
+    Make sure that ai communication works correctly
+    Add hooks to the ai-manager to handle several "search" actions
+      These actions would then query the search engine with specific actions
+    Add hooks to dynamically load engine handlers and handle indexing
+  Make sure that everything works properly
+    I think I need to rework the system a bit to spawn correctly
+      Right now I think the device-manager requires a running ai-manager, but no ai-manager can be spawned
+    Add in documentation for how to launch everything
+  Look into exporting some of my rust work as "crates"
 
 Produce a short video of the project
 
 Medium Term:
-  Vastly improve the available music files
-    last option is to produce my own file search engine
-      this engine should be very modular in all regards
-        so have file-type level indexers (so music files are parsed by metadata, text files could be parsed by their contents, have a default)
-      use ML to implement the searching
-        make sure to put this project on github (advertise to community?)
-    os-query may be a better platform to develop off of (maybe make rust bindings for it)
-      Need to see if it can perform queries on music files (introspection beyond mp3 is nice)
-    Look at fselect for producing the file list
-      It's not developed as a library per-se though
-      The server provides a set of "services" (API) that utilities can use
-        This "File search" is one of them: Give the query json, get the file path
-        The dispatch app queries the server for this path and sends the response to the audio app
-      Come up with a generalizable way of producing these api endpoints (and their implementations)
+  Need to put a lot more effort into making stuff modular (and distributed)
+    Probably need to add some form of distributed file system to go along with the search engine
+      NOTE: The search engine also needs to add distributed support
+    See if there is any way to unify the device and ai managers into one crate
   It would be nice if the server could spawn up "One-time use" plugins as needed
   Improve the handshaking procedure to actually have some degree of security and utility
     Current system only works because I have everything hardcoded
