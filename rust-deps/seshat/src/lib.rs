@@ -1,8 +1,6 @@
 
-#[macro_use]
-extern crate serde_derive;
-
 extern crate array_tool;
+extern crate evmap;
 extern crate serde;
 extern crate serde_json;
 extern crate walkdir;

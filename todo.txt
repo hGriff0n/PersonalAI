@@ -1,50 +1,91 @@
 
 
 Short Term:
-  Implement file system searcher to handle music files
-    Improve modularity of the system (turn it into a library)
+  Integrate Seshat with device-manager
+    Figure out how to create a daemon that periodically re-indexes the file-system
+      Then the daemon thread would have the writer and the normal thread would have the reader
+        directories are pushed on the mpsc::channel
+      Determine how to create the indexer
+        Add in config arguments to locate the index file
+        Modify DeviceManager constructor to accept the constructed index
+          Work with the DeviceManager to enable adding in the 'Index'
+      Communication between the main thread and the crawl thread is achieved with std::sync::mpsc::channel
+      NOTE: To enable manual addition (eg. to re-crawl a specific folder), we have to follow this process
+        Change the daemon thread to use a multithreaded 'push' system
+          The daemon would take paths off of a concurrent queue (or mpsc::comm channel)
+            If there isn't anything, sleep immediately (or return)
+          Then we perform some unification to minimize crawling
+        We add an additional timer daemon to automatically push on the root folder every so often
+          This would be configurable through the yaml file
+      NOTE: Because of this, we won't add a watcher for new files (across the whole OS)
+      NOTE: We'll use the tokio::timer facilities where possible
+      Add tokio spawning of the indexing thread
+        Figure out whether the indexer should parse everything before that thread is spawned?
+    Add hooks to device-manager to handle "search" actions
     Add ability to dynamically load "plugins" for specific file types
+      https://github.com/emoon/dynamic_reload
     Improve system performance and granularity
-      Split the indexer/crawler into separate (multithreaded?) stages
-        The crawler puts data into a queue for the indexer to work off of
       Look at ripgrep (blog and codereview) for ideas
       Improve usage of rust features, streamline memory usage particularly
-    Improve granularity of results
-      I should be able to search only music files, etc.
-      Look into making an sql-esque interface
-  Move dispatch modality into ai-manager orbit
-    Rewrite routing process inside of device-manager
-      Think about how the new flow will act/look and optimize on that
-    Implement handling inside of the ai-manager
-      See what aspects I'd be able to extract into the server crate
-    Extract loader.py into the common (or scripts) directory
-  Integrate 'Seshat' into the ai-manager
-    Make sure that ai communication works correctly
-    Add hooks to the ai-manager to handle several "search" actions
-      These actions would then query the search engine with specific actions
-    Add hooks to dynamically load engine handlers and handle indexing
+      See if I can filter out common words
+        Or at least integrate tf-idf (though that may be more "medium-term"
+      Perform seshat memory improvements
+  Add in "device-querying" capabilities to the cli interface (cli-specific interactions to produce statistics about the ai operations)
+    Come up with a data-collection framework
+    Possibly change the cli app to not work on sentences (except with special command)
+    Enable querying of that data
   Make sure that everything works properly
     I think I need to rework the system a bit to spawn correctly
       Right now I think the device-manager requires a running ai-manager, but no ai-manager can be spawned
     Add in documentation for how to launch everything
+    Add in functionality to query functionality
+      ie. allow the cli app to query details about the status of the ai networking
+      This would also entail setting up an app "privilege" system
   Look into exporting some of my rust work as "crates"
 
 Produce a short video of the project
 
 Medium Term:
-  Need to put a lot more effort into making stuff modular (and distributed)
-    Probably need to add some form of distributed file system to go along with the search engine
-      NOTE: The search engine also needs to add distributed support
-    See if there is any way to unify the device and ai managers into one crate
+  Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
+    Rewrite routing process inside of device-manager
+      We need to be able to generically indicate which messages have to be forwarded to the ai-manager
+      Optimize the new message and communication flows (to minimize number of messages)
+      NOTE: Some messages we'll be able to handle locally (some we'll have to)
+    Move plugins into the ai-manager orbit
+      Create a process for indicating where plugins should be located (ie. tied to device or ai managers)
+      Implement some degree of automatic python app registration
+        Handshake procedure, etc.
+    Make 'Seshat' distributed
+      TODO: We'll probably want to create a full distributed file system for this
+      TODO: We may want to separate the indexing in the ai-manager and device-manager
+        Depending on how we handle networking the search engine, we may want the device-manager to map the paths to their "index results"
+          The index results would be any "keys" extracted by the device handlers + the index data (ie. what we get from the search results + ranking data)
+          This data would be periodically sent to the ai-manager, which would convert that data into the searchable results (ie. the maps we have already)
+    Move the "search" and "dispatch" actions to forward to the ai-manager
+    Implement "internal-only" communication actions
+      eg. command to update global index (for when a file gets added on a local device)
+      This would also add in a lot of "negotiation" messages for internal management
+    Extract `loader.py` into common/scripts directory
+    Enable sending files across devices
+      NOTE: This is especially important for sending rust-plugins to new devices
+    See if there's any way to "unify" ai-manager and device-manager
+      ie. they should share as much code as possible, maybe not be under two separate folders
   It would be nice if the server could spawn up "One-time use" plugins as needed
   Improve the handshaking procedure to actually have some degree of security and utility
     Current system only works because I have everything hardcoded
   Improve launch script to incorporate some file watching
     Automatically run `setup.py install --user` if anything in the setup script/packages have changed
       Automatically run "build" if cargo modules change
+  Improve the seshat engine with machine learning capabilities
+    This is particularly relevant in filtering the results (such as with mis-spellings)
+    Improve granularity of results
+      ie. I should be able to search only music files, etc.
+        This requires expanding what we store in the index (that or splitting into several indices)
+      Look into making an sql-esque interface
 
 Long Term:
   Develop my own NLP system for decoding the purpose of messages (Wit doesn't seem to want to adapt)
+  Redevelop networking code to better handle shutdowns, etc.
   Figure out how the device manager is supposed to act if I add in an AI node
     I suppose in the final system, the AI node gets setup first, so the server addr exists
     We can also use the udp broadcast system to handle this possibility

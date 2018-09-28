@@ -1,8 +1,6 @@
 
-#[macro_use]
-extern crate serde_derive;
-
 extern crate array_tool;
+extern crate evmap;
 extern crate serde;
 extern crate serde_json;
 extern crate tags;
@@ -29,7 +27,7 @@ use crawl::Crawler;
 struct MusicHandler;
 impl handle::FileHandler for MusicHandler {
     #[allow(unused_must_use)]
-    fn handle(&self, entry: &DirEntry, idx: &mut index::Index, file: &mut File) {
+    fn handle(&self, entry: &DirEntry, idx: &mut index::IndexWriter, file: &mut File) {
         // println!("Reading file {}", entry.path().display());
         match tags::load(entry.path()) {
             Ok(music_file) => {
@@ -59,18 +57,19 @@ impl handle::FileHandler for MusicHandler {
 }
 
 
-// TODO: Figure out how to properly multithread the engine (or at least some parts of it)
-    // I shouldn't be running the indexer every time I run 'main'
-        // I should also probably save it to a file somehow
-    // TODO: Add ability to offload intermediate results to files
 // TODO: Improve memory efficiency (I'm having to use a lot of clones when I don't need to)
+    // Replace the index 'Element' with indices into a global arena
 // TODO: Make the search engine tools into a library
     // `Indexer` - requires some extra indirections, maybe multithreading
         // NOTE: Also need to improve the indexing system with more clarity and extra information
         // eg. what if "Aerosmith" corresponds to a song AND the artist ??? which gets played
     // `SearchEngine` - requires some more architecture work and "experience"
 // TODO: Handle mis-spellings and short forms of words
+    // See if I can remove some "common" words from the index
 // TODO: Figure out how to distribute the seshat engine in some form
+// TODO: Insert system callbacks for when files are created/deleted
+    // NOTE: Deleted files are a slightly lower priority
+
 
 fn main() {
     // Open the output test file
@@ -89,8 +88,9 @@ fn main() {
     let now = SystemTime::now();
 
     // Start working on the indexer
-    let mut idx = index::Index::from_file("index.json");
-    let num_files = crawler.crawl(WalkDir::new("C:\\"), &mut idx, &mut output);
+    let index_file = Path::new("index.json");
+    let (idx, mut writer) = index::Index::from_file(&index_file);
+    let num_files = crawler.crawl(WalkDir::new("C:\\"), &mut writer, &mut output);
 
     if let Ok(time) = now.elapsed() {
         println!("Visited {} files in {} seconds", num_files, time.as_secs());
@@ -101,5 +101,5 @@ fn main() {
     let search_results = search::default_search("muse", &idx);
     println!("{:#?}", search_results);
 
-    idx.write_file("index.json");
+    idx.write_file(&index_file).unwrap();
 }

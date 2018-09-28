@@ -5,8 +5,10 @@ use walkdir::DirEntry;
 
 use super::index;
 
+// NOTE: There's a bit of a circular dependency here (the crawler doesn't hardcode the `index` type)
+
 pub trait FileHandler {
-    fn handle(&self, _entry: &DirEntry, _index: &mut index::Index, _out: &mut File) {}
+    fn handle(&self, _entry: &DirEntry, _index: &mut index::IndexWriter, _out: &mut File) {}
 }
 
 pub struct DefaultFileHandler;
