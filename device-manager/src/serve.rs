@@ -23,6 +23,9 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
     let ai_client = manager.clone();
 
 
+    // TODO: Spawn any timer threads (eg. Seshat indexing)
+
+
     // Spawn the listening server
     let server = TcpListener::bind(&addr)
         .unwrap()
@@ -33,6 +36,8 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
 
     // If there is an ai server running (ie. a "parent server") connect to it
     if let Some(paddr) = parent {
+        info!("Connecting to parent on {}", paddr);
+
         let client = TcpStream::connect(&paddr)
             .and_then(move |conn| Ok(spawn_connection(conn, ai_client)))
             .map_err(|err| { error!("Client error: {:?}", err) });
@@ -47,6 +52,8 @@ pub fn serve(addr: SocketAddr, parent: Option<SocketAddr>) {
 
     // Otherwise, just start listening
     } else {
+        info!("Initializing standalone device-manager");
+
         let device = server
             .select2(cancel)
             .map(|_| { trace!("Closing device") })

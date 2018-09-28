@@ -1,7 +1,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, mpsc, Mutex};
 
 use serde_json::Value;
 use tokio::io::Error;
@@ -9,13 +9,18 @@ use tokio::io::Error;
 use server;
 use server::{Closer, Communicator};
 
+use seshat::index as idx;
+
 #[derive(Clone)]
 pub struct DeviceManager {
-    conns: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,
-    mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,
-    roles: Arc<Mutex<HashMap<SocketAddr, String>>>,
-    parent_addr: Option<SocketAddr>,
+    conns: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,     // addr -> (close channel, message channel)
+    mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,                   // role -> addr
+    roles: Arc<Mutex<HashMap<SocketAddr, String>>>,                     // addr -> role
+    parent_addr: Option<SocketAddr>,                                    // ai manager address
     cancel: Closer,
+
+    // index: Arc<idx::Index>,                                           // Search engine read end
+    // crawl_queue: Arc<mpsc::Sender<String>>                            // Notification queue for sending paths for crawling
 }
 
 impl DeviceManager {

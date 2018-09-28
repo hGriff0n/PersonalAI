@@ -8,7 +8,10 @@ extern crate clap;
 extern crate fern;
 extern crate chrono;
 
+extern crate walkdir;
+
 extern crate server;
+extern crate seshat;
 
 mod device;
 mod serve;
