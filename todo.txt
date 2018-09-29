@@ -3,13 +3,13 @@
 Short Term:
   Integrate Seshat with device-manager
     Figure out how to create a daemon that periodically re-indexes the file-system
-      Then the daemon thread would have the writer and the normal thread would have the reader
-        directories are pushed on the mpsc::channel
       Determine how to create the indexer
-        Add in config arguments to locate the index file
         Modify DeviceManager constructor to accept the constructed index
           Work with the DeviceManager to enable adding in the 'Index'
-      Communication between the main thread and the crawl thread is achieved with std::sync::mpsc::channel
+      Add tokio spawning of the indexing thread
+        Figure out whether the indexer should parse everything before that thread is spawned?
+      NOTE: The daemon thread would have the writer and the normal thread would have the reader
+        directories are pushed on the mpsc::channel
       NOTE: To enable manual addition (eg. to re-crawl a specific folder), we have to follow this process
         Change the daemon thread to use a multithreaded 'push' system
           The daemon would take paths off of a concurrent queue (or mpsc::comm channel)
@@ -18,18 +18,15 @@ Short Term:
         We add an additional timer daemon to automatically push on the root folder every so often
           This would be configurable through the yaml file
       NOTE: Because of this, we won't add a watcher for new files (across the whole OS)
-      NOTE: We'll use the tokio::timer facilities where possible
-      Add tokio spawning of the indexing thread
-        Figure out whether the indexer should parse everything before that thread is spawned?
     Add hooks to device-manager to handle "search" actions
+      Be sure to handle cases where the Index map is out-of-date (due to fs changes)
     Add ability to dynamically load "plugins" for specific file types
       https://github.com/emoon/dynamic_reload
     Improve system performance and granularity
       Look at ripgrep (blog and codereview) for ideas
       Improve usage of rust features, streamline memory usage particularly
-      See if I can filter out common words
-        Or at least integrate tf-idf (though that may be more "medium-term"
-      Perform seshat memory improvements
+      Improve seshat memory usage and performance
+        Look into filtering out common words (or integrating tf-idf)
   Add in "device-querying" capabilities to the cli interface (cli-specific interactions to produce statistics about the ai operations)
     Come up with a data-collection framework
     Possibly change the cli app to not work on sentences (except with special command)
