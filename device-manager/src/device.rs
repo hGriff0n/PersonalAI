@@ -1,13 +1,13 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, mpsc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 use tokio::io::Error;
 
-use server;
-use server::{Closer, Communicator};
+use networking;
+use networking::{Closer, Communicator};
 
 use seshat::index as idx;
 
@@ -16,21 +16,19 @@ pub struct DeviceManager {
     conns: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,     // addr -> (close channel, message channel)
     mapping: Arc<Mutex<HashMap<String, SocketAddr>>>,                   // role -> addr
     roles: Arc<Mutex<HashMap<SocketAddr, String>>>,                     // addr -> role
-    parent_addr: Option<SocketAddr>,                                    // ai manager address
     cancel: Closer,
 
-    // index: Arc<idx::Index>,                                           // Search engine read end
-    // crawl_queue: Arc<mpsc::Sender<String>>                            // Notification queue for sending paths for crawling
+    pub index: idx::Index,                                                  // Search engine read end
 }
 
 impl DeviceManager {
-    pub fn new(parent_addr: Option<SocketAddr>, cancel: Closer) -> Self {
+    pub fn new(index: idx::Index, cancel: Closer) -> Self {
         Self{
             conns: Arc::new(Mutex::new(HashMap::new())),
             mapping: Arc::new(Mutex::new(HashMap::new())),
             roles: Arc::new(Mutex::new(HashMap::new())),
-            parent_addr: parent_addr,
-            cancel: cancel
+            cancel: cancel,
+            index: index,
         }
     }
 
@@ -45,11 +43,12 @@ impl DeviceManager {
     }
 }
 
-impl server::BasicServer for DeviceManager {
+impl networking::BasicServer for DeviceManager {
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), Error> {
         info!("Got {:?} from {:?}", msg, addr);
 
         // Perform server actions if requested
+        // TODO: Is there anyway to set this up dynamically? (So we can register keywords outside of this context)
         match msg.get("action").and_then(|act| act.as_str()) {
             Some("file") => {
 
@@ -75,8 +74,8 @@ impl server::BasicServer for DeviceManager {
 
                 info!("Closing self");
 
-                #[allow(unused_must_use)]
-                self.cancel.send(());//.expect("Failed to close connection");
+                // TODO: Need to handle failure to send here
+                self.cancel.send(());
                 return Ok(());
             },
             None => {

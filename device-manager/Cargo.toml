@@ -16,3 +16,4 @@ walkdir = "2.2.5"
 
 server = { path="../rust-deps/server" }
 seshat = { path="../rust-deps/seshat" }
+tags = { path="../rust-deps/tags" }

@@ -1,7 +1,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::rc;
+use std::sync;
 
 use walkdir::{DirEntry, WalkDir};
 
@@ -26,19 +26,19 @@ pub trait Crawler {
 
 
 pub struct WindowsCrawler {
-    default_handle: rc::Rc<handle::FileHandler>,
-    handles: HashMap<String, rc::Rc<handle::FileHandler>>
+    default_handle: sync::Arc<handle::FileHandler>,
+    handles: HashMap<String, sync::Arc<handle::FileHandler>>
 }
 
 impl WindowsCrawler {
     pub fn new() -> Self {
         Self {
-            default_handle: rc::Rc::new(handle::DefaultFileHandler),
+            default_handle: sync::Arc::new(handle::DefaultFileHandler),
             handles: HashMap::new()
         }
     }
 
-    pub fn register_handle(&mut self, exts: &[&str], handle: rc::Rc<handle::FileHandler>) {
+    pub fn register_handle(&mut self, exts: &[&str], handle: sync::Arc<handle::FileHandler>) {
         for ext in exts {
             self.handles.insert(ext.to_string(), handle.clone());
         }

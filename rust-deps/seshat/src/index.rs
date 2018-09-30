@@ -3,6 +3,7 @@ use std::collections::hash_map::RandomState;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::sync::mpsc;
 
 use evmap;
 use serde::{Serialize, Serializer};
@@ -20,14 +21,11 @@ type _IndexWriter = evmap::WriteHandle<String, Element, MetaInformation, RandomS
 type _IndexReader = evmap::ReadHandle<String, Element, MetaInformation, RandomState>;
 
 pub struct IndexWriter {
-    write_handle: _IndexWriter
+    write_handle: _IndexWriter,
+    pub root_channel: mpsc::Receiver<String>
 }
 
 impl IndexWriter {
-    pub fn new(writer: _IndexWriter) -> Self {
-        Self{ write_handle: writer }
-    }
-
     pub fn add(&mut self, tag: &str, path: String) -> &mut Self {
         for word in tag.to_lowercase().split(" ") {
             self.write_handle.insert(word.to_string(), path.clone());
@@ -41,19 +39,32 @@ impl IndexWriter {
     }
 }
 
-
+#[derive(Clone)]
 pub struct Index {
-    read_handle: _IndexReader
+    read_handle: _IndexReader,
+    pub root_channel: mpsc::Sender<String>
 }
 
 impl Index {
     pub fn new() -> (Self, IndexWriter) {
         let (reader, writer) = evmap::with_meta(());
-        (Self{ read_handle: reader }, IndexWriter::new(writer))
+        let (enqueue, dequeue) = mpsc::channel();
+
+        let index = Self{
+            read_handle: reader,
+            root_channel: enqueue,
+        };
+        let writer = IndexWriter{
+            write_handle: writer,
+            root_channel: dequeue,
+        };
+
+        (index, writer)
     }
 
     pub fn from_file(filepath: &Path) -> (Self, IndexWriter) {
         let (reader, mut writer) = evmap::with_meta(());
+        let (enqueue, dequeue) = mpsc::channel();
 
         let map: HashMap<String, ElementList> = fs::File::open(filepath)
             .and_then(|file| serde_json::from_reader(file)
@@ -67,7 +78,16 @@ impl Index {
         }
         writer.refresh();
 
-        (Self{ read_handle: reader }, IndexWriter::new(writer))
+        let index = Self{
+            read_handle: reader,
+            root_channel: enqueue,
+        };
+        let writer = IndexWriter{
+            write_handle: writer,
+            root_channel: dequeue,
+        };
+
+        (index, writer)
     }
 
     pub fn write_file(&self, path: &Path) -> Result<(), io::Error> {

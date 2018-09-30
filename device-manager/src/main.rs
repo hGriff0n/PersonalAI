@@ -1,152 +1,116 @@
 
-extern crate tokio;
-#[macro_use] extern crate serde_json;
-extern crate futures;
-
-extern crate clap;
-#[macro_use] extern crate log;
-extern crate fern;
 extern crate chrono;
-
+extern crate clap;
+extern crate fern;
+extern crate futures;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate serde_json;
+extern crate tokio;
 extern crate walkdir;
 
-extern crate server;
+// Local crates
+extern crate server as networking;
 extern crate seshat;
+extern crate tags;
 
+// Local modules
 mod device;
-mod serve;
+mod indexer;
+mod logging;
+mod server;
 
-// This program acts as the interaction manager for the individual device,
-// Collecting and dispatching requests to the global server from modalities
-// While maintaining and handling system level state/operations
+// Imports
+use std::sync::mpsc;
 
-use std::net::SocketAddr;
+use futures::Future;
 
-use clap::{App, Arg};
-use fern::colors::{Color, ColoredLevelConfig};
+/*
+This program acts primarily as an interaction manager for the individual device that operates as
+Part of the network, that enables this ai to function properly. It handles the collection and
+Dispatch of all requests and responses to/from the global network by the individual modalities
+That are slated to run on the device. It is also responsible for maintaining and handling system-level
+State and operations, particularly the indexing of the local file system and the measurement
+Of local device statistics, among others.
+*/
 
-// Figure out how to use futures 0.2.1 within this code
-// Get working cross-device communication (move away from home ip)
-    // Figure out how to handle registration/setup for modalities
-    // Modify dispatch to not use hardcoded logic, instead use associated keys/etc.
-// I'll also work on registering modalities with the python work
+// TODO: Possibly add in config file support
+    // https://github.com/casey/clap-config
+    // TODO: Might convert entirely to config file (config-rs)
 
 fn main() {
-    let args = get_command_args();
+    let args = parse_command_line();
 
-    // Setup the logger
-    let log_level = args.value_of("log-level")
-        .unwrap_or("warn")
-        .parse::<log::LevelFilter>()
-        .unwrap();
-
-    let log_dir = args.value_of("log-dir")
-        .unwrap_or("./log");
-
-    // TODO: Add the ability to set the log directory
-    setup_logging(log_level, log_dir, args.is_present("stdio-log")).expect("Failed to initialize logging");
-
+    logging::launch(&args).expect("Failed to initialize logging");
     trace!("Logger setup properly");
 
-    // Setup initial listener state
-    let addr = args.value_of("addr")
-        .unwrap_or("127.0.0.1:6142")
-        .parse::<SocketAddr>()
-        .unwrap();
-    let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
+    // Construct the indexer
+    let (index, writer) = match args.value_of("index-cache") {
+        Some(file) => {
+            let file = std::path::Path::new(file);
+            info!("Loading index from {:?}", file);
+            seshat::index::Index::from_file(&file)
+        },
+        None => seshat::index::Index::new()
+    };
+    trace!("Created device fs index");
 
-    trace!("Parsed addresses");
+    // Create the device manager
+    let (tx, cancel) = mpsc::channel();
+    let manager = device::DeviceManager::new(index, tx.clone());
+    trace!("Created device state manager");
 
-    // TODO: Log all unmatched arguments (How do I do that?)
+    let indexer = indexer::launch(manager.clone(), &args, writer);
+    trace!("Created async fs indexer");
 
     // TODO: Figure out how these will interact with the new system
     // TODO: Spawn any persistent system tools and register them with the server
         // Non-persistent tasks can be spawned by the server as needed (using tokio)
 
-    trace!("Spawned persistant tasks");
+    // trace!("Spawned persistant tasks");
 
-    // Spawn up the server
-    serve::serve(addr, parent);
+    let server = server::launch(manager.clone(), &args);
+    trace!("Created async server");
+
+    // Combine all futures
+    let device = server
+        .select2(indexer);
+
+    // Add in the ability to pre-emptively short-circuit all computations
+    let device = device
+        .select2(networking::comm::FutureChannel::new(cancel))
+        .map(move |_| { trace!("Closing device") })
+        .map_err(move |_| {});
+    trace!("Created tokio task description");
+
+    // Spawn the futures in the tokio event loop
+    tokio::run(device);
+    info!("System shutdown");
 }
 
 
 // Parse the command line arguments
-fn get_command_args<'a>() -> clap::ArgMatches<'a> {
-    App::new("Device Manager")
+fn parse_command_line<'a>() -> clap::ArgMatches<'a> {
+    use clap::Arg;
+
+    let app = clap::App::new("Device Manager")
         .version("0.1")
         .author("Grayson Hooper <ghooper96@gmail.com>")
         .about("Manages device state and communication")
-        .arg(Arg::with_name("addr")
-            .long("addr")
-            .value_name("IP")
-            .help("Listening port and address for the manager")
-            .takes_value(true))
-        .arg(Arg::with_name("log-level")
-            .long("log-level")
-            .value_name("LEVEL")
-            .help("Logging message output level")
-            .takes_value(true))
-        .arg(Arg::with_name("stdio-log")
-            .long("stdio-log")
-            .help("Control whether messages should be printed to stdout"))
-        .arg(Arg::with_name("log-dir")
-            .long("log-dir")
-            .help("Log directory location")
-            .value_name("DIR")
-            .takes_value(true))
-        .get_matches()
-}
+        .arg(Arg::with_name("index-cache")
+            .long("index-cache")
+            .help("location of the index cache storage file")
+            .value_name("JSON")
+            .takes_value(true));
 
+    // Add arguments for other system aspects
+    let app = indexer::add_args(app);
+    let app = server::add_args(app);
+    let app = logging::add_args(app);
 
-fn setup_logging<'a>(level: log::LevelFilter, log_dir: &'a str, io_logging: bool) -> Result<(), fern::InitError> {
-    let colors_line = ColoredLevelConfig::new()
-        .error(Color::Red)
-        .warn(Color::Yellow)
-        .info(Color::White)
-        .debug(Color::White)
-        .trace(Color::BrightBlack);
-
-    let colors_level = colors_line.clone().debug(Color::Green);
-
-    let file_logger = fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "[{date}][{target}:{line}][{level}] {message}",
-                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                target = record.file().unwrap_or("UNK"),
-                line = record.line().unwrap_or(0),
-                level = record.level(),
-                message = message,
-            ));
-        })
-        .chain(fern::log_file(format!("{}/device-manager.log", log_dir))?);
-
-    let io_logger = fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "{color_line}[{date}][{target}:{line}][{level}{color_line}] {message}\x1B[0m",
-                color_line = format_args!("\x1B[{}m", colors_line.get_color(&record.level()).to_fg_str()),
-                date = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                target = record.file().unwrap_or("UNK"),
-                line = record.line().unwrap_or(0),
-                level = colors_level.color(record.level()),
-                message = message,
-            ));
-        })
-        .chain(std::io::stdout());
-
-    let mut logger = fern::Dispatch::new()
-        .level(log::LevelFilter::Warn)
-        .level_for("device-manager", level)
-        .level_for("device_manager", level)
-        .chain(file_logger);
-
-    if io_logging {
-        logger = logger.chain(io_logger)
-    }
-
-    logger.apply()?;
-    Ok(())
+    // Return the command line matches
+    app.get_matches()
 }
 
 // API Documentation:

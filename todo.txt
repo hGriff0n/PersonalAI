@@ -3,22 +3,17 @@
 Short Term:
   Integrate Seshat with device-manager
     Figure out how to create a daemon that periodically re-indexes the file-system
-      Determine how to create the indexer
-        Modify DeviceManager constructor to accept the constructed index
-          Work with the DeviceManager to enable adding in the 'Index'
-      Add tokio spawning of the indexing thread
-        Figure out whether the indexer should parse everything before that thread is spawned?
-      NOTE: The daemon thread would have the writer and the normal thread would have the reader
-        directories are pushed on the mpsc::channel
-      NOTE: To enable manual addition (eg. to re-crawl a specific folder), we have to follow this process
-        Change the daemon thread to use a multithreaded 'push' system
-          The daemon would take paths off of a concurrent queue (or mpsc::comm channel)
-            If there isn't anything, sleep immediately (or return)
-          Then we perform some unification to minimize crawling
-        We add an additional timer daemon to automatically push on the root folder every so often
-          This would be configurable through the yaml file
-      NOTE: Because of this, we won't add a watcher for new files (across the whole OS)
+      Improve the tokio event spawning
+        We need to be able to configure the indexer to parse stuff immediately or on the next tick
+      Add in ability to specify device fs roots in config (cause there may be multiple)
+        Might require allowing config files to be read by the device-manager
+      Remove the index channels from the direct public interface (see 'seshat/index.rs/Index')
+        Also remove the 'index' from the `DeviceManager` public interface (if possible)
+        Add in more intuitive query methods to the indexing end
     Add hooks to device-manager to handle "search" actions
+      See if I can make the 'action' handling somewhat generic
+        This would mean removing the hardcoded "action" keys in `handle_requests`
+        Probably replace with a map lookup into a lambda/function
       Be sure to handle cases where the Index map is out-of-date (due to fs changes)
     Add ability to dynamically load "plugins" for specific file types
       https://github.com/emoon/dynamic_reload
@@ -79,6 +74,11 @@ Medium Term:
       ie. I should be able to search only music files, etc.
         This requires expanding what we store in the index (that or splitting into several indices)
       Look into making an sql-esque interface
+  Reduce Technical Debt
+    Update 'futures' to use the most recent version
+    Ensure that all dependencies are at their most recent versions
+    Improve the tracking of files to minimize need for reindexing
+      Recognize which data did not come from under a specific root, so we don't have to throw it out if we're re-indexing that root
 
 Long Term:
   Develop my own NLP system for decoding the purpose of messages (Wit doesn't seem to want to adapt)

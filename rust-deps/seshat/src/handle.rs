@@ -7,7 +7,7 @@ use super::index;
 
 // NOTE: There's a bit of a circular dependency here (the crawler doesn't hardcode the `index` type)
 
-pub trait FileHandler {
+pub trait FileHandler: Send + Sync {
     fn handle(&self, _entry: &DirEntry, _index: &mut index::IndexWriter, _out: &mut File) {}
 }
 
