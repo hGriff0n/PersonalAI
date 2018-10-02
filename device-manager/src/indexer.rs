@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use chrono;
 use clap;
-use futures::{Future, Stream};
+use futures::{future, Future, Stream};
 use tokio;
 use walkdir::{DirEntry, WalkDir};
 
@@ -30,61 +30,81 @@ fn extract_roots<'a>(_args: &'a clap::ArgMatches) -> Vec<String> {
 }
 
 pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, mut writer: IndexWriter) -> impl Future {
-    let crawler = create_crawler(args);
-
-    // TODO: Add in logging support for these conversions
-    let hour = chrono::Duration::hours(1);
-    let week = chrono::Duration::weeks(1);
+    let hour = chrono::Duration::hours(1).to_std().unwrap();
+    let week = chrono::Duration::weeks(1).to_std().expect("Unable to convert 1 week to seconds");
 
     // TODO: Add in ability to configure roots from commandline/config
-    // TODO: Remove the need to clone the roots vector
-    let indexer_roots = extract_roots(args);
-    let reindexer_roots = indexer_roots.clone();
+    let crawler = create_crawler(args);
+    let root_folders = extract_roots(args);
 
-    // TODO: Configure 'instant' based on how many entries are in the index
-    let instant = std::time::Instant::now();
+    // Automatically queue the root folders if the index is empty
+    let mut indexer_instant = std::time::Instant::now();
+    if device.get_index().len() == 0 {
+        for root_folder in &root_folders {
+            device.get_index().push_folder(root_folder)
+                .expect("Error in initializing index queue");
+        }
 
-    // TODO: Make this pushing of the root nodes optional
-    for root_folder in &reindexer_roots {
-        device.index.root_channel.send(root_folder.to_string());
+    // Otherwise, we should be able to wait for a little while
+    } else {
+        indexer_instant += hour;
     }
+    trace!("Calculated delays for indexing threads");
 
     // Check in every hour to possibly reindex the filesystem
     // TODO: See if there's any way I can speed this up (such as running the crawler in a different thread)
     // We really just need to spawn the crawler instances with this function, their finishing can be done at any point
     // NOTE: It looks like we just need to spawn up a bunch more futures and add them to the runtime queue
-    let indexer = tokio::timer::Interval::new(instant, hour.to_std().unwrap())
+    let indexer = tokio::timer::Interval::new(indexer_instant, hour)
         .for_each(move |_| {
-            let folders: Vec<String> = writer.root_channel.try_iter().collect();
+            let folders = writer.queued_folders();
 
             // TODO: Perform some degree of subsumption, etc. on the roots
             // NOTE: If I'm push on any root file, we need to erase the index
 
+            // NOTE: This will be removed eventually
             let output_file = std::path::Path::new("_files.txt");
             let mut output = std::fs::File::create(&output_file).unwrap();
 
-            // TODO: Recognize if one of the folders is a root
             for root in folders {
-                // TODO: Change the crawl function to use log instead of file
+                info!("Starting crawling of {:?}", root);
                 crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
+
+                // NOTE: This is an attempt to move the crawling into the tokio runtime (to speed it up a little)
+                // I could also just spawn and forget a thread (not sure about the cleanup)
+                // This will become much easier once the 'output' param is removed
+                // tokio::spawn(
+                //     future::ok(root)
+                //         .and_then(|root| {
+                //             crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
+                //             debug!("Finished crawling {}", root);
+                //             Ok(())
+                //         })
+                //         .and_then(|root| {
+                //             writer.commit();
+                //         }));
             }
+
+            writer.commit();
+            debug!("Finished indexing");
 
             Ok(())
         });
 
     // Periodically push on all root folders to force re-indexing
     // NOTE: This capability means that to support 'file-watchers', we just add an event to push the new folder on the channel
-    let reindexer = tokio::timer::Interval::new_interval(week.to_std().expect("Unable to convert weeks"))
+    let root_queue_instant = std::time::Instant::now() + week;
+    let queue_roots = tokio::timer::Interval::new(root_queue_instant, week)
         .for_each(move |_| {
-            for root_folder in &reindexer_roots {
-                device.index.root_channel.send(root_folder.to_string())
+            for root_folder in &root_folders {
+                device.get_index().push_folder(root_folder)
                     .map_err(|_| tokio::timer::Error::shutdown())?
             }
 
             Ok(())
         });
 
-    indexer.select2(reindexer)
+    indexer.select2(queue_roots)
 }
 
 pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {

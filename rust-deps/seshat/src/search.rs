@@ -7,7 +7,7 @@ pub fn default_search(query: &str, index: &idx::Index) -> Vec<String> {
     search(query, index, &intersect_rank)
 }
 
-type RankingFunction = Fn(Vec<idx::ElementList>) -> idx::ElementList;
+pub type RankingFunction = Fn(Vec<idx::ElementList>) -> idx::ElementList;
 pub fn search(query: &str, index: &idx::Index, page_rank: &RankingFunction) -> idx::ElementList {
     let results = index.retrieve(query);
     page_rank(results)

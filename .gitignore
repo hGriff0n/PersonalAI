@@ -15,8 +15,10 @@ build/
 # Test data files
 data/Magnet.mp3
 data/*.m4a
+**/_files.txt
 
 
 # Cargo/Rust files
 *.lock
 **/target/
+**settings.json

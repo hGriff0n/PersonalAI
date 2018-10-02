@@ -43,7 +43,8 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches) -> impl fut
         .unwrap();
     trace!("Parsed device-server listening address: {:?}", addr);
 
-    let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
+    // let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
+    let parent = None;
     trace!("Parsed device-server parent address: {:?}", parent);
 
     // Create the server "futures"

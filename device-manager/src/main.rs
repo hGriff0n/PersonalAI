@@ -36,11 +36,12 @@ Of local device statistics, among others.
 */
 
 // TODO: Possibly add in config file support
-    // https://github.com/casey/clap-config
-    // TODO: Might convert entirely to config file (config-rs)
+    // The best option would be to transition primary config to utilize config-rs
+    // We then utilize 'clap' to overwrite argument values (and locate the config file)
+        // NOTE: We have to implement config-rs::Source for 'clap' to enable this
 
 fn main() {
-    let args = parse_command_line();
+    let args = load_configuration();
 
     logging::launch(&args).expect("Failed to initialize logging");
     trace!("Logger setup properly");
@@ -61,6 +62,8 @@ fn main() {
     let manager = device::DeviceManager::new(index, tx.clone());
     trace!("Created device state manager");
 
+    // TODO: This currently hangs until the indexing has completed
+        // This should not be the case (futures::lazy?)
     let indexer = indexer::launch(manager.clone(), &args, writer);
     trace!("Created async fs indexer");
 
@@ -75,7 +78,8 @@ fn main() {
 
     // Combine all futures
     let device = server
-        .select2(indexer);
+        .select2(indexer)
+        ;
 
     // Add in the ability to pre-emptively short-circuit all computations
     let device = device
@@ -91,7 +95,7 @@ fn main() {
 
 
 // Parse the command line arguments
-fn parse_command_line<'a>() -> clap::ArgMatches<'a> {
+fn load_configuration<'a>() -> clap::ArgMatches<'a> {
     use clap::Arg;
 
     let app = clap::App::new("Device Manager")
@@ -112,8 +116,3 @@ fn parse_command_line<'a>() -> clap::ArgMatches<'a> {
     // Return the command line matches
     app.get_matches()
 }
-
-// API Documentation:
-//  tokio: https://github.com/tokio-rs/tokio
-//  tokio-serde-json: https://github.com/carllerche/tokio-serde-json
-//  clap: https://github.com/kbknapp/clap-rs

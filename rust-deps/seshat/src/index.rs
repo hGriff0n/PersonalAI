@@ -22,7 +22,7 @@ type _IndexReader = evmap::ReadHandle<String, Element, MetaInformation, RandomSt
 
 pub struct IndexWriter {
     write_handle: _IndexWriter,
-    pub root_channel: mpsc::Receiver<String>
+    root_channel: mpsc::Receiver<String>
 }
 
 impl IndexWriter {
@@ -37,12 +37,16 @@ impl IndexWriter {
     pub fn commit(&mut self) {
         self.write_handle.refresh();
     }
+
+    pub fn queued_folders(&self) -> Vec<String> {
+        self.root_channel.try_iter().collect()
+    }
 }
 
 #[derive(Clone)]
 pub struct Index {
     read_handle: _IndexReader,
-    pub root_channel: mpsc::Sender<String>
+    root_channel: mpsc::Sender<String>
 }
 
 impl Index {
@@ -104,6 +108,14 @@ impl Index {
                 .get_and(word, |slice| slice.to_vec())
                 .unwrap_or(Vec::new()))
             .collect()
+    }
+
+    pub fn push_folder(&self, folder: &str) -> Result<(), mpsc::SendError<String>> {
+        self.root_channel.send(folder.to_string())
+    }
+
+    pub fn len(&self) -> usize {
+        self.read_handle.len()
     }
 }
 

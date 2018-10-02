@@ -64,6 +64,14 @@ class DispatchPlugin(Plugin):
                 answer.message("Playing {}".format(song))
                 answer.send_to('audio')
 
+            elif intent['value'] == "find":
+                answer.action('search')
+
+                # NOTE: I'm assuming this sends the results back where we want them to
+                if 'search_query' in quest:
+                    answer['query'] = quest['search_query'][0]['value']
+                    self.log.info("FINDING <{}>".format(answer['query']))
+
             else:
                 answer.action('unk')
                 answer.message("I can't do that")

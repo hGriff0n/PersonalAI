@@ -55,6 +55,11 @@ class CliPlugin(Plugin):
             with self.lock:
                 self.msgs.append(msg['text'])
 
+        elif 'find' in msg:
+            self.log.debug("Received search results")
+            with self.lock:
+                self.msgs.append(msg)
+
         self.log.info("RECEIVED <{}>".format(msg))
         return ""
 

@@ -1,20 +1,21 @@
 plugins:
-  audio:
-    data: C:\Users\ghoop\Desktop\PersonalAI\modalities\data
+  # audio:
+  #   data: C:\Users\ghoop\Desktop\PersonalAI\modalities\data
+  #   dirs:
+  #     - C:\Users\ghoop\Music
   cli:
   dispatch:
 
 device-manager:
   path: C:\Users\ghoop\Desktop\PersonalAI\device-manager\target\debug\device-manager.exe
+  index-cache: C:\Users\ghoop\Desktop\PersonalAI\index_cache.json
   addr: 127.0.0.1:6142
   log-level: trace
 
-ai-manager:
-  path: C:\Users\ghoop\Desktop\PersonalAI\ai-manager\target\debug\ai-manager.exe
-  addr: 127.0.0.1:6141
-  log-level: error
-
-
+# ai-manager:
+#   path: C:\Users\ghoop\Desktop\PersonalAI\ai-manager\target\debug\ai-manager.exe
+#   addr: 127.0.0.1:6141
+#   log-level: warn
 
 plugin_dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
 loader:  C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py

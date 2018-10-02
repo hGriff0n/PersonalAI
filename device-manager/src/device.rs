@@ -4,11 +4,12 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
-use tokio::io::Error;
+use tokio::io::{Error, ErrorKind};
 
 use networking;
 use networking::{Closer, Communicator};
 
+use seshat;
 use seshat::index as idx;
 
 #[derive(Clone)]
@@ -18,7 +19,7 @@ pub struct DeviceManager {
     roles: Arc<Mutex<HashMap<SocketAddr, String>>>,                     // addr -> role
     cancel: Closer,
 
-    pub index: idx::Index,                                                  // Search engine read end
+    index: idx::Index,                                                  // Search engine read end
 }
 
 impl DeviceManager {
@@ -41,19 +42,20 @@ impl DeviceManager {
             conns[&addr].0.send(()).expect("Failed to close connection");
         }
     }
+
+    pub fn get_index(&self) -> &idx::Index {
+        &self.index
+    }
 }
 
 impl networking::BasicServer for DeviceManager {
+    // TODO: Might want to reorganize this to maintain better & simpler tracking
     fn handle_request(&mut self, mut msg: Value, addr: &SocketAddr) -> Result<(), Error> {
         info!("Got {:?} from {:?}", msg, addr);
 
         // Perform server actions if requested
         // TODO: Is there anyway to set this up dynamically? (So we can register keywords outside of this context)
         match msg.get("action").and_then(|act| act.as_str()) {
-            Some("file") => {
-
-                return Ok(())
-            },
             Some("handshake") => {
                 let role = msg.get("hooks").unwrap()[0].as_str().unwrap();
                 self.mapping.lock().unwrap().insert(role.to_string(), *addr);
@@ -75,9 +77,24 @@ impl networking::BasicServer for DeviceManager {
                 info!("Closing self");
 
                 // TODO: Need to handle failure to send here
-                self.cancel.send(());
-                return Ok(());
+                return self.cancel.send(())
+                    .map_err(|_| Error::new(ErrorKind::ConnectionAborted, "Failed to send cancel signal"));
             },
+            Some("search") => {
+                let query = msg.get("query")
+                    .and_then(|dst| dst.as_str())
+                    .and_then(|dst| Some(dst.to_string()));
+                if let Some(query) = query {
+                    let results = seshat::default_search(&query, &self.index);
+                    msg["results"] = json!(results);
+
+                    // TODO: Send the data to the original sender
+                    // Right now this sends the information back to the 'dispatch' plugin, not the cli plugin
+
+                } else {
+                    debug!("Received search message with no query");
+                }
+            }
             None => {
                 return Ok(());
             },

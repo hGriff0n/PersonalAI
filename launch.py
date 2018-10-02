@@ -25,9 +25,8 @@ def spawn_with_args(program, arg_dict, shell=None):
 
 # Wrapper for simplifying plugin spawning
 # Also automatically special cases the shell to only spawn for the cli plugin
-def spawn_plugin(plugin, arg_dict, loader=None):
-    if loader is None:
-        loader = 'modalities/loader.py'
+def spawn_plugin(plugin, arg_dict, loader):
+    print("Spawning the `{}` plugin".format(plugin))
     return spawn_with_args(['python', loader, plugin], arg_dict, plugin == 'cli')
 
 
@@ -36,6 +35,7 @@ def launch_device(config):
 
     # Launch the ai manager
     if 'ai-manager' in config:
+        print("Launching the ai-manager")
         manager = config['ai-manager']
         manager_exe = manager['path']
         del manager['path']
@@ -46,12 +46,16 @@ def launch_device(config):
 
 
     # Launch the device manager
+    print("Launching the device-manager")
     manager = config['device-manager']
     manager_exe = manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
     procs.append(spawn_with_args(manager_exe, manager))
 
+    # TODO: Remove
+    import time
+    time.sleep(30)
 
     # Split out the modalities (cause we need to special case the cli plugin (if it exists))
     # TODO: Shouldn't this be based on the folder structure (if it's a plugin system? - that may be bad in the future, i feel)
@@ -62,7 +66,7 @@ def launch_device(config):
         del plugins['cli']
 
     # Launch all plugins
-    procs.extend(spawn_plugin(name, plugin, loader=config['loader']) for name, plugin in plugins.items())
+    procs.extend(spawn_plugin(name, plugin, config['loader']) for name, plugin in plugins.items())
 
     # Spawn the cli plugin last cause this will "take over" the command line
     if len(cli) == 1:
@@ -84,18 +88,22 @@ def launch_ai_node(config):
 
 def clean(config):
     if 'log-dir' not in config:
+        print("Setting the `log-dir` config option to `./log`")
         config['log-dir'] = './log'
 
     for root, _dirs, files in os.walk(config['log-dir']):
         for f in files:
-            os.unlink(os.path.join(root, f))
+            log_file = os.path.join(root, f)
+            print("Removing log file `{}`".format(log_file))
+            os.unlink(log_file)
 
 def build(_config):
-    os.chdir('ai-manager')
-    ret = os.system("cargo build")
-    os.chdir('..')
+    # os.chdir('ai-manager')
+    # ret = os.system("cargo build")
+    # os.chdir('..')
 
-    if ret == 0:
+    # if ret == 0:
+    if True:
         os.chdir('device-manager')
         ret = os.system("cargo build")
         os.chdir('..')

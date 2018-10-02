@@ -94,7 +94,7 @@ if __name__ == "__main__":
     parser.add_argument('plugin', type=str, nargs=1, help='plugin to load')
     parser.add_argument('--plugin-dir', type=str, help='location of plugins')
     parser.add_argument('--host', type=str, default='127.0.0.1', help='ip address of the host server')
-    parser.add_argument('--port', default=6142, help='port that the server is listening on')
+    parser.add_argument('--port', type=int, default=6142, help='port that the server is listening on')
     parser.add_argument('--log-dir', type=str, default='./log', help='location to write log files')
     [loader_args, plugin_args] = parser.parse_known_args()
     loader_args = vars(loader_args)
