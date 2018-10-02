@@ -1,20 +1,10 @@
 Planning Document
 
-Finished:
-  Active speech-to-text
-  Basic text-to-speech
-
-Steps:
-  Set aside some time to learn how to perform speech recognition/nlp stuff on my own
-
-Issues:
-  The STT/TTS stack is not very stable
-    Prone to crashes/Possibility of cross-interference
-
 Initial Goal:
   Be able to open a program on my computer using voice (using custom AI)
   Be able to ask my computer the weather using my voice
   Control Spotify using voice only (this will actually be somewhat difficult)
+    Play any music file using my voice only
 
 Broad Planning:
   Sort of want an Alexa/Cortana style system across all of my devices

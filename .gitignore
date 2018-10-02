@@ -16,9 +16,11 @@ build/
 data/Magnet.mp3
 data/*.m4a
 **/_files.txt
+index_cache.json
 
 
 # Cargo/Rust files
 *.lock
 **/target/
-**settings.json
+\.vscode/
+
