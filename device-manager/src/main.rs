@@ -47,6 +47,7 @@ fn main() {
     trace!("Logger setup properly");
 
     // Construct the indexer
+    // TODO: Loading the index from file causes some start-up delay
     let (index, writer) = match args.value_of("index-cache") {
         Some(file) => {
             let file = std::path::Path::new(file);

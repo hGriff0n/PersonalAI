@@ -7,6 +7,7 @@ import socket
 import struct
 import sys
 import threading
+import time
 import traceback
 
 from common import logger
@@ -93,9 +94,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Load personalai plugin')
     parser.add_argument('plugin', type=str, nargs=1, help='plugin to load')
     parser.add_argument('--plugin-dir', type=str, help='location of plugins')
-    parser.add_argument('--host', type=str, default='127.0.0.1', help='ip address of the host server')
-    parser.add_argument('--port', type=int, default=6142, help='port that the server is listening on')
-    parser.add_argument('--log-dir', type=str, default='./log', help='location to write log files')
+    parser.add_argument('--host', type=str, help='ip address of the host server')
+    parser.add_argument('--port', type=int, help='port that the server is listening on')
+    parser.add_argument('--log-dir', type=str, help='location to write log files')
+    parser.add_argument('--retry-delay', type=int, help='Num seconds to sleep in between connection retries')
+    parser.add_argument('--max-retries', type=int, help='Maximum retry attempts before connection failed')
     [loader_args, plugin_args] = parser.parse_known_args()
     loader_args = vars(loader_args)
 
@@ -115,9 +118,23 @@ if __name__ == "__main__":
     # Launch the networking threads (for communicating with the device manager)
     host, port = loader_args['host'], loader_args['port']
     sock = socket.socket()
+    num_connection_attempts = 0
 
-    log.info("Attempting to connect to {}:{}".format(host, port))
-    sock.connect((host, port))
+    # Handle connection errors
+    while True:
+        log.info("Attempting to connect to {}:{}".format(host, port))
+        num_connection_attempts += 1
+
+        try:
+            sock.connect((host, port))
+            break
+        except socket.error as e:
+            if num_connection_attempts == loader_args['max_retries']:
+                raise e
+
+            log.info("Connection failed. Sleeping for {} seconds".format(loader_args['retry_delay']))
+            time.sleep(loader_args['retry_delay'])
+
     log.info("Connected to {}:{}".format(host, port))
 
     read_thread = threading.Thread(target=reader, args=(plugin, sock, queue,))

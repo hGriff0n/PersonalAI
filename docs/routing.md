@@ -3,9 +3,10 @@ This document describes the formatting of messages and other system data to impr
 
 ## Messages
 
-All messages sent within the system must contain a "networking section". This section contains all
-information necessary to help route a message within the network. Some data within this section is
-only produced as the message travels from the producer to the destination.
+All messages sent within the system **must** contain a "routing section" that contains all
+information necessary for routing a message within the network. While the general section is required,
+some data will only be filled in as the message travels through the network, and is thus
+required to be specified at construction.
 
   ```json
   "sender": {
@@ -39,7 +40,7 @@ unable, particularly with the 'addr' field
 
 > The 'addr' field **must** contain the device's ip address
 
-> The 'role' field **must** contain the plugin "role" data corresponding to the production of the message (???)
+> The 'role' field **must** contain the assigned "role" that sent the data, in the capacity that it sent it
 
 > The 'uuid' field **must** contain the guid of the specific producing plugin/manager combo
 
@@ -50,28 +51,29 @@ When a manager receives a message such that the 'ack_uuid' field of the message 
 destination app cannot be the same as the 'ack_uuid' app, then it **must** split the message and forward
 it as follows:
 
-> An ACK message **must** be created and sent to the device specified by 'ack_uuid' value
+> An ACK message **must** be created and sent to the device specified by 'ack_uuid' value, based on the original message
 
-> The 'ack_uuid' field of the original message **must** be set to *null* or removed and the message forwarded as normal
+> The 'ack_uuid' field of the original message **must** be set to *null*, or removed, and the message forwarded as normal
 
 Since the system is built along a distributed model, we take no guarantees that the entire routing structure
 will be knowable to any specific node within the program. As such, at every routing step (ie. when a message
 is received by a manager), the receiving device's ip address **should** be appended to the 'route' field.
-NOTE: This is not strictly necessary for routing, but it may be very helpful for network maintenance/etc.
+NOTE: This is not strictly necessary for routing, but it may be helpful for network maintenance/etc. We can
+also easily remove if needed.
 
 All messages **must** specify a json dictionary in the 'dest' data field, indicating where/how the message
 should be routed. NOTE: In general, this dictionary acts as more of a routing "hint" than any explicit
-requirement - depending on which fields/field combinations are specified. This allows us to satisfy any
-of three general requirements:
+requirement - depending on which combination of fields are specified. These combinations allow us to satisfy
+any of these three general routing questions:
 
-> Find me the system default app for this **ROLE**
+> Send this to the system default app for this **ROLE**
 
-> Use the app for this **ROLE** on this **DEVICE**
+> Send this to the app for this **ROLE** on this **DEVICE**
 
 > Send a message to this **APP**
 
-The routing system is **not required** to follow this general formula for all actions and **may** short-circuit
-routing where possible/desired/necessary
+The routing system is **not** required to follow this general formula for all actions and **may** short-circuit
+routing where desired
 
 NOTE: I may find it beneficial to introduce the ability to "forward" messages, in order to reduce network traffic.
 These kinds of messages would enable a plugin to send a message that relies on data the sender does not have access

@@ -73,7 +73,8 @@ class Plugin:
 
 def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     # Make sure the plugin exists
-    if plugin_dir is None: plugin_dir = r"C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins"
+    if plugin_dir is None:
+        plugin_dir = r"C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins"
     location = os.path.join(plugin_dir, desired_plugin)
     if not os.path.isdir(location) or not "__init__.py" in os.listdir(location):
         if log is not None:

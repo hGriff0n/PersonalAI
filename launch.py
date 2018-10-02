@@ -26,8 +26,18 @@ def spawn_with_args(program, arg_dict, shell=None):
 # Wrapper for simplifying plugin spawning
 # Also automatically special cases the shell to only spawn for the cli plugin
 def spawn_plugin(plugin, arg_dict, loader):
+    loader_path = loader['script_path']
+    del loader['script_path']
+
+    # Merge the command arguments
+    # NOTE: This overwrites any plugin specific args with the loader args where clashes occur
+    if arg_dict is None:
+        arg_dict = loader
+    else:
+        arg_dict = { **arg_dict, **loader }
+
     print("Spawning the `{}` plugin".format(plugin))
-    return spawn_with_args(['python', loader, plugin], arg_dict, plugin == 'cli')
+    return spawn_with_args(['python', loader_path, plugin], arg_dict, plugin == 'cli')
 
 
 def launch_device(config):
@@ -48,14 +58,15 @@ def launch_device(config):
     # Launch the device manager
     print("Launching the device-manager")
     manager = config['device-manager']
+
+    if not _will_plugins_connect(manager['addr'], config['loader_config']):
+        print("Configuration Error: Plugins not set to connect to local device-manager")
+        return 1
+
     manager_exe = manager['path']
     del manager['path']
     if 'stdio-log' in manager: del manager['stdio-log']
     procs.append(spawn_with_args(manager_exe, manager))
-
-    # TODO: Remove
-    import time
-    time.sleep(30)
 
     # Split out the modalities (cause we need to special case the cli plugin (if it exists))
     # TODO: Shouldn't this be based on the folder structure (if it's a plugin system? - that may be bad in the future, i feel)
@@ -66,11 +77,11 @@ def launch_device(config):
         del plugins['cli']
 
     # Launch all plugins
-    procs.extend(spawn_plugin(name, plugin, config['loader']) for name, plugin in plugins.items())
+    procs.extend(spawn_plugin(name, plugin, config['loader_config'].copy()) for name, plugin in plugins.items())
 
     # Spawn the cli plugin last cause this will "take over" the command line
     if len(cli) == 1:
-        spawn_plugin('cli', cli[0], loader=config['loader']).wait()
+        spawn_plugin('cli', cli[0], loader=config['loader_config']).wait()
 
     # Wait for the modalities to finish running
     print("Waiting for modalities")
@@ -81,6 +92,9 @@ def launch_device(config):
     except KeyboardInterrupt:
         for proc in procs:
             proc.kill()
+
+def _will_plugins_connect(manager_addr, loader_config):
+    return manager_addr == "{}:{}".format(loader_config['host'], loader_config['port'])
 
 
 def launch_ai_node(config):

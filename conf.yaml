@@ -17,5 +17,11 @@ device-manager:
 #   addr: 127.0.0.1:6141
 #   log-level: warn
 
-plugin_dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
-loader:  C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py
+loader_config:
+  script_path: C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py
+  plugin-dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
+  host: 127.0.0.1
+  port: 6142
+  log-dir: ./log
+  retry-delay: 5
+  max-retries: 10

@@ -2,53 +2,45 @@
 
 Short Term:
   Integrate Seshat with device-manager
-    Add hooks to device-manager to handle "search" actions
-      Add intermediate step to the cli to see search results
-        Fix the device-manager to spawn up the network connection as soon as possible
-          It seems 'socket.connect' is failing because "the target machine actively refused connections"
-          This is due entirely to delay that we encounter loading the index from the file
-            This loading delays the binding of the socket for long enough that our plugins try to connect
-            The old indexing was slow, but it was run through tokio
-              This meant the tcp listener was started, even though we didn't handle connections for a while
-          We basically either need to spawn up the server first, or move the index reading into some delayed future
-            This future would only be run once, probably using the 'lazy' future
-              The bigger issue with this is determining how to scheduling the indexer future
-        Simplify the communication of the ports for the device-manager and plugins
-          The current solution relies on the device-manager port matching the default configuration
-          If it doesn't, I have to change the port on a per-plugin level
-            The config file is supposed to differentiate the plugins+manager on a per-device level
-        Remove the need for the indexer to complete for the device manager to handle comms
-          This is because the crawling is performed sequentially
-            Once tokio starts that future, it can't handle any others
-              Start "spawn-and-forget" thread instead of doing the work in-line
-      Rework the routing system according to 'routing.md'
-        Modify python code to correctly produce/sign it's messages for sending
-          Include the 'uuid' module for producing guids
-            TODO: How-to integrate into the plugin system
-        Modify rust code to correctly produce/sign/forward messages
-          Introduce a rust crate for parsing/producing the messages
-        Extend the message/plugin system to enable 'event-driven' programming
-          This is necessary to implement the "find Muse" feature
-            dispatch receives "dispatch: 'find Muse'"
-              dispatch sends "find: 'Muse'"
-              manager returns "results: [...]"
-            dispatch sends "results: [...]"
-          NOTE: The key thing is the synching of the uuid results, etc.
-          We can also use this system to order the printing of messages in the cli plugin
-      See if I can make the 'action' handling somewhat generic
-        This would mean removing the hardcoded "action" keys in `handle_requests`
-        Probably replace with a map lookup into a lambda/function
-      Be sure to handle cases where the Index map is out-of-date (due to fs changes)
-    Improve system performance and granularity
-      Look at ripgrep (blog and codereview) for ideas
-      Improve usage of rust features, streamline memory usage particularly
-      Improve seshat memory usage and performance
-        Look into filtering out common words (or integrating tf-idf)
-        Have crawl use the logger instead of a file
-          This requires changing 'tags' to use a logger instead of a file too
-      Look at allowing the device-manager to load a config file
-        This would better allow us to configure the root folders (in case there are multiple)
-          NOTE: We could possibly do this in the command line alone
+    Add intermediate step to the cli to see search results
+      Move the index loading from a file to some tokio future
+        We can't create the index from the file due to the startup delay
+        We need to add a method to the write_handle to enable loading from the file
+        Change the 'indexer::launch' method to spawn up a future using this method
+          Optionally spawn up a 'lazy' future if the config file exists
+            This lazy future will spawn the reindexing future
+              NOTE: We can spawn the queuing future as-is (cause of the week-long delay)
+      Remove the need for the indexer to complete for the device manager to handle comms
+        Start "spawn-and-forget" thread instead of doing the work in-line
+          Having crawling performed sequeuntially freezes tokio in the future so it can't handle other requests
+    Rework the routing system according to 'routing.md'
+      Modify python code to correctly produce/sign it's messages for sending
+        Include the 'uuid' module for producing guids
+          TODO: How-to integrate into the plugin system
+      Modify rust code to correctly produce/sign/forward messages
+        Introduce a rust crate for parsing/producing the messages
+      Extend the message/plugin system to enable 'event-driven' programming
+        This is necessary to implement the "find Muse" feature
+          dispatch receives "dispatch: 'find Muse'"
+            dispatch sends "find: 'Muse'"
+            manager returns "results: [...]"
+          dispatch sends "results: [...]"
+        NOTE: The key thing is the synching of the uuid results, etc.
+        We can also use this system to order the printing of messages in the cli plugin
+    See if I can make the 'action' handling somewhat generic
+      This would mean removing the hardcoded "action" keys in `handle_requests`
+      Probably replace with a map lookup into a lambda/function
+    Be sure to handle cases where the Index map is out-of-date (due to fs changes)
+  Improve system performance and granularity
+    Look at ripgrep (blog and codereview) for ideas
+    Improve usage of rust features, streamline memory usage particularly
+    Improve seshat memory usage and performance
+      Look into filtering out common words (or integrating tf-idf)
+      Have crawl use the logger instead of a file
+        This requires changing 'tags' to use a logger instead of a file too
+    Look at allowing the device-manager to load a config file
+      This would better allow us to configure the root folders (in case there are multiple)
+        NOTE: We could possibly do this in the command line alone
   Add in "device-querying" capabilities to the cli interface
     NOTE: cli-specific interactions to produce statistics about the ai operations
     Come up with a data-collection framework
