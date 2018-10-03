@@ -1,8 +1,10 @@
 
-use std;
 use std::fs::File;
 use std::io::{ErrorKind, Write};
 use std::sync::Arc;
+use std::path;
+use std::time;
+use std::thread;
 
 use chrono;
 use clap;
@@ -29,7 +31,28 @@ fn extract_roots<'a>(_args: &'a clap::ArgMatches) -> Vec<String> {
     vec!["C:\\".to_string()]
 }
 
-pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, mut writer: IndexWriter) -> impl Future {
+// Delay the initial loading of the index from a file for a little bit
+// This helps us spawn up the server slightly faster, avoiding reconnection issues with the modalities
+type LazyLoader = Box<dyn Future<Item=(time::Instant, IndexWriter), Error=()> + Send>;
+pub fn load_index<'a>(args: &'a clap::ArgMatches, mut writer: IndexWriter) -> LazyLoader {
+    let hour = chrono::Duration::hours(1).to_std().unwrap();
+    let index_cache = args.value_of("index-cache")
+        .and_then(|dst| Some(dst.to_string()));
+
+    match index_cache {
+        Some(file) =>
+            Box::new(future::lazy(move || {
+                let file = path::Path::new(&file);
+                info!("Loading index from file `{:?}`", file);
+
+                writer.load_file(file);
+                Ok((time::Instant::now() + hour, writer))
+            })),
+        None => Box::new(future::lazy(|| Ok((time::Instant::now(), writer))))
+    }
+}
+
+pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: IndexWriter) -> impl Future {
     let hour = chrono::Duration::hours(1).to_std().unwrap();
     let week = chrono::Duration::weeks(1).to_std().expect("Unable to convert 1 week to seconds");
 
@@ -37,63 +60,43 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, mut writer:
     let crawler = create_crawler(args);
     let root_folders = extract_roots(args);
 
-    // Automatically queue the root folders if the index is empty
-    let mut indexer_instant = std::time::Instant::now();
-    if device.get_index().len() == 0 {
-        for root_folder in &root_folders {
-            device.get_index().push_folder(root_folder)
-                .expect("Error in initializing index queue");
-        }
+    // Load the index, then setup a periodic check every hour for reindexing
+    let indexer = load_index(args, writer)
+        .and_then(move |(delay, mut writer)| {
+            let reindexer = tokio::timer::Interval::new(delay, hour)
+                .for_each(move |_| {
+                    let folders = writer.queued_folders();
 
-    // Otherwise, we should be able to wait for a little while
-    } else {
-        indexer_instant += hour;
-    }
-    trace!("Calculated delays for indexing threads");
+                    // TODO: Perform some degree of subsumption, etc. on the roots
+                    // NOTE: If I'm push on any root file, we need to erase the index
 
-    // Check in every hour to possibly reindex the filesystem
-    // TODO: See if there's any way I can speed this up (such as running the crawler in a different thread)
-    // We really just need to spawn the crawler instances with this function, their finishing can be done at any point
-    // NOTE: It looks like we just need to spawn up a bunch more futures and add them to the runtime queue
-    let indexer = tokio::timer::Interval::new(indexer_instant, hour)
-        .for_each(move |_| {
-            let folders = writer.queued_folders();
+                    // NOTE: This will be removed eventually
+                    let output_file = path::Path::new("_files.txt");
+                    let mut output = File::create(&output_file).unwrap();
 
-            // TODO: Perform some degree of subsumption, etc. on the roots
-            // NOTE: If I'm push on any root file, we need to erase the index
+                    // Spawn-and-forget the crawling in a separate thread
+                    // NOTE: Performing crawling within the sequential code-block causes tokio's processing
+                    // To grind to a halt, harming system-wide uptime and responsiveness
+                    // TODO: We can't do this just yet because of the borrow checker
+                    // thread::spawn(move || {
+                        for root in folders {
+                            info!("Starting crawling of {:?}", root);
+                            crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
+                        }
 
-            // NOTE: This will be removed eventually
-            let output_file = std::path::Path::new("_files.txt");
-            let mut output = std::fs::File::create(&output_file).unwrap();
+                        writer.commit();
+                        debug!("Finished reindexing");
+                    // });
 
-            for root in folders {
-                info!("Starting crawling of {:?}", root);
-                crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
-
-                // NOTE: This is an attempt to move the crawling into the tokio runtime (to speed it up a little)
-                // I could also just spawn and forget a thread (not sure about the cleanup)
-                // This will become much easier once the 'output' param is removed
-                // tokio::spawn(
-                //     future::ok(root)
-                //         .and_then(|root| {
-                //             crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
-                //             debug!("Finished crawling {}", root);
-                //             Ok(())
-                //         })
-                //         .and_then(|root| {
-                //             writer.commit();
-                //         }));
-            }
-
-            writer.commit();
-            debug!("Finished indexing");
-
-            Ok(())
+                    Ok(())
+                })
+                .map_err(|_| ());
+            tokio::spawn(reindexer)
         });
 
     // Periodically push on all root folders to force re-indexing
     // NOTE: This capability means that to support 'file-watchers', we just add an event to push the new folder on the channel
-    let root_queue_instant = std::time::Instant::now() + week;
+    let root_queue_instant = time::Instant::now() + week;
     let queue_roots = tokio::timer::Interval::new(root_queue_instant, week)
         .for_each(move |_| {
             for root_folder in &root_folders {
@@ -108,9 +111,13 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, mut writer:
 }
 
 pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
-    // use clap::Arg;
+    use clap::Arg;
 
-    app
+    app.arg(Arg::with_name("index-cache")
+        .long("index-cache")
+        .help("location of the index cache storage file")
+        .value_name("JSON")
+        .takes_value(true))
 }
 
 

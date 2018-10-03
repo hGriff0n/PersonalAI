@@ -13,7 +13,7 @@ use std::fs::File;
 use std::io;
 use std::io::prelude::*;
 use std::path::Path;
-use std::rc;
+use std::sync;
 use std::time::SystemTime;
 
 pub mod index;
@@ -82,7 +82,7 @@ fn main() {
 
     // Initialize the file handlers
     let mut crawler = crawl::WindowsCrawler::new();
-    crawler.register_handle(&["mp3", "mp4", "m4a"], rc::Rc::new(MusicHandler));
+    crawler.register_handle(&["mp3", "mp4", "m4a"], sync::Arc::new(MusicHandler));
 
     // Time everything (not necessary for final implementations)
     let now = SystemTime::now();

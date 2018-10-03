@@ -34,6 +34,20 @@ impl IndexWriter {
         self
     }
 
+    pub fn load_file(&mut self, filepath: &Path) {
+        let map: HashMap<String, ElementList> = fs::File::open(filepath)
+            .and_then(|file| serde_json::from_reader(file)
+                .map_err(|err| err.into()))
+            .unwrap_or(HashMap::new());
+
+        for (k, v) in &map {
+            for item in v {
+                self.write_handle.insert(k.clone(), item.clone());
+            }
+        }
+        self.commit();
+    }
+
     pub fn commit(&mut self) {
         self.write_handle.refresh();
     }
@@ -67,31 +81,9 @@ impl Index {
     }
 
     pub fn from_file(filepath: &Path) -> (Self, IndexWriter) {
-        let (reader, mut writer) = evmap::with_meta(());
-        let (enqueue, dequeue) = mpsc::channel();
-
-        let map: HashMap<String, ElementList> = fs::File::open(filepath)
-            .and_then(|file| serde_json::from_reader(file)
-                .map_err(|err| err.into()))
-            .unwrap_or(HashMap::new());
-
-        for (k, v) in &map {
-            for item in v {
-                writer.insert(k.clone(), item.clone());
-            }
-        }
-        writer.refresh();
-
-        let index = Self{
-            read_handle: reader,
-            root_channel: enqueue,
-        };
-        let writer = IndexWriter{
-            write_handle: writer,
-            root_channel: dequeue,
-        };
-
-        (index, writer)
+        let (reader, mut writer) = Index::new();
+        writer.load_file(filepath);
+        (reader, writer)
     }
 
     pub fn write_file(&self, path: &Path) -> Result<(), io::Error> {

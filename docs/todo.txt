@@ -2,17 +2,6 @@
 
 Short Term:
   Integrate Seshat with device-manager
-    Add intermediate step to the cli to see search results
-      Move the index loading from a file to some tokio future
-        We can't create the index from the file due to the startup delay
-        We need to add a method to the write_handle to enable loading from the file
-        Change the 'indexer::launch' method to spawn up a future using this method
-          Optionally spawn up a 'lazy' future if the config file exists
-            This lazy future will spawn the reindexing future
-              NOTE: We can spawn the queuing future as-is (cause of the week-long delay)
-      Remove the need for the indexer to complete for the device manager to handle comms
-        Start "spawn-and-forget" thread instead of doing the work in-line
-          Having crawling performed sequeuntially freezes tokio in the future so it can't handle other requests
     Rework the routing system according to 'routing.md'
       Modify python code to correctly produce/sign it's messages for sending
         Include the 'uuid' module for producing guids
@@ -38,6 +27,8 @@ Short Term:
       Look into filtering out common words (or integrating tf-idf)
       Have crawl use the logger instead of a file
         This requires changing 'tags' to use a logger instead of a file too
+      Adapt the reindexer future to spawn a daemon thread instead of crawling in sequence
+        The current code will stop all handling of requests while the crawler is running
     Look at allowing the device-manager to load a config file
       This would better allow us to configure the root folders (in case there are multiple)
         NOTE: We could possibly do this in the command line alone

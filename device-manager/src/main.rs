@@ -48,14 +48,7 @@ fn main() {
 
     // Construct the indexer
     // TODO: Loading the index from file causes some start-up delay
-    let (index, writer) = match args.value_of("index-cache") {
-        Some(file) => {
-            let file = std::path::Path::new(file);
-            info!("Loading index from {:?}", file);
-            seshat::index::Index::from_file(&file)
-        },
-        None => seshat::index::Index::new()
-    };
+    let (index, writer) = seshat::index::Index::new();
     trace!("Created device fs index");
 
     // Create the device manager
@@ -99,15 +92,11 @@ fn main() {
 fn load_configuration<'a>() -> clap::ArgMatches<'a> {
     use clap::Arg;
 
+    // Create the base app and arguments
     let app = clap::App::new("Device Manager")
         .version("0.1")
         .author("Grayson Hooper <ghooper96@gmail.com>")
-        .about("Manages device state and communication")
-        .arg(Arg::with_name("index-cache")
-            .long("index-cache")
-            .help("location of the index cache storage file")
-            .value_name("JSON")
-            .takes_value(true));
+        .about("Manages device state and communication");
 
     // Add arguments for other system aspects
     let app = indexer::add_args(app);
