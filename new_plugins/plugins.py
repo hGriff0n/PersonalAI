@@ -38,7 +38,7 @@ class Plugin:
 
     # TODO: Need to work on the interfaces (how to send messages?)
     @abc.abstractmethod
-    def run(self, comm):
+    async def run(self, comm):
         """
         Direct interfacing methdod for running the basic plugin behavior.
 
