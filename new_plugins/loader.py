@@ -12,9 +12,11 @@ import time
 import traceback
 
 from common import logger
-from common.msg import Message
+# from common.msg import Message
+# import common.plugins as plugin_system
 
 import plugins as plugin_system
+from msg import Message
 
 log = None
 
@@ -51,10 +53,24 @@ def get_messages(socket):
             msg_len = struct.unpack(">I", len_buf)[0]
             buf = socket.recv(msg_len)
             msg = json.loads(buf.decode('utf-8'))
-            yield Message({ k: v for k, v in msg.items() if v is not None })
+            yield Message(msg=msg)
 
     except ConnectionResetError:
         log.info("Lost connection to server")
+
+
+def exception_wrapper(plugin, handle, msg, comm):
+    """
+    Wrap the handle calling to catch and report exceptions back to the sender
+    """
+    try:
+        async handle(plugin, msg, comm)
+
+    except Exception as e:
+        msg.set_action('error')
+        msg.set_args(str(e))
+        msg.return_to_sender()
+        comm.send(msg)
 
 
 def reader(comm, plugin, socket, loop):
@@ -63,7 +79,7 @@ def reader(comm, plugin, socket, loop):
     """
     try:
         for msg in get_messages(socket):
-            if msg.action == Message.quit():
+            if Message.is_quit(msg):
                 break
 
             elif msg.id in comm._event_queue:
@@ -71,6 +87,7 @@ def reader(comm, plugin, socket, loop):
                 comm._event_queue[msg.id].set()
 
             elif msg.action in comm._handles:
+                # loop.call_soon_threadsafe(exception_wrapper, plugin, comm._handles[msg.action], msg, comm)
                 loop.call_soon_threadsafe(comm._handles[msg.action], plugin, msg, comm)
 
     except:
@@ -82,8 +99,6 @@ def send_message(socket, msg):
     Send a message with the correct network protocol (as expected by device-managers)
     """
     log.info("SENDING <{}>".format(msg))
-    if isinstance(msg, Message):
-        msg = msg.finalize()
     data = json.dumps(msg).encode('utf-8')
     frame = struct.pack(">I", len(data))
     socket.sendall(frame + data)
@@ -99,11 +114,20 @@ def writer(comm, socket):
         # TODO: Add in some stuff ?
 
         send_message(socket, msg)
+        if Message.is_quit(msg):
+            break
 
 
-def handshake(plugin_handles, queue):
+def handshake(plugin, plugin_handles, comm):
     log.info("Performing Initial Plugin Handshake")
-    queue.put(Message({ 'action': 'handshake', 'hooks': list(plugin_handles.keys()) }))
+
+    msg = Message()
+    msg.set_sender(plugin, 'handshake')
+    msg.set_action('handshake')
+    msg.set_args(list(plugin_handles.keys()))
+    msg.set_destination(role='manager', intra_device=True)
+
+    comm.send(msg)
 
 
 async def run(plugin, comm, read_thread, write_thread):
@@ -117,8 +141,12 @@ async def run(plugin, comm, read_thread, write_thread):
         log.error("EXCEPTION: " + traceback.format_exc())
 
     finally:
-        comm._msg_queue.put(Message.stop())
-        send_message(sock, Message({ 'action': 'stop' }))
+        msg = Message()
+        msg.set_sender(plugin, 'stop')
+        msg.set_action('stop')
+        msg.set_destination(role='manager', intra_device=True)
+
+        comm.send(msg)
 
 
 if __name__ == "__main__":
@@ -157,6 +185,7 @@ if __name__ == "__main__":
         try:
             sock.connect((host, port))
             break
+
         except socket.error as e:
             if num_connection_attempts == loader_args['max_retries']:
                 raise e
@@ -173,7 +202,7 @@ if __name__ == "__main__":
     write_thread = threading.Thread(target=writer, args=(comm, socket))
 
     # Run the plugin
-    handshake(plugin, comm)
+    handshake(plugin, handles, comm)
     loop.run_until_complete(run(plugin, comm, read_thread, write_thread))
 
     # Clean up everything

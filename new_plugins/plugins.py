@@ -57,6 +57,10 @@ class Plugin:
         global action_handles
         action_handles[str(action)] = callback
 
+    @property
+    def uuid(self):
+        return self._uuid
+
 
 def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     if plugin_dir is None:

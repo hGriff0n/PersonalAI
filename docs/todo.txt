@@ -3,19 +3,10 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
-      Modify python code to correctly produce/sign it's messages for sending
-        Include the 'uuid' module for producing guids
-          TODO: How-to integrate into the plugin system
       Modify rust code to correctly produce/sign/forward messages
         Introduce a rust crate for parsing/producing the messages
-      Extend the message/plugin system to enable 'event-driven' programming
-        This is necessary to implement the "find Muse" feature
-          dispatch receives "dispatch: 'find Muse'"
-            dispatch sends "find: 'Muse'"
-            manager returns "results: [...]"
-          dispatch sends "results: [...]"
-        NOTE: The key thing is the synching of the uuid results, etc.
-        We can also use this system to order the printing of messages in the cli plugin
+      See if I can write the handler system to allow for exceptions
+        Can we catch exceptions with asyncio coroutines?
     See if I can make the 'action' handling somewhat generic
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
