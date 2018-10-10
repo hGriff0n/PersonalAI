@@ -1,30 +1,100 @@
 
+import collections
+import types
 import uuid
 
 class Message:
-    def __init__(self, msg=None):
-        if msg is None:
-            self._msg = {
-                'message_id': uuid.uuid4(),
-                'route': []
-            }
-        else:
-            self._msg = msg
-
-    def handler(self, role):
-        self._msg['sender']['role'] = role
-
-    def set_sender(self, plugin, role):
-        self._msg['sender'] = {
-            'uuid' = plugin.uuid,
-            'role' = role
+    """
+    Wrap a json dictionary to ensure adherence to the network's message protocol
+    """
+    def __init__(self, plugin=None, role=None):
+        self._msg = {
+            'message_id': uuid.uuid4(),
+            'route': [],
+            'sender': {}
         }
+        if plugin is not None:
+            self._msg['sender']['uuid'] = plugin.uuid
+        if role is not None:
+            self._msg['sender']['role'] = role
+
+    @property
+    def json_packet(self):
+        return self._msg
+
+    @staticmethod
+    def from_json(json_msg):
+        msg = Message()
+        msg._msg = json_msg.copy()
+
+    @property
+    def routing(self):
+        routing_info = {}
+        for key in ['sender', 'route', 'dest', 'forward', 'message_id', 'parent_id', 'ack_uuid']:
+            if key in self._msg:
+                routing_info[key] = self._msg[key].copy()
+        return routing_info
+
+    @property
+    def id(self):
+        return self._msg['message_id']
+
+    @property
+    def parent_id(self):
+        return self._msg.get('parent_id')
+
+    @parent_id.setter
+    def parent_id(self, pid):
+        self._msg['parent_id'] = pid
+
+    @property
+    def action(self):
+        return self._msg.get('action')
+
+    @action.setter
+    def action(self, action):
+        self._msg['action'] = action
+
+    @property
+    def args(self):
+        if 'args' not in self._msg:
+            self._msg['args'] = []
+
+        return self._msg['args']
+
+    @args.setter
+    def args(self, args):
+        if isinstance(args, tuple) or isinstance(args, types.GeneratorType) or isinstance(args, collections.KeysView):
+            args = list(args)
+
+        elif not isinstance(args, list):
+            args = [ args ]
+
+        self._msg['args'] = args
+
+    @property
+    def response(self):
+        return self._msg.get('resp')
+
+    @response.setter
+    def response(self, resp):
+        self._msg['resp'] = resp
+
 
     def return_to_sender(self):
-        self._msg['dest'] = self._msg['sender']
+        """
+        Immediately sets the destination routing field to be the same as the sender field
+        This has the side-effect of forcing routing to return the message to the sender
+        """
+        self._msg['dest'] = self._msg['sender'].copy()
 
-    def set_destination(self, role=None, addr=None, uuid=None, intra_device=None):
-        self._msg['dest'] = {}
+    def send_to(self, role=None, addr=None, uuid=None, intra_device=None):
+        """
+        Adds routing request information to the destination field of the message
+        NOTE: Depending on the fields used, this will not guarantee sending to a specific app
+        """
+        if 'dest' not in self._msg:
+            self._msg['dest'] = {}
         if role is not None:
             self._msg['dest']['role'] = role
         if addr is not None:
@@ -33,40 +103,6 @@ class Message:
             self._msg['dest']['uuid'] = uuid
         if intra_device is not None:
             self._msg['dest']['intra_device'] = intra_device
-
-    def set_parent_id(self, parent):
-        self._msg['parent_id'] = parent
-
-    def set_ack_uuid(self, msg_uuid):
-        self._msg['ack_uuid'] = msg_uuid
-
-    @property
-    def id(self):
-        return self._msg['message_id']
-
-    @property
-    def action(self):
-        return self._msg['action']
-
-    def set_action(self, action):
-        self._msg['action'] = action
-
-    @property
-    def args(self):
-        return self._msg['args']
-
-    def set_args(self, *args):
-        self._msg['args'] = args
-
-    def set_stop(self):
-        self._msg['stop'] = True
-
-    @property
-    def response(self):
-        return self._msg['resp']
-
-    def set_response(self, resp):
-        self._msg['resp'] = resp
 
     @staticmethod
     def is_quit(msg):

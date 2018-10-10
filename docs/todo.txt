@@ -5,6 +5,7 @@ Short Term:
     Rework the routing system according to 'routing.md'
       Replace the old loader
         Rewrite the plugins to work off of the new system
+          Make the wit_ai key a config argument (TODO: Relearn how the plugin system works)
       Rewrite the rust forwarding system to utilize the new routing system
         NOTE: Use hardcoded json paths for now
           Any message crate would likely need to be auto-generated

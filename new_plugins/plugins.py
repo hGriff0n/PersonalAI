@@ -2,23 +2,19 @@
 
 import abc
 import asyncio
+import clg
 import imp
+import inspect
 import os
 import queue
 import uuid
-
-import clg
 import yaml
 
 from common import logger
 
 
 LoadedPlugin = None
-action_handles = {}
-
-
-class MessageEvent(asyncio.Event):
-    value = None
+_action_handles = {}
 
 
 class Plugin:
@@ -26,10 +22,11 @@ class Plugin:
     Base class for all plugins. Singleton instances of subclasses are created automatically by loader.py
     """
 
-    def __init__(self, logger, config):
+    def __init__(self, logger, _config):
         self._uuid = uuid.uuid4()
+        self._log = logger
 
-    # NOTE: This is implicitly called when we import in the subclass, creating the instance
+    # NOTE: This is implicitly called when we import in the subclass
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -42,20 +39,26 @@ class Plugin:
         """
         Direct interfacing methdod for running the basic plugin behavior.
 
-        NOTE: Plugins must implement this method as a single pass returning a boolean
-        They should not handle "continuous" running, the loading framework handles this for them
-        This is implemented so that the plugin does not hang if the server connection
-        Is closed, but that fact is communicated (or used) properly within this method
+        NOTE: Plugins **must** implement this method as a single pass returning a boolean
+        This method will be called repeatedly by the plugin loader, as-if it was continuously running
 
-        :param self:
         :param comm: interface for sending messages, etc.
         :returns: A boolean value indicating whether to continue running the plugin or not
         """
 
-    @staticmethod
-    def _register_handle(action, callback):
-        global action_handles
-        action_handles[str(action)] = callback
+    def _register_handle(self, action, callback):
+        """
+        Registers the specific callback for all messages that have the indicated 'action'
+
+        :param action: The action that this handle is registered for
+        :param callback: A coroutine callback taking `(self, Message, CommChannel)`
+        """
+        global _action_handles
+        if inspect.iscoroutinefunction(callback):
+            _action_handles[str(action)] = callback
+
+        else:
+            self._log.error("Attempt to register non-coroutine callback for `{}` action ({})".format(action, callback))
 
     @property
     def uuid(self):
@@ -91,9 +94,9 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     log.info("Loaded plugin {}".format(desired_plugin))
 
     # Construct the plugin
-    global action_handles
+    global _action_handles
     plugin = LoadedPlugin(plugin_logger, plugin_config_args)
-    handles = action_handles
-    action_handles = {}
+    handles = _action_handles
+    _action_handles = {}
 
     return plugin, handles
