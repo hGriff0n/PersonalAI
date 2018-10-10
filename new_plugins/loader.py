@@ -21,15 +21,24 @@ from msg import Message
 log = None
 
 class MessageEvent(asyncio.Event):
+    """
+    Custom event
+    """
     value = None
 
 class CommChannel:
+    """
+    Custom communication channel to wrap client behaviors
+    """
     def __init__(self, handles):
         self._event_queue = {}
         self._msg_queue = queue.Queue()
         self._handles = handles
 
     async def wait_for_response(self, msg):
+        """
+        Send a message to some other plugin and wait for a response message
+        """
         self.send(msg)
         self._event_queue[msg.id] = MessageEvent()
         await self._event_queue[msg.id].wait()
@@ -59,39 +68,43 @@ def get_messages(socket):
         log.info("Lost connection to server")
 
 
-def exception_wrapper(plugin, handle, msg, comm):
-    """
-    Wrap the handle calling to catch and report exceptions back to the sender
-    """
-    try:
-        async handle(plugin, msg, comm)
-
-    except Exception as e:
-        msg.set_action('error')
-        msg.set_args(str(e))
-        msg.return_to_sender()
-        comm.send(msg)
-
-
+# TODO: Need to integrate with the logging system
 def reader(comm, plugin, socket, loop):
     """
     Thread callback responsible for dispatching messages sent to this plugin
+    Also correctly logs and handles exceptions from the plugin handlers
+
+    NOTE: All plugin handle methods are called using asyncio
+    This is why we add the exception wrapper (asyncio doesn't always report them properly)
     """
-    try:
-        for msg in get_messages(socket):
-            if Message.is_quit(msg):
-                break
+    def _exc_wrapper(msg):
+        try:
+            await comm._handles[msg.action](plugin, msg, comm)
 
-            elif msg.id in comm._event_queue:
-                comm._event_queue[msg.id].value = msg
-                comm._event_queue[msg.id].set()
+        except Exception as e:
+            log.error("EXCEPTION: " + traceback.format_exc())
 
-            elif msg.action in comm._handles:
-                # loop.call_soon_threadsafe(exception_wrapper, plugin, comm._handles[msg.action], msg, comm)
-                loop.call_soon_threadsafe(comm._handles[msg.action], plugin, msg, comm)
+            msg.set_action('error')
+            msg.set_args(str(e))
+            msg.return_to_sender()
+            comm.send(msg)
 
-    except:
-        log.error("EXCEPTION: " + traceback.format_exc())
+    # For every message that we receive from the server
+    for msg in get_messages(socket):
+        if Message.is_quit(msg):
+            break
+
+        # If we have requested this message in some other handler
+        elif msg.id in comm._event_queue:
+            comm._event_queue[msg.id].value = msg
+            comm._event_queue[msg.id].set()
+
+        # Otherwise call the registered plugin handler
+        elif msg.action in comm._handles:
+            asyncio.run_coroutine_threadsafe(_exc_wrapper(msg), loop=loop)
+
+        else:
+            log.info("Received unexpected message <{}>".format(msg))
 
 
 def send_message(socket, msg):
@@ -122,7 +135,7 @@ def handshake(plugin, plugin_handles, comm):
     log.info("Performing Initial Plugin Handshake")
 
     msg = Message()
-    msg.set_sender(plugin, 'handshake')
+    msg.set_sender(plugin, None)
     msg.set_action('handshake')
     msg.set_args(list(plugin_handles.keys()))
     msg.set_destination(role='manager', intra_device=True)
@@ -130,7 +143,15 @@ def handshake(plugin, plugin_handles, comm):
     comm.send(msg)
 
 
+# TODO: Need to integrate with the logging system
+# NOTE: 'log' is a global variable
 async def run(plugin, comm, read_thread, write_thread):
+    """
+    Run the plugin within the asyncio event loop
+    """
+    read_thread.start()
+    write_thread.start()
+
     try:
         while await plugin.run(comm):
             if not write_thread.is_alive() or read_thread.is_alive():
@@ -142,8 +163,8 @@ async def run(plugin, comm, read_thread, write_thread):
 
     finally:
         msg = Message()
-        msg.set_sender(plugin, 'stop')
-        msg.set_action('stop')
+        msg.set_sender(plugin, None)
+        msg.set_action(Message.STOP)
         msg.set_destination(role='manager', intra_device=True)
 
         comm.send(msg)
@@ -174,8 +195,7 @@ if __name__ == "__main__":
 
     # Launch the networking threads (for communicating with the device manager)
     host, port = loader_args['host'], loader_args['port']
-    sock = socket.socket()
-    num_connection_attempts = 0
+    sock, num_connection_attempts = socket.socket(), 0
 
     # Handle connection errors
     while True:
@@ -204,6 +224,7 @@ if __name__ == "__main__":
     # Run the plugin
     handshake(plugin, handles, comm)
     loop.run_until_complete(run(plugin, comm, read_thread, write_thread))
+    log.info("Quit plugin while {} handles were running".format(len(asyncio.Task.all_tasks())))
 
     # Clean up everything
     write_thread.join()

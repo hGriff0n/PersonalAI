@@ -3,10 +3,12 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
-      Modify rust code to correctly produce/sign/forward messages
-        Introduce a rust crate for parsing/producing the messages
-      See if I can write the handler system to allow for exceptions
-        Can we catch exceptions with asyncio coroutines?
+      Replace the old loader
+        Rewrite the plugins to work off of the new system
+      Rewrite the rust forwarding system to utilize the new routing system
+        NOTE: Use hardcoded json paths for now
+          Any message crate would likely need to be auto-generated
+      See if we can make the communication asyncio as well
     See if I can make the 'action' handling somewhat generic
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
@@ -43,6 +45,7 @@ Short Term:
   Look into publishing some of my rust work as "crates"
   Add ability to dynamically load "plugins" for specific file types
     https://github.com/emoon/dynamic_reload
+    NOTE: If we do the dynamic reloading, we'd also need to allow for the python modules to be reloaded
 
 Produce a short video of the project
 
