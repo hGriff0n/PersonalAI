@@ -1,106 +1,107 @@
-#!/usr/bin/env python3
 
-import logging
-import threading
+import asyncio
 
 from wit import Wit
 
 from common.msg import Message
-from common.plugins import Plugin
+from common import plugins
 
 # NOTE: This app is wholely responsible for receiving a 'msg' json object from the server and running it through
     # wit.ai to determine what the message is wanting to perform in the context of the system
 # TODO: Improve code quality and naming
 
-
-class DispatchPlugin(Plugin):
+class DispatchPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
-        self.client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
+        super.__init__(self, logger, config=config)
 
-        self.log = logger
-        self.log.setLevel(logging.INFO)
-        self.log.info("Finished initialization")
+        self._client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
+        self._register_handle('dispatch', DispatchPlugin.handle_dispatch)
 
-    def run(self, queue):
+        self._intent_handles = {
+            'stop': DispatchPlugin._handle_stop,
+            'play_music': DispatchPlugin._handle_music,
+            'find': DispatchPlugin._handle_find
+        }
+
+    async def run(self, comm):
+        await asyncio.sleep(10)
         return True
 
-    def dispatch(self, msg, queue):
-        if 'stop' in msg and msg['stop']:
-            return Message.stop()
+    async def handle_dispatch(self, msg, comm):
+        dispatch = msg.args[0]
+        self._log.info("MSG <{}>".format(dispatch))
 
-        if 'dispatch' in msg:
-            msg['dispatch'] = self.client.message(msg['dispatch'])
-            self.log.info("MSG <{}>".format(msg['dispatch']))
-            self.perform_dispatch(msg, queue)
-
-        else:
-            self.log.info("Received unusable json communication")
-            self.log.info("COMM <{}>".format(msg))
-
-        return ""
-
-    def perform_dispatch(self, msg, queue):
-        quest = msg['dispatch']['entities']
-        answer = Message(msg['from'])
+        # TODO: Can we make the wit.ai call asynchronous?
+        query = self._client.message(dispatch)
+        quest = query['entities']
 
         if 'intent' in quest:
-            # TODO: Dispatch on the intents
-            self.log.info("INTENTS <{}>".format(quest['intent']))
-
+            self._log.info("INTENT <{}>".format(quest['intent']))
             intent = quest['intent'][0]
-            answer['stop'] = ('stop' == intent['value'])
 
-            if intent['value'] == "play_music":
-                song = 'Magnet'
-
-                if 'search_query' in quest:
-                    song = quest['search_query'][0]['value']
-
-                self.log.info("PLAYING <{}>".format(song))
-
-                # NOTE: Here I assume the server is responsible for splitting the messages
-                answer['play'] = song
-                answer.action('play')
-                answer.message("Playing {}".format(song))
-                answer.send_to('audio')
-
-            elif intent['value'] == "find":
-                answer.action('search')
-
-                # NOTE: I'm assuming this sends the results back where we want them to
-                if 'search_query' in quest:
-                    answer['query'] = quest['search_query'][0]['value']
-                    self.log.info("FINDING <{}>".format(answer['query']))
+            if intent in self._intent_handles:
+                await self._intent_handles[intent](self, msg, comm, quest)
 
             else:
-                answer.action('unk')
-                answer.message("I can't do that")
+                self._log.error("Received unknown message <{}>".format(msg))
+
+                msg.action = 'error'
+                msg.args = "Unknown message"
 
         elif 'greetings' in quest:
-            self.log.info("GREETING")
-            answer.action('greet')
-            answer.message("Hello")
+            self._log.info("GREETING")
+            msg.action = 'greet'
+            msg.args = "Hello"
 
         elif 'thanks' in quest:
-            self.log.info("GREETING")
-            answer.action('ack')
-            answer.message("You're welcome")
+            self._log.info("GREETING")
+            msg.action = 'ack'
+            msg.args = "You're welcome"
 
         elif 'bye' in quest:
-            self.log.info("GOODBYE")
-            answer.message("Goodbye")
-            answer.action('bye')
-            answer['stop'] = True
+            self._log.info("Closing sending plugin")
+            self._handle_stop(msg, comm, None)
+            msg.args.append("Goodbye")
 
         else:
-            self.log.info("Unknown action")
-            answer.action('unk')
-            answer.message("I have no idea what you meant")
+            self._log.info("Unknown action")
+            msg.action = 'unk'
+            msg.args = "I have no idea what you meant"
 
-        queue.put(answer)
+        msg.return_to_sender()
+        comm.send(msg)
 
-    def get_hooks(self):
-        return [ 'dispatch' ]
 
-# API Documentation:
-#   wit: https://github.com/wit-ai/pywit
+    """
+    Handle messages as indicated from the nlp results
+    """
+    async def _handle_stop(self, msg, _comm, _quest):
+        msg.action = "send"
+        msg.args = "stop"
+
+    async def _handle_music(self, msg, _comm, quest):
+        song = 'Magnet'
+
+        if 'search_query' in quest:
+            song = quest['search_query'][0]['value']
+
+        self._log.info("PLAYING <{}>".format(song))
+
+        msg.action = 'play'
+        msg.args = song
+        msg.set_dest(role='audio')
+
+    async def _handle_find(self, msg, comm, quest):
+        search = Message(plugin=self, role='dispatch')
+        search.send_to(role='search')
+        search.parent_id = msg.id
+        search.action = 'search'
+
+        if 'search_query' in quest:
+            search.args = [q['value'] for q in quest['search_query']]
+            self._log.info("FINDING <{}>".format(search.args))
+
+        resp = await comm.wait_for_response(search)
+        self._log.info("RESPONSE <{}>".format(resp.response))
+
+        msg.response = resp.response

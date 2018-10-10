@@ -1,98 +1,91 @@
 #!/usr/bin/env python3
 
 import abc
-import imp
-import os
-
+import asyncio
 import clg
+import imp
+import inspect
+import os
+import queue
+import uuid
 import yaml
 
 from common import logger
 
 
-loaded_plugin = None
-plugin_config_args = None
-plugin_loger = None
+LoadedPlugin = None
+_action_handles = {}
 
 
 class Plugin:
     """
     Base class for all plugins. Singleton instances of subclasses are created automatically by loader.py
     """
+
+    def __init__(self, logger, _config):
+        self._uuid = uuid.uuid4()
+        self._log = logger
+
+    # NOTE: This is implicitly called when we import in the subclass
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        global loaded_plugin
-        global plugin_logger
-        loaded_plugin = cls(plugin_logger, plugin_config_args)
+        global LoadedPlugin
+        LoadedPlugin = cls
 
+    # TODO: Need to work on the interfaces (how to send messages?)
     @abc.abstractmethod
-    def run(self, queue):
+    async def run(self, comm):
         """
         Direct interfacing methdod for running the basic plugin behavior.
 
-        NOTE: Plugins must implement this method as a single pass returning a boolean
-        They should not handle "continuous" running, the loading framework handles this for them
-        This is implemented so that the plugin does not hang if the server connection
-        Is closed, but that fact is communicated (or used) properly within this method
+        NOTE: Plugins **must** implement this method as a single pass returning a boolean
+        This method will be called repeatedly by the plugin loader, as-if it was continuously running
 
-        :param self:
-        :param queue: Communication queue for sending server messages
-            NOTE: Use the `Message` package to place messages onto this queue (or "quit" for ending)
-            NOTE: Do not read from the queue (messages are automatically popped by the writer thread)
+        :param comm: interface for sending messages, etc.
         :returns: A boolean value indicating whether to continue running the plugin or not
         """
-        return True
 
-    def dispatch(self, msg, queue):
+    def _register_handle(self, action, callback):
         """
-        Callback that is invoked for every message that the plugin receives from the connected server
+        Registers the specific callback for all messages that have the indicated 'action'
 
-        NOTE: Plugins must implement this message as a single pass, otherwise the reading thread hangs
-
-        :param self:
-        :param msg: Json message that was received from the server
-        :param queue: Communication queue for sending server messages
-            NOTE: Use the `Message` package to place messages onto this queue (or "quit" for ending)
-            NOTE: Do not read from the queue (messages are automatically popped by the writer thread)
-        :returns: A boolean value indicating whether to continue reading from the server
+        :param action: The action that this handle is registered for
+        :param callback: A coroutine callback taking `(self, Message, CommChannel)`
         """
-        return True
+        global _action_handles
+        if inspect.iscoroutinefunction(callback):
+            _action_handles[str(action)] = callback
 
-    def get_hooks(self):
-        """
-        Method used for determining what capabilities the plugin supports
+        else:
+            self._log.error("Attempt to register non-coroutine callback for `{}` action ({})".format(action, callback))
 
-        NOTE: This method will change a lot in the near future
-
-        :param self:
-        :returns: A list indicating the subscribed "modalities" that this plugin provides
-        """
-        return []
+    @property
+    def uuid(self):
+        return self._uuid
 
 
 def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
-    # Make sure the plugin exists
     if plugin_dir is None:
         plugin_dir = r"C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins"
+
+    # Make sure the plugin exists
     location = os.path.join(plugin_dir, desired_plugin)
     if not os.path.isdir(location) or not "__init__.py" in os.listdir(location):
         if log is not None:
             log.info("Could not find plugin {}".format(desired_plugin))
         return None
 
-    # Create the plugin's logger
-    global plugin_logger
+    # Create the plugin specific logger
     plugin_logger = logger.create('{}.log'.format(desired_plugin), log_dir=log_dir)
-    log.setLevel(logger.logging.INFO)
+    plugin_logger.setLevel(logger.logging.INFO)
 
-    # Load the command parser
-    if args is None: args = []
+    # Load the plugin arguments
+    plugin_config_args = {}
     arg_yaml = os.path.join(location, 'cmd_args.yaml')
     if os.path.exists(arg_yaml):
-        global plugin_config_args
         cmd = clg.CommandLine(yaml.load(open(arg_yaml)))
-        plugin_config_args = vars(cmd.parse(args))
+        plugin_config_args = vars(cmd.parse(args or []))
 
     # Load the plugin
     log.info("Loading plugin {}".format(desired_plugin))
@@ -100,7 +93,10 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     imp.load_module("__init__", *info)
     log.info("Loaded plugin {}".format(desired_plugin))
 
-    return loaded_plugin
+    # Construct the plugin
+    global _action_handles
+    plugin = LoadedPlugin(plugin_logger, plugin_config_args)
+    handles = _action_handles
+    _action_handles = {}
 
-# API Documentation:
-#   python-clg: https://github.com/fmenabe/python-clg
+    return plugin, handles

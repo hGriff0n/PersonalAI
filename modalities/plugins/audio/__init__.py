@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 
-import logging
+import asyncio
 import os
-import threading
 
 # STT / TTS
 import speech_recognition as sr
@@ -15,7 +13,7 @@ from pydub import AudioSegment
 from pydub.utils import make_chunks
 
 from common.msg import Message
-from common.plugins import Plugin
+from common import plugins
 
 # Long term dev work
 # TODO: Improve interactivity of AI
@@ -44,91 +42,77 @@ songs = {
     'Anstatt Blumen': r"C:\Users\ghoop\Desktop\PersonalAI\data\2-02 Livin' On The Edge.m4a",
 }
 
-class AudioPlugin(Plugin):
+class AudioPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
-        self.speaker = pyaudio.PyAudio()
-        self.voice = win32com.client.Dispatch('SAPI.SpVoice')
+        super.__init__(self, logger, config=config)
 
-        self.mic = sr.Microphone()
-        self.rec = sr.Recognizer()
-        with self.mic as source:
-            self.rec.adjust_for_ambient_noise(source)
+        self._speaker = pyaudio.PyAudio()
+        self._voice = win32com.client.Dispatch('SAPI.SpVoice')
 
-        self.audio_control = threading.Lock()
-        self.played_beep = False
+        self._mic = sr.Microphone()
+        self._rec = sr.Recognizer()
+        with self._mic as source:
+            self._rec.adjust_for_ambient_noise(source)
 
-        self.log = logger
-        self.log.setLevel(logging.INFO)
-        self.log.info("Finished initialization")
+        self._audio_control = asyncio.Lock()
+        self._played_beep = False
 
+        self._register_handle('play', AudioPlugin.handle_play)
+        self._register_handle('speak', AudioPlugin.handle_speak)
 
-    def run(self, queue):
-        with self.mic as source:
+    async def run(self, comm):
+        with self._mic as source:
             try:
                 audio = None
 
-                with self.audio_control:
-                    if not self.played_beep:
+                with await self._audio_control:
+                    if not self._played_beep:
                         self._play_song("data\\low_beep.mp3")
-                        self.played_beep = True
+                        self._played_beep = True
 
-                    audio = self.rec.listen(source, 0.4, None)
-
-                query = self.rec.recognize_google(audio)
+                    audio = self._rec.listen(source, 0.4, None)
+                query = self._rec.recognize_google(audio)
 
             except sr.WaitTimeoutError:
                 pass
 
             except sr.UnknownValueError:
-                self.log.error("Couldn't recognize audio")
+                self._log.error("Couldn't recognize audio")
 
             else:
-                self.log.info("HEARD <{}>".format(query))
-                self.send_message(query, queue)
-                self.played_beep = False
+                self._log.debug("HEARD <{}>".format(query))
+                msg = Message(plugin=self, role='audio')
+                msg.action = 'dispatch'
+                msg.args = query
+                comm.send(msg)
 
         return True
 
+    async def handle_play(self, msg, comm):
+        with await self._audio_control:
+            if len(msg.args) > 1:
+                self._voice.Speak(msg.args[1])
 
-    def send_message(self, query, queue):
-        msg = Message('audio')
-        msg.dispatch(query)
-        queue.put(msg)
+            self._log.debug("Playing <{}>".format(msg.args[0]))
+            song = songs.get(msg.args[0], msg.args[0])
+            self._play_song(song)
+            self._played_beep = False
 
+    async def handle_speak(self, msg, comm):
+        with await self._audio_control:
+            self._voice.Speak(msg.args[0])
 
-    def dispatch(self, msg, queue):
-        if 'action' in msg:
-            if msg['action'] == 'play':
-                self.log.debug("Received play action")
-
-                with self.audio_control:
-                    if 'text' in msg:
-                        self.voice.Speak(msg['text'])
-
-                    self.log.debug("Playing {} <{}>".format(msg['play'], songs[msg['play']]))
-                    self._play_song(songs[msg['play']])
-
-                self.played_beep = False
-
-        elif 'text' in msg:
-            self.log.debug("Received text action")
-            with self.audio_control:
-                self.voice.Speak(msg['text'])
-
-        # if msg['stop']: return Message.stop()
-        return ""
-
-
-    # TODO: This somehow blocks other threads from executing, notably the read and write threads
     def _play_song(self, song):
         _, ext = os.path.splitext(song)
         seg = AudioSegment.from_file(song, ext[1:])
 
-        p = self.speaker
-        stream = p.open(format=p.get_format_from_width(seg.sample_width),
-                        channels=seg.channels,
-                        rate=seg.frame_rate,
-                        output=True)
+        p = self._speaker
+        stream = p.open(
+            format=p.get_format_from_width(seg.sample_width),
+            channels=seg.channels,
+            rate=seg.frame_rate,
+            output=True
+        )
 
         # Split audio into half-second chunks to allow for interrupts
             # Is this actually allowing for interrupts?
@@ -137,14 +121,3 @@ class AudioPlugin(Plugin):
 
         stream.stop_stream()
         stream.close()
-
-    def get_hooks(self):
-        return [ 'audio' ]
-
-# if __name__ == "__main__":
-
-
-# API Documentation:
-#   SpeechRecognition: https://github.com/Uberi/speech_recognition/blob/master/reference/library-reference.rst
-#   tts.SAPI: https://github.com/DeepHorizons/tts
-#   Pydub: https://github.com/jiaaro/pydub
