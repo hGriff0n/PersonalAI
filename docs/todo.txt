@@ -12,16 +12,23 @@ Short Term:
               NOTE: Plugins would also interpret this "stop" as a "quit"
         Look into auto-generating the python message class
           Rust code works alot better by specifying the message as a struct
+      Make sure the new routing system works
+        I'm especially worried about the python asyncio code as that didn't work last time
       Make the wit_ai key a config argument
         TODO: Need to learn how the config system works
         Fill in the 'cmd_args.yaml' file appropriately
         Utilzie the config arg in the dispatch plugin
       See if we can make the communication asyncio as well (within the plugins)
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
-    See if I can make the 'action' handling somewhat generic
+      Enable the device manager to calculate the device's public ip address
+        Find a way for the plugins to also use the public ip (instead of localhost)
+    See if I can make the 'action' handling somewhat generic in the device manager
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
-    Be sure to handle cases where the Index map is out-of-date (due to fs changes)
+    Reduce the number of unwrap calls in the device manager
+      Turn them into 'Error' returns instead
+      Setup the tokio system to report these errors
+        NOTE: This may have already been done
   Improve system performance and granularity
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
@@ -63,6 +70,7 @@ Short Term:
 Produce a short video of the project
 
 Medium Term:
+  Improve message routing to prevent looping messages (particularly broadcasts)
   Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
     Rewrite routing process inside of device-manager
       We need to be able to generically indicate which messages have to be forwarded to the ai-manager

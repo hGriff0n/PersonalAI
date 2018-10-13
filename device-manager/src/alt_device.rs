@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
+use multimap::MultiMap;
 use serde_json;
 use tokio::io::{Error, ErrorKind};
 
@@ -12,18 +13,42 @@ use networking::{Closer, Communicator};
 use seshat;
 use seshat::index as idx;
 
-use msg as message;
+use message;
+
+struct Connection {
+    pub addr: SocketAddr,
+    pub close: Closer,
+    pub queue: Communicator,
+    pub roles: Vec<String>,
+}
+
+impl Connection {
+    pub fn new(addr: SocketAddr, close: Closer, queue: Communicator) -> Self {
+        Self{
+            addr: addr,
+            close: close,
+            queue: queue,
+            roles: Vec::new()
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct DeviceManager {
-    connections: Arc<Mutex<HashMap<SocketAddr, (Closer, Communicator)>>>,
+    connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
+    role_map: Arc<Mutex<MultiMap<String, SocketAddr>>>,
 
     cancel: Closer,
     index: idx::Index,
 
-    // TODO: Do we need the `Option` to delay the initialization
+    // NOTE: We can remove the option once we can determine the device's public ip addr
     device_addr: Option<SocketAddr>
 }
+
+// NOTE: This should give us the public ip. Not sure how well it'd works
+// fn resolve_ip(host: &str) -> io::Result<Vec<IpAddr>> {
+//     (host, 0).to_socket_addrs().map(|iter| iter.map(|sock| sock.ip()).collect())
+// }
 
 // TODO: I need to add in the capability to recognize sent messages (for broadcasts specifically)
 // TODO: I want to have the device's address here
@@ -31,59 +56,81 @@ impl DeviceManager {
     pub fn new(index: idx::Index, cancel: Closer) -> Self {
         Self{
             connections: Arc::new(Mutex::new(HashMap::new())),
+            role_map: Arc::new(Mutex::new(MultiMap::new())),
             cancel: cancel,
             index: index,
             device_addr: None,      // TODO: we need to get the device's ip addr (ie. where are we listening?)
         }
     }
 
-    pub fn set_addr(&mut self, addr: SocketAddr) {
-        self.device_addr = Some(addr);
-    }
-
     pub fn get_index(&self) -> &idx::Index {
         &self.index
     }
 
+    fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) {
+        let mut role_map = self.role_map.lock().unwrap();
+
+        let conn = &conns[&addr];
+        for role in &conn.roles {
+            let vec = role_map.get_vec_mut(role).unwrap();
+            vec.iter()
+                .position(|ad| *ad == addr)
+                .map(|e| vec.remove(e));
+        }
+
+        conn.close.send(()).expect("Failed to close connection");
+        // NOTE: We purposefully do not remove the connection from the connection map here
+    }
+
     // Resolve where the message is being requested to be directed
-    type ResolvedDest = Option<SocketAddr>;
-    fn resolve_connection<T: message::Locateable>(&self, dest: T) -> Option<ResolvedDest> {
-        let (_uuid, _addr, _role) = dest.location();
-
-        Ok(None)
+    fn resolve_connection(&self, _send: &message::MessageSender) -> Option<Option<SocketAddr>> {
+        Some(None)
     }
 
-    fn resolve_destination(&self, dest: message::MessageDest) -> Option<ResolvedDest> {
-        let (_uuid, _addr, role) = dest.location();
-
-        match role {
-            Some("manager") => return None,
-            _ => ()
-        };
-
-        Ok(None)
+    fn resolve_destination(&self, dest: &message::MessageDest) -> Option<Option<SocketAddr>> {
+        let role = dest.role.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
+        match role.as_str() {
+            "manager" => None,
+            "search" => None,
+            _ => Some(None)
+        }
     }
 
-    fn handle_message(&mut self, msg: message::Message) -> Result<(), Error> {
-        match msg.action {
-            Some("handshake") => {
-                // TODO: Register the new connection under the specific roles
-                if let Some(roles) = msg.args {
+    fn handle_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
+        let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
+        match action.as_str() {
+            "handshake" => {
+                if let Some(ref roles) = msg.args {
+                    let roles: Vec<String> = roles.iter().map(|key| key.as_str().unwrap().to_string()).collect();
 
+                    // Register the role keys for the connection
+                    if let Some(conn) = self.connections.lock().unwrap().get_mut(&addr) {
+                        conn.roles = roles.clone();
+                    }
+
+                    // Register the connection for the role keys
+                    let mut role_map = self.role_map.lock().unwrap();
+                    for role in roles.into_iter() {
+                        role_map.insert(role, addr.clone());
+                    }
                 }
+
                 // TODO: Should this be an error?
             },
-            Some("search") => {
-                let query = msg.args[0];
-                let results = seshat::default_search(&query, &self.index);
-                msg.resp = Some(json!(results));
+            "search" => {
+                if let Some(ref args) = msg.args {
+                    let query = &args[0].as_str().unwrap();
+                    let results = seshat::default_search(query, &self.index);
+                    msg.resp = Some(json!(results));
+                }
             },
-            // TODO: Where does `addr` come from
-            Some("stop") => self.drop_connection(*addr),
-            Some("quit") => {
+            "stop" => <Self as networking::BasicServer>::drop_connection(self, *addr),
+            "quit" => {
                 // Send a close signal to all connected devices
                 // NOTE: We don't remove the connections as the manager is closing anyways
-                let conns = self.conns.lock()?;
+                // TODO: Wouldn't this message actually be received as a broadcast?
+                // TODO: Shouldn't we close the connection that gave us the message first (to prevent loops)
+                let mut conns = self.connections.lock().unwrap();
                 for (addr, _) in conns.iter() {
                     self.on_connection_close(&conns, *addr);
                 }
@@ -95,14 +142,14 @@ impl DeviceManager {
             _ => ()
         };
 
-        // TODO: Come up with a better interface for the routing behavior
-        // NOTE: `route_message` works decently, outside of the unnecessary 'dest != sender` check
-            // TODO: Would 'resolve_connection' actually fit here (they might be approaching slightly differently)
-            // `route_message` also assumes a broadcast check, which is only in the 'dest' field
-        self.route_message(msg, self.resolve_connection(msg.sender))
+        // Return the message to the sender
+        msg.dest = msg.sender.clone().into();
+        let ref conn = self.connections.lock().unwrap()[addr];
+        conn.queue.unbounded_send(serde_json::to_value(msg).unwrap());
+        Ok(())
     }
 
-    fn route_message(&mut self, msg: message::Message, dest: ResolvedDest) -> Result<(), Error> {
+    fn route_message(&mut self, msg: message::Message, dest: Option<SocketAddr>) -> Result<(), Error> {
         if !msg.dest.broadcast.unwrap_or(false) {
             // Produce a list of the connection sinks that we want to send the message to
             // NOTE: This allows us to turn the 'dest' field into an array
@@ -110,15 +157,15 @@ impl DeviceManager {
 
             // Add the specified destination device to the queue
             if let Some(dest) = dest {
-                let (_, ref sink) = self.connections.lock().unwrap()[&dest];
-                send_queue.push((sink.clone(), false));
+                let ref conn = self.connections.lock().unwrap()[&dest];
+                send_queue.push((conn.queue.clone(), false));
                 debug!("Sending message to {:?}", dest);
 
                 // Send an ack message to the original sender if desired
-                if let Some(sender) = self.resolve_connection(msg.sender) {
+                if let Some(Some(sender)) = self.resolve_connection(&msg.sender) {
                     if sender != dest {
-                        let (_, ref sink) = self.connections.lock().unwrap()[&sender];
-                        send_queue.push((sink.clone(), true));
+                        let ref conn = self.connections.lock().unwrap()[&sender];
+                        send_queue.push((conn.queue.clone(), true));
                         debug!("Sending ack to {:?}", sender);
                     }
                 }
@@ -126,21 +173,20 @@ impl DeviceManager {
 
             // Send the json message to every connection in the queue
             for (sink, is_ack) in &send_queue {
-                let msg = msg.clone();
-                if is_ack {
-                    msg.action = "ack".to_string();
+                let mut msg = msg.clone();
+                if *is_ack {
+                    msg.action = Some("ack".to_string());
                 }
-                sink.unbounded_send(serde_json::to_value(msg))?;
+                sink.unbounded_send(serde_json::to_value(msg).unwrap());
             }
 
         // Otherwise send a broadcast message to all connections
         } else {
-            let msg = serde_json::to_value(msg);
+            let msg = serde_json::to_value(msg).unwrap();
 
-            // TODO: I should add a flag to prevent looping sends
-            for (addr, (_, ref sink)) in self.connections.lock().unwrap() {
-                debug!("Broadcasting message to {:?}", addr);
-                sink.unbounded_send(msg.clone())?;
+            for (_, ref conn) in self.connections.lock().unwrap().iter() {
+                debug!("Broadcasting message to {:?}", conn.addr);
+                conn.queue.unbounded_send(msg.clone());
             }
         }
 
@@ -162,8 +208,8 @@ impl networking::BasicServer for DeviceManager {
 
         // TODO: It may be beneficial to hardcode some actions into the device manager
         // NOTE: This would be better served for notifications, as response code is tricky
-        match self.resolve_destination(msg.dest) {
-            None => self.handle_message(msg)?,
+        match self.resolve_destination(&msg.dest) {
+            None => self.handle_message(msg, addr)?,
             Some(dest) => self.route_message(msg, dest)?
         };
 
@@ -177,14 +223,18 @@ impl networking::BasicServer for DeviceManager {
     }
 
     fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
-        self.connections.lock()?.insert(addr, (close_signal, write_signal));
+        self.connections.lock().unwrap().insert(addr, Connection::new(addr, close_signal, write_signal));
         Ok(())
     }
 
     // TODO: Change the return type of this to `Result<(), Error>`
-    fn drop_connection(&self, addr: SocketAddr) {
-        let mut conns = self.conns.lock().unwrap();
+    fn drop_connection(&mut self, addr: SocketAddr) {
+        let mut conns = self.connections.lock().unwrap();
         self.on_connection_close(&conns, addr);
         conns.remove(&addr);
     }
 }
+
+// NOTE: This is used to get around the borrow checker when matching against the `message` structs
+// For some reason, the borrow checker wouldn't allow me to transform an `Option<String>` into an `Option<&str>` temporarily
+const UNMATCHABLE_STRING: &'static str = "DO_NOT_MATCH_THIS_STRING";

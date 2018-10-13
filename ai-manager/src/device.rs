@@ -33,5 +33,5 @@ impl server::BasicServer for AiManager {
     fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
         Ok(())
     }
-    fn drop_connection(&self, addr: SocketAddr) {}
+    fn drop_connection(&mut self, addr: SocketAddr) {}
 }

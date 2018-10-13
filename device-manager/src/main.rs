@@ -5,6 +5,10 @@ extern crate fern;
 extern crate futures;
 #[macro_use]
 extern crate log;
+extern crate multimap;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 extern crate tokio;
@@ -16,10 +20,12 @@ extern crate seshat;
 extern crate tags;
 
 // Local modules
+mod alt_device;
 mod device;
 mod indexer;
 mod logging;
 mod server;
+mod message;
 
 // Imports
 use std::sync::mpsc;

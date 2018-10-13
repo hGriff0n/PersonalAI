@@ -49,7 +49,7 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
         .map_err(|err| { error!("Write Error: {:?}", err); });
 
     // Combine the actions for tokio registration
-    let close_state = server.clone();
+    let mut close_state = server.clone();
     let action = read_action
         .select2(write_action)
         .select2(cancel)

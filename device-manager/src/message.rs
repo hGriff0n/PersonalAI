@@ -1,4 +1,7 @@
 
+use std::convert;
+use std::net::SocketAddr;
+
 use serde_json;
 
 // TODO: This doesn't allow any other fields than what I've specified
@@ -21,7 +24,7 @@ pub struct Message {
     // TODO: This package will need to be made into a separate crate
     // package data
     pub action: Option<String>,
-    pub args: Option<Vec<serde_json::Value>>;
+    pub args: Option<Vec<serde_json::Value>>,
     pub resp: Option<serde_json::Value>,
     pub body: Option<serde_json::Value>,
 }
@@ -42,28 +45,14 @@ pub struct MessageDest {
     pub intra_device: Option<bool>
 }
 
-
-// TODO: Come up with a better way of unifying the location data of the `sender` and `dest` data fields
-pub trait Locateable {
-    fn location(&self) -> (Option<String>, Option<SocketAddr>, Option<String>);
-
-    fn device_only(&self) -> bool {
-        false
-    }
-}
-
-impl Locateable for MessageSender {
-    fn location(&self) -> (Option<String>, Option<SocketAddr>, Option<String>) {
-        (self.uuid, self.addr, self.role)
-    }
-}
-
-impl Locateable for MessageDest {
-    fn location(&self) -> (Option<String>, Option<SocketAddr>, Option<String>) {
-        (self.uuid, self.addr, self.role)
-    }
-
-    fn device_only(&self) -> bool {
-        self.intra_device.unwrap_or(false)
+impl convert::Into<MessageDest> for MessageSender {
+    fn into(self) -> MessageDest {
+        MessageDest{
+            broadcast: None,
+            role: self.role,
+            addr: self.addr,
+            uuid: self.uuid,
+            intra_device: None
+        }
     }
 }

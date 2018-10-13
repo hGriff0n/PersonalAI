@@ -178,7 +178,7 @@ impl networking::BasicServer for DeviceManager {
         Ok(())
     }
 
-    fn drop_connection(&self, addr: SocketAddr) {
+    fn drop_connection(&mut self, addr: SocketAddr) {
         let mut conns = self.conns.lock().unwrap();
         self.on_connection_close(&conns, addr);
         conns.remove(&addr);
