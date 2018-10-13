@@ -9,7 +9,7 @@ class Message:
     """
     def __init__(self, plugin=None, role=None):
         self._msg = {
-            'message_id': uuid.uuid4(),
+            'message_id': str(uuid.uuid4()),
             'route': [],
             'sender': {},
             'dest': {},

@@ -7,7 +7,8 @@ use tokio::prelude::*;
 use tokio::net::{ TcpListener, TcpStream };
 
 use networking::spawn::spawn_connection;
-use super::device::DeviceManager;
+// use super::device::DeviceManager;
+use alt_device::DeviceManager;
 
 // NOTE: I need the 'Box' type because I'm returning 2 different 'futures::Future' types
 // The `impl Trait` syntax doesn't work in this case because of compiler type-checking requirements

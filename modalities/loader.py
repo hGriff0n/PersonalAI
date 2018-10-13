@@ -61,7 +61,7 @@ class CommChannel:
 
 class _JsonProtocol:
     @staticmethod
-    def send_message(msg, socket, log):
+    def send_message(msg, sock, log):
         """
         Automaticaly wrap message in correct json protocol
         """
@@ -71,18 +71,18 @@ class _JsonProtocol:
 
         data = json.dumps(msg).encode('utf-8')
         frame = struct.pack(">I", len(data))
-        socket.sendall(frame + data)
+        sock.sendall(frame + data)
 
     @staticmethod
-    def get_messages(socket, log):
+    def get_messages(sock, log):
         """
         Generator to automatically parse json protocol
         """
         try:
             while True:
-                len_buf = socket.recv(4)
+                len_buf = sock.recv(4)
                 msg_len = struct.unpack(">I", len_buf)[0]
-                buf = socket.recv(msg_len)
+                buf = sock.recv(msg_len)
                 msg = json.loads(buf.decode('utf-8'))
 
                 log.debug("RECEIVED <{}>".format(msg))
@@ -92,7 +92,7 @@ class _JsonProtocol:
             log.error("Lost connection to server")
 
 
-def reader(comm, plugin, socket, loop, log):
+def reader(comm, sock, plugin, loop, log):
     """
     Thread callback to dispatch and handle messages sent to this plugin
     """
@@ -112,7 +112,7 @@ def reader(comm, plugin, socket, loop, log):
             comm.send(msg)
 
     # For every message that we receive from the server
-    for msg in _JsonProtocol.get_messages(socket, log):
+    for msg in _JsonProtocol.get_messages(sock, log):
         if Message.is_quit(msg):
             log.debug("Received quit message in reader thread")
             break
@@ -130,13 +130,13 @@ def reader(comm, plugin, socket, loop, log):
             log.debug("Received unexpected message <{}>".format(msg))
 
 
-def writer(comm, socket, log):
+def writer(comm, sock, log):
     """
     Thread callback responsible for sending messages out of the plugin
     """
     while True:
         msg = comm.get_msg()
-        _JsonProtocol.send_message(msg, socket, log)
+        _JsonProtocol.send_message(msg, sock, log)
 
         if Message.is_quit(msg):
             log.debug("Received quit message in writer thread")
@@ -224,9 +224,9 @@ if __name__ == "__main__":
     # Create the communication threads
     comm = CommChannel(handles)
     loop = asyncio.get_event_loop()
-    read_thread = threading.Thread(target=reader, args=(comm, socket, plugin, loop, log))
+    read_thread = threading.Thread(target=reader, args=(comm, sock, plugin, loop, log))
     read_thread.start()
-    write_thread = threading.Thread(target=writer, args=(comm, socket, log))
+    write_thread = threading.Thread(target=writer, args=(comm, sock, log))
     write_thread.start()
 
     # Run the plugin

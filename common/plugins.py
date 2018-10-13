@@ -26,9 +26,10 @@ class Plugin:
     # Users cannot register handles for these actions
     RESERVED_ACTIONS = []
 
-    def __init__(self, logger, _config):
-        self._uuid = uuid.uuid4()
+    def __init__(self, logger, config=None):
+        self._uuid = str(uuid.uuid4())
         self._log = logger
+        _config = config
 
         self._register_handle('ack', self.handle_ack)
         self._register_handle('error', self.handle_error)

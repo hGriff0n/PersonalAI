@@ -6,7 +6,7 @@ from common import plugins
 
 class CliPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
-        super.__init__(self, logger, config=config)
+        super().__init__(logger, config=config)
 
         self._msgs = []
         self._cli_lock = asyncio.Lock()

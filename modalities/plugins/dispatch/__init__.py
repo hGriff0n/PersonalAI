@@ -12,7 +12,7 @@ from common import plugins
 
 class DispatchPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
-        super.__init__(self, logger, config=config)
+        super().__init__(logger, config=config)
 
         self._client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
         self._register_handle('dispatch', DispatchPlugin.handle_dispatch)

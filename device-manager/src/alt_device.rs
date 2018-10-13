@@ -80,13 +80,15 @@ impl DeviceManager {
 
         conn.close.send(()).expect("Failed to close connection");
         // NOTE: We purposefully do not remove the connection from the connection map here
+        // TODO: This is an optimization for "quit", could we also get this optimization for 'role'
     }
 
-    // Resolve where the message is being requested to be directed
+    // Resolve who sent the message
     fn resolve_connection(&self, _send: &message::MessageSender) -> Option<Option<SocketAddr>> {
         Some(None)
     }
 
+    // Resolve where the message is being requested to be directed
     fn resolve_destination(&self, dest: &message::MessageDest) -> Option<Option<SocketAddr>> {
         let role = dest.role.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
         match role.as_str() {
@@ -96,6 +98,7 @@ impl DeviceManager {
         }
     }
 
+    // Handle any server specific requests
     fn handle_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
         let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
         match action.as_str() {
@@ -149,6 +152,7 @@ impl DeviceManager {
         Ok(())
     }
 
+    // Handle routing the message to the requested destination
     fn route_message(&mut self, msg: message::Message, dest: Option<SocketAddr>) -> Result<(), Error> {
         if !msg.dest.broadcast.unwrap_or(false) {
             // Produce a list of the connection sinks that we want to send the message to
@@ -196,8 +200,9 @@ impl DeviceManager {
 
 impl networking::BasicServer for DeviceManager {
     fn handle_request(&mut self, msg: serde_json::Value, addr: &SocketAddr) -> Result<(), Error> {
-        let mut msg: message::Message = serde_json::from_value(msg)?;
         debug!("Got {:?} from {:?}", msg, addr);
+        let mut msg: message::Message = serde_json::from_value(msg)?;
+        debug!("Parsed message struct");
 
         // 1) Append the current device addr to the route array
         // 2) Set the sender's addr value if not already set
@@ -206,8 +211,7 @@ impl networking::BasicServer for DeviceManager {
             msg.sender.addr = self.device_addr;
         }
 
-        // TODO: It may be beneficial to hardcode some actions into the device manager
-        // NOTE: This would be better served for notifications, as response code is tricky
+        // Handle the message as requested by the sender
         match self.resolve_destination(&msg.dest) {
             None => self.handle_message(msg, addr)?,
             Some(dest) => self.route_message(msg, dest)?
@@ -223,7 +227,8 @@ impl networking::BasicServer for DeviceManager {
     }
 
     fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
-        self.connections.lock().unwrap().insert(addr, Connection::new(addr, close_signal, write_signal));
+        debug!("Adding connection to {:?}", addr);
+        self.connections.lock().unwrap().insert(addr.clone(), Connection::new(addr.clone(), close_signal, write_signal));
         Ok(())
     }
 

@@ -59,7 +59,8 @@ fn main() {
 
     // Create the device manager
     let (tx, cancel) = mpsc::channel();
-    let manager = device::DeviceManager::new(index, tx.clone());
+    // let manager = device::DeviceManager::new(index, tx.clone());
+    let manager = alt_device::DeviceManager::new(index, tx.clone());
     trace!("Created device state manager");
 
     // TODO: This currently hangs until the indexing has completed

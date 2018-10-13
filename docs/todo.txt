@@ -4,6 +4,19 @@ Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
       Rewrite the rust forwarding system to utilize the new routing system
+        Replace the old device manager with the new system
+          Make sure the new routing system works
+            Add in logging statements throughout the alt device manager
+            Debug the communication process
+              DISPATCH+CLI perform handshake
+              SERVER doesn't recognize handshake message
+              DISPATCH sends a 'stop' command
+              DISPATCH loses connection with the server
+            Figure out why the cli app isn't sending
+              I'm especially worried about the python asyncio code as that didn't work last time
+            Put the sending code to the plugin's logger instead of the loader's logger
+          Enable the device manager to calculate the device's public ip address
+            Find a way for the plugins to also use the public ip (instead of localhost)
         Need to define the procedure for when a device-manager shuts-down in the wider network
           NOTE: The issue is the correct propogation of quit and stop messages
             "stop" indicates that the "sender" is going to stop
@@ -12,16 +25,12 @@ Short Term:
               NOTE: Plugins would also interpret this "stop" as a "quit"
         Look into auto-generating the python message class
           Rust code works alot better by specifying the message as a struct
-      Make sure the new routing system works
-        I'm especially worried about the python asyncio code as that didn't work last time
       Make the wit_ai key a config argument
         TODO: Need to learn how the config system works
         Fill in the 'cmd_args.yaml' file appropriately
         Utilzie the config arg in the dispatch plugin
       See if we can make the communication asyncio as well (within the plugins)
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
-      Enable the device manager to calculate the device's public ip address
-        Find a way for the plugins to also use the public ip (instead of localhost)
     See if I can make the 'action' handling somewhat generic in the device manager
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
