@@ -5,6 +5,7 @@ plugins:
   #     - C:\Users\ghoop\Music
   cli:
   dispatch:
+    wit_token: CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR
 
 device-manager:
   path: C:\Users\ghoop\Desktop\PersonalAI\device-manager\target\debug\device-manager.exe

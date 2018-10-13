@@ -22,9 +22,16 @@ class Plugin:
     Base class for all plugins. Singleton instances of subclasses are created automatically by loader.py
     """
 
+    # List of system reserved actions
+    # Users cannot register handles for these actions
+    RESERVED_ACTIONS = []
+
     def __init__(self, logger, _config):
         self._uuid = uuid.uuid4()
         self._log = logger
+
+        self._register_handle('ack', self.handle_ack)
+        self._register_handle('error', self.handle_error)
 
     # NOTE: This is implicitly called when we import in the subclass
     def __init_subclass__(cls, **kwargs):
@@ -46,6 +53,22 @@ class Plugin:
         :returns: A boolean value indicating whether to continue running the plugin or not
         """
 
+    async def handle_ack(self, msg, _comm):
+        """
+        Callback for any "acknowledge" messages sent to this plugin
+
+        These messages generally provide feedback about the state of the request
+        """
+        self._log.debug("ACK: {}".format(msg.id))
+
+    async def handle_error(self, msg, _comm):
+        """
+        Callback for any "error" messages sent to this plugin
+
+        These messages are sent if a request/message fails for some reason
+        """
+        self._log.error("ERROR: {}".format(msg.args))
+
     def _register_handle(self, action, callback):
         """
         Registers the specific callback for all messages that have the indicated 'action'
@@ -55,7 +78,10 @@ class Plugin:
         """
         global _action_handles
         if inspect.iscoroutinefunction(callback):
-            _action_handles[str(action)] = callback
+            if action not in Plugin.RESERVED_ACTIONS:
+                _action_handles[str(action)] = callback
+            else:
+                self._log.error("Attempt to register user callback for reserved action `{}` ({})".format(action, callback))
 
         else:
             self._log.error("Attempt to register non-coroutine callback for `{}` action ({})".format(action, callback))

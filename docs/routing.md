@@ -19,7 +19,8 @@ required to be specified at construction.
       "role": "<app>",
       "addr": "49.227.57.56",
       "uuid": "4b1d37cd-d6c6-508b-9935-86ed62f1095b",
-      "intra-device": true
+      "intra-device": true,
+      "broadcast": true
   },
   "forward": null,
   "message_id": "5e17c49d-9332-587a-98d0-3a16ff21c3fb",
@@ -74,6 +75,8 @@ any of these three general routing questions:
 
 The routing system is **not** required to follow this general formula for all actions and **may** short-circuit
 routing where desired
+
+A broadcast message is to be indicated by setting the 'dest.broadcast' data field to true
 
 NOTE: I may find it beneficial to introduce the ability to "forward" messages, in order to reduce network traffic.
 These kinds of messages would enable a plugin to send a message that relies on data the sender does not have access

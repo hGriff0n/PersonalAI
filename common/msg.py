@@ -11,7 +11,8 @@ class Message:
         self._msg = {
             'message_id': uuid.uuid4(),
             'route': [],
-            'sender': {}
+            'sender': {},
+            'dest': {},
         }
         if plugin is not None:
             self._msg['sender']['uuid'] = plugin.uuid
@@ -80,6 +81,14 @@ class Message:
     def response(self, resp):
         self._msg['resp'] = resp
 
+    @property
+    def broadcast(self):
+        return self._msg['dest'].get('broadcast', False)
+
+    @broadcast.setter
+    def broadcast(self, value):
+        self._msg['dest']['broadcast'] = bool(value)
+
 
     def return_to_sender(self):
         """
@@ -93,8 +102,6 @@ class Message:
         Adds routing request information to the destination field of the message
         NOTE: Depending on the fields used, this will not guarantee sending to a specific app
         """
-        if 'dest' not in self._msg:
-            self._msg['dest'] = {}
         if role is not None:
             self._msg['dest']['role'] = role
         if addr is not None:

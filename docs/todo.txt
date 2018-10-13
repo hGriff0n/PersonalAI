@@ -3,12 +3,21 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
+      Rewrite the rust forwarding system to utilize the new routing system
+        Need to define the procedure for when a device-manager shuts-down in the wider network
+          NOTE: The issue is the correct propogation of quit and stop messages
+            "stop" indicates that the "sender" is going to stop
+            "quit" indicates that evertyhing should stop
+              IDEA: "quit" -> all connections receive a "stop"
+              NOTE: Plugins would also interpret this "stop" as a "quit"
+        Look into auto-generating the python message class
+          Rust code works alot better by specifying the message as a struct
       Make the wit_ai key a config argument
         TODO: Need to learn how the config system works
-      Rewrite the rust forwarding system to utilize the new routing system
-        NOTE: Use hardcoded json paths for now
-          Any message crate would likely need to be auto-generated
-      See if we can make the communication asyncio as well
+        Fill in the 'cmd_args.yaml' file appropriately
+        Utilzie the config arg in the dispatch plugin
+      See if we can make the communication asyncio as well (within the plugins)
+        We also need to improve the plugins to push more code in the asyncio (particularly the cli)
     See if I can make the 'action' handling somewhat generic
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
