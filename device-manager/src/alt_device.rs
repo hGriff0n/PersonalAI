@@ -147,7 +147,7 @@ impl DeviceManager {
 
         // Return the message to the sender
         msg.dest = msg.sender.clone().into();
-        let ref conn = self.connections.lock().unwrap()[addr];
+        let ref conn = self.connections.lock().unwrap()[&addr];
         conn.queue.unbounded_send(serde_json::to_value(msg).unwrap());
         Ok(())
     }
@@ -206,7 +206,11 @@ impl networking::BasicServer for DeviceManager {
 
         // 1) Append the current device addr to the route array
         // 2) Set the sender's addr value if not already set
-        msg.route.push(self.device_addr.unwrap());
+        // TODO: An `unwrap` here is apparently panicking (I haven't implemented that yet)
+        if let Some(addr) = self.device_addr {
+            msg.route.push(addr);
+        }
+        // msg.route.push(self.device_addr);
         if msg.sender.addr.is_none() {
             msg.sender.addr = self.device_addr;
         }

@@ -161,19 +161,27 @@ async def run(plugin, comm, log, read_thread, write_thread):
     TODO: Should I add in an `asyncio.sleep` call here or should the plugins handle that?
     """
     try:
-        while await plugin.run(comm):
-            if not write_thread.is_alive() or read_thread.is_alive():
-                log.debug("Stopping plugin because communication thread has stopped")
+        while True:
+            finish_run = await plugin.run(comm)
+
+            if not finish_run:
+                log.info("Stopping plugin because plugin finished running")
+                break
+            if not write_thread.is_alive():
+                log.info("Stopping plugin because writer thread has stopped")
+                break
+            if not read_thread.is_alive():
+                log.info("Stopping plugin because reader thread has stopped")
                 break
 
     except:
         log.error("EXCEPTION: " + traceback.format_exc())
 
-    finally:
-        msg = Message(plugin=plugin)
-        msg.action = Message.STOP
-        msg.send_to(role='manager')
-        comm.send(msg)
+    log.info("Run thread quit")
+    msg = Message(plugin=plugin)
+    msg.action = Message.STOP
+    msg.send_to(role='manager')
+    comm.send(msg, log)
 
 
 if __name__ == "__main__":

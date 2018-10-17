@@ -27,6 +27,7 @@ class Message:
     def from_json(json_msg):
         msg = Message()
         msg._msg = json_msg.copy()
+        return msg
 
     @property
     def routing(self):

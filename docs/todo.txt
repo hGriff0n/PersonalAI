@@ -6,14 +6,10 @@ Short Term:
       Rewrite the rust forwarding system to utilize the new routing system
         Replace the old device manager with the new system
           Make sure the new routing system works
+            Implement `alt_device::DeviceManager::resolve_destination`
+            Figure out why the cli plugin isn't returning to the command prompt once the message is sent
+              I think it might be network related, propably need to add a delay on the queue
             Add in logging statements throughout the alt device manager
-            Debug the communication process
-              DISPATCH+CLI perform handshake
-              SERVER doesn't recognize handshake message
-              DISPATCH sends a 'stop' command
-              DISPATCH loses connection with the server
-            Figure out why the cli app isn't sending
-              I'm especially worried about the python asyncio code as that didn't work last time
             Put the sending code to the plugin's logger instead of the loader's logger
           Enable the device manager to calculate the device's public ip address
             Find a way for the plugins to also use the public ip (instead of localhost)
@@ -38,6 +34,7 @@ Short Term:
       Turn them into 'Error' returns instead
       Setup the tokio system to report these errors
         NOTE: This may have already been done
+    Enable the python logger levels to be changed in the config files
   Improve system performance and granularity
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
