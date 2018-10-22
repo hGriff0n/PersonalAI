@@ -1,0 +1,2 @@
+[submodule "rust-deps/tags"]
+	url = https://github.com/hGriff0n/tags
