@@ -7,7 +7,8 @@ Short Term:
         Replace the old device manager with the new system
           Make sure the new routing system works
             Add in logging statements throughout the device manager
-              Improve the logging messages throughout the system
+              Have crawl use the logger instead of a file
+                This requires changing 'tags' to use a logger instead of a file too
             Harden the device-manager against requests from dead plugins
               Currently cli > "quit" causes a panic in the DeviceManager
               Need to double check that removed plugins don't break anything
@@ -26,8 +27,8 @@ Short Term:
         Look into auto-generating the python message class
           Rust code works alot better by specifying the message as a struct
       Make the wit_ai key a config argument
-        TODO: Need to learn how the config system works
-        Fill in the 'cmd_args.yaml' file appropriately
+        TODO: Need to learn how the plugin config system works
+        Fill in the 'config_def.yaml' file appropriately
         Utilize the config arg in the dispatch plugin
       See if we can make the communication asyncio as well (within the plugins)
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
@@ -39,13 +40,14 @@ Short Term:
       Setup the tokio system to report these errors
         NOTE: This may have already been done
     Enable the python logger levels to be changed in the config files
+    Reintegrate the audio app with the new search functionality
+      Rewrite the audio app completely
+      Improve logging support in the audio app
   Improve system performance and granularity
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
     Improve seshat memory usage and performance
       Look into filtering out common words (or integrating tf-idf)
-      Have crawl use the logger instead of a file
-        This requires changing 'tags' to use a logger instead of a file too
       Adapt the reindexer future to spawn a daemon thread instead of crawling in sequence
         The current code will stop all handling of requests while the crawler is running
     Look at allowing the device-manager to load a config file

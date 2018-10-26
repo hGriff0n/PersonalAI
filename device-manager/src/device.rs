@@ -74,7 +74,6 @@ impl DeviceManager {
     // TODO: Correctly implement this to clean out the whole cache
     fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) {
         let mut role_map = self.role_map.lock().unwrap();
-        info!("Closing connection {:?}", addr);
 
         let conn = &conns[&addr];
         // for role in &conn.roles {
@@ -96,6 +95,8 @@ impl DeviceManager {
 
     // Resolve where the message is being requested to be directed
     fn resolve_destination(&self, dest: &message::MessageDest) -> Option<Option<SocketAddr>> {
+        trace!("Resolving destination labels to sending socket address");
+
         // If the specific app is specified, send it there
         if let Some(ref uuid) = dest.uuid {
             let uuid_map = self.uuid_map.lock().unwrap();
@@ -133,16 +134,19 @@ impl DeviceManager {
 
     // Handle any server specific requests
     fn handle_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
-        info!("Handling server request");
+        trace!("Handling server request");
 
         let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
         match action.as_str() {
             "handshake" => {
+                trace!("Received handshake request from {:?}", addr);
+
                 // NOTE: This may not borrow check
                 let mut conn_lock = self.connections.lock().unwrap();
                 let mut conn = conn_lock.get_mut(&addr);
 
                 if let Some(uuid) = msg.sender.uuid.clone() {
+                    info!("Adding uuid {:?} to point to socket address {:?}", uuid, addr);
                     self.uuid_map.lock().unwrap().insert(uuid.clone(), addr.clone());
                     if let Some(ref mut conn) = conn {
                         conn.uuid = uuid;
@@ -150,6 +154,7 @@ impl DeviceManager {
                 }
 
                 if let Some(role) = msg.sender.role.clone() {
+                    info!("Adding role {:?} to point to socket address {:?}", role, addr);
                     self.role_map.lock().unwrap().insert(role.clone(), addr.clone());
                     if let Some(ref mut conn) = conn {
                         conn.role = role;
@@ -157,19 +162,25 @@ impl DeviceManager {
                 }
             },
             "search" => {
+                trace!("Received search request from {:?}", addr);
+
                 // Perform a filesystem search over the given arguments
                 if let Some(ref args) = msg.args {
+                    info!("Searching for {:?}", args);
+
                     let query = &args[0].as_str().unwrap();
                     let results = seshat::default_search(query, &self.index);
                     msg.resp = Some(json!(results));
+
+                    info!("Found results: {:?}", msg.resp);
                 }
             },
             "stop" => {
-                info!("Received stop request from {:?}", addr);
+                trace!("Received stop request from {:?}", addr);
                 <Self as networking::BasicServer>::drop_connection(self, *addr)
             },
             "quit" => {
-                info!("Received quit request from {:?}", addr);
+                trace!("Received quit request from {:?}", addr);
 
                 // Send a close signal to all connected devices
                 // NOTE: We don't remove the connections as the manager is closing anyways
@@ -196,7 +207,8 @@ impl DeviceManager {
 
     // Handle routing the message to the requested destination
     fn route_message(&mut self, msg: message::Message, dest: Option<SocketAddr>) -> Result<(), Error> {
-        debug!("Routing the message to another modality");
+        trace!("Sending the message to another modality");
+
         if !msg.dest.broadcast.unwrap_or(false) {
             // Produce a list of the connection sinks that we want to send the message to
             // NOTE: This allows us to turn the 'dest' field into an array
@@ -208,14 +220,15 @@ impl DeviceManager {
             if let Some(dest) = dest {
                 let ref conn = self.connections.lock().unwrap()[&dest];
                 send_queue.push((conn.queue.clone(), false));
-                debug!("Sending message to {:?}", dest);
+                debug!("Adding {:?} to the send queue for message reception");
 
                 // Send an ack message to the original sender if desired
                 if let Some(Some(sender)) = self.resolve_connection(&msg.sender) {
                     if sender != dest {
+                        debug!("The receiving app was not the same as the sending message. Adding ack message to {:?} to sending queue", sender);
+
                         let ref conn = self.connections.lock().unwrap()[&sender];
                         send_queue.push((conn.queue.clone(), true));
-                        debug!("Sending ack to {:?}", sender);
                     }
                 }
             }
@@ -245,7 +258,6 @@ impl DeviceManager {
 
 impl networking::BasicServer for DeviceManager {
     fn handle_request(&mut self, msg: serde_json::Value, addr: &SocketAddr) -> Result<(), Error> {
-        debug!("Got {:?} from {:?}", msg, addr);
         let mut msg: message::Message = serde_json::from_value(msg)?;
         debug!("Parsed message {:?}", msg);
 
@@ -259,6 +271,7 @@ impl networking::BasicServer for DeviceManager {
         if msg.sender.addr.is_none() {
             msg.sender.addr = self.device_addr;
         }
+        trace!("Appended required sender data");
 
         // Handle the message as requested by the sender
         match self.resolve_destination(&msg.dest) {
@@ -276,18 +289,20 @@ impl networking::BasicServer for DeviceManager {
     }
 
     fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
-        info!("Adding connection to {:?}", addr);
+        trace!("Adding connection to {:?}", addr);
         let mut conns = self.connections.lock().unwrap();
         conns.insert(addr, Connection::new(addr.clone(), close_signal, write_signal));
-        info!("Added connection at {:?} ({})", addr, conns.contains_key(&addr));
+        info!("Added connection to {:?}", addr);
         Ok(())
     }
 
     // TODO: Change the return type of this to `Result<(), Error>`
     fn drop_connection(&mut self, addr: SocketAddr) {
+        trace!("Dropping connection to {:?}", addr);
         let mut conns = self.connections.lock().unwrap();
         self.on_connection_close(&conns, addr);
         conns.remove(&addr);
+        info!("Dropped connect to {:?}", addr);
     }
 }
 

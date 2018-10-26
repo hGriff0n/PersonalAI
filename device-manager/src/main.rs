@@ -47,9 +47,7 @@ Of local device statistics, among others.
 
 fn main() {
     let args = load_configuration();
-
     logging::launch(&args).expect("Failed to initialize logging");
-    trace!("Logger setup properly");
 
     // Construct the indexer
     // TODO: Loading the index from file causes some start-up delay
@@ -88,6 +86,7 @@ fn main() {
     trace!("Created tokio task description");
 
     // Spawn the futures in the tokio event loop
+    info!("Launching tokio task chain");
     tokio::run(device);
     info!("System shutdown");
 }

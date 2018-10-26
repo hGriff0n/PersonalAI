@@ -43,7 +43,7 @@ class Plugin:
         global LoadedPlugin
         LoadedPlugin = cls
 
-    # TODO: Need to work on the interfaces (how to send messages?)
+    # Plugin interface
     @abc.abstractmethod
     async def run(self, comm):
         """
@@ -56,13 +56,19 @@ class Plugin:
         :returns: A boolean value indicating whether to continue running the plugin or not
         """
 
+    async def handle_unknown_message(self, msg, comm):
+        """
+        Callback for any received messages that do not have registered handles
+        """
+        self._log.info("Received unexpected message <{}>".format(msg.json_packet))
+
     async def handle_ack(self, msg, _comm):
         """
         Callback for any "acknowledge" messages sent to this plugin
 
         These messages generally provide feedback about the state of the request
         """
-        self._log.debug("ACK: {}".format(msg.id))
+        self._log.debug("Handled ack message: {}".format(msg.id))
 
     async def handle_error(self, msg, _comm):
         """
@@ -70,8 +76,9 @@ class Plugin:
 
         These messages are sent if a request/message fails for some reason
         """
-        self._log.error("ERROR: {}".format(msg.args))
+        self._log.error("Handled error message: {}".format(msg.args))
 
+    # Plugin registration
     def _register_handle(self, action, callback):
         """
         Registers the specific callback for all messages that have the indicated 'action'
@@ -89,6 +96,7 @@ class Plugin:
         else:
             self._log.error("Attempt to register non-coroutine callback for `{}` action ({})".format(action, callback))
 
+    # Properties
     @property
     def uuid(self):
         return self._uuid
@@ -110,7 +118,7 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     location = os.path.join(plugin_dir, desired_plugin)
     if not os.path.isdir(location) or not "__init__.py" in os.listdir(location):
         if log is not None:
-            log.info("Could not find plugin {}".format(desired_plugin))
+            log.error("Could not find plugin {}".format(desired_plugin))
         return None
 
     # Create the plugin specific logger
@@ -125,10 +133,10 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
             cmd = clg.CommandLine(yaml.load(open(arg_yaml)))
             plugin_config_args = vars(cmd.parse(args or []))
         except Exception as e:
-            plugin_logger.error("Error loading plugin configuration, assuming no configuration: {}".format(e))
+            log.error("Error loading plugin configuration for {}, assuming no configuration: {}".format(desired_plugin, e))
 
     # Load the plugin
-    log.info("Loading plugin {}".format(desired_plugin))
+    log.info("Loading plugin module {}".format(desired_plugin))
     info = imp.find_module("__init__", [location])
     imp.load_module("__init__", *info)
     log.info("Loaded plugin {}".format(desired_plugin))

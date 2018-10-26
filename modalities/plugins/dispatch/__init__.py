@@ -25,13 +25,11 @@ class DispatchPlugin(plugins.Plugin):
         }
 
     async def run(self, comm):
-        await asyncio.sleep(10)
-        self._log.info("Finished run")
         return True
 
     async def handle_dispatch(self, msg, comm):
         dispatch = msg.args[0]
-        self._log.info("MSG <{}>".format(dispatch))
+        self._log.info("Received dispatch message: {}".format(dispatch))
 
         # TODO: Can we make the wit.ai call asynchronous?
         query = self._client.message(dispatch)
@@ -51,26 +49,25 @@ class DispatchPlugin(plugins.Plugin):
                 msg.args = "Unknown message"
 
         elif 'greetings' in quest:
-            self._log.info("GREETING")
+            self._log.trace("Translated dispatch message as a greeting")    # TODO: Could I add in confidence here ???
             msg.action = 'greet'
             msg.args = "Hello"
 
         elif 'thanks' in quest:
-            self._log.info("GREETING")
+            self._log.trace("Translated dispatch message as a thank you")
             msg.action = 'ack'
             msg.args = "You're welcome"
 
         elif 'bye' in quest:
-            self._log.info("Closing sending plugin")
+            self._log.trace("Translated dispatch message as a goodbye. Closing dispatch plugin")
             self._handle_stop(msg, comm, None)
             msg.args.append("Goodbye")
 
         else:
-            self._log.info("Unknown action")
+            self._log.debug("Failed to translate dispatch message: Unknown message")
             msg.action = 'unk'
             msg.args = "I have no idea what you meant"
 
-        self._log.info("Handled dispatch")
         msg.return_to_sender()
         comm.send(msg, self._log)
 
@@ -79,23 +76,26 @@ class DispatchPlugin(plugins.Plugin):
     Handle messages as indicated from the nlp results
     """
     async def _handle_stop(self, msg, _comm, _quest):
-        self._log.info("Received stop message")
+        self._log.trace("Received stop dispatch message. Returning 'stop'")
         msg.action = "send"
         msg.args = "stop"
 
     async def _handle_music(self, msg, _comm, quest):
+        self._log.trace("Received request to play music. Determining song to play")
+
         song = 'Magnet'
 
         if 'search_query' in quest:
             song = quest['search_query'][0]['value']
 
-        self._log.info("PLAYING <{}>".format(song))
-
+        self._log.info("Returning audio request to play {}".format(song))
         msg.action = 'play'
         msg.args = song
         msg.set_dest(role='audio')
 
     async def _handle_find(self, msg, comm, quest):
+        self._log.trace("Received request to find search query")
+
         search = Message(plugin=self)
         search.send_to(role='manager')
         search.parent_id = msg.id
@@ -103,9 +103,9 @@ class DispatchPlugin(plugins.Plugin):
 
         if 'search_query' in quest:
             search.args = [q['value'] for q in quest['search_query']]
-            self._log.info("FINDING <{}>".format(search.args))
+            self._log.info("Searching network for search terms: {}".format(search.args))
 
         resp = await comm.wait_for_response(search, self._log)
-        self._log.info("RESPONSE <{}>".format(resp.response))
 
+        self._log.info("Returning search results to requesting application")
         msg.response = resp.response

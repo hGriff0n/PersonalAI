@@ -30,7 +30,7 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
     // Setup the json communicators
     let (writer, reader) = length_delimited::Framed::new(conn).split();
     let writer = WriteJson::<_, Value>::new(writer)
-        .sink_map_err(|err| { error!("WriteJson: {:?}", err); });
+        .sink_map_err(|err| { error!("Error in json serialization: {:?}", err); });
     let reader = ReadJson::<_, Value>::new(reader);
 
     // Define the handle for incoming communication
@@ -38,7 +38,7 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
     let read_action = reader
         .for_each(move |msg| read_state.handle_request(msg, &addr))
         .map(|_| ())
-        .map_err(|err| { error!("Read Error: {:?}", err); });
+        .map_err(|err| { error!("Socket read error: {:?}", err); });
 
     // Define the handle for outgoing communication
     let mut write_state = server.clone();
@@ -46,7 +46,7 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
         .map(move |msg| write_state.handle_response(msg, &addr))
         .forward(writer)
         .map(|_| ())
-        .map_err(|err| { error!("Write Error: {:?}", err); });
+        .map_err(|err| { error!("Socket write error: {:?}", err); });
 
     // Combine the actions for tokio registration
     let mut close_state = server.clone();
@@ -55,7 +55,7 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
         .select2(cancel)
         .map(move |_| close_state.drop_connection(addr))
         // .map_err(|err| { error!("Closing Error: {:?}", err); });
-        .map_err(|_| { error!("Closing error"); });
+        .map_err(|_| { error!("Error closing the server"); });
 
     // Spawn the connection
     tokio::spawn(action);

@@ -28,7 +28,7 @@ class CliPlugin(plugins.Plugin):
             return True
 
         elif query == "quit":
-            self._log.info("Stopping cli plugin")
+            self._log.info("Stopping cli plugin from user input")
 
             msg = Message(plugin=self)
             msg.action = 'quit'
@@ -43,6 +43,8 @@ class CliPlugin(plugins.Plugin):
         return True
 
     async def _send_query(self, query, comm):
+        self._log.trace("Putting message into sending queue")
+
         msg = Message(plugin=self)
         msg.action = 'dispatch'
         msg.args = query
@@ -57,7 +59,7 @@ class CliPlugin(plugins.Plugin):
 
 
     async def handle_print(self, msg, comm):
-        self._log.debug("Received text action")
+        self._log.trace("Adding message to print queue")
         with await self._cli_lock:
             self._msgs.append(' '.join(msg.args))
 
