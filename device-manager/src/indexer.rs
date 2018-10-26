@@ -17,8 +17,7 @@ use seshat::handle;
 use seshat::index::IndexWriter;
 use tags;
 
-// use device::DeviceManager;
-use alt_device::DeviceManager;
+use device::DeviceManager;
 
 // Create the fs crawler according to the configuration
 fn create_crawler<'a>(_args: &'a clap::ArgMatches) -> impl Crawler {

@@ -7,7 +7,7 @@ Short Term:
         Replace the old device manager with the new system
           Make sure the new routing system works
             Fix the dispatch plugin
-              Produces "unhashable type: 'dict'" on cli < "Find Muse"
+              Produces "unhashable type: 'dict'" on cli > "Find Muse"
             Make the cli app responsive to the user, not the network
               We can just send the query handling into a coroutine
               However, I'm not certain how quit responses will be handled
@@ -20,7 +20,6 @@ Short Term:
             Add the indexer back in to the device-manager
           Enable the device manager to calculate the device's public ip address
             Find a way for the plugins to also use the public ip (instead of localhost)
-          Replace the DeviceManager with the alt_device::DeviceManager
         Change the loading process to allow for environment variables
           I do realize I can just change the config file too
         Need to define the procedure for when a device-manager shuts-down in the wider network
