@@ -1,6 +1,8 @@
 
 extern crate array_tool;
 extern crate evmap;
+#[macro_use]
+extern crate log;
 extern crate serde;
 extern crate serde_json;
 extern crate tags;
@@ -9,9 +11,7 @@ extern crate walkdir;
 use walkdir::{DirEntry, WalkDir};
 
 // For testing
-use std::fs::File;
 use std::io;
-use std::io::prelude::*;
 use std::path::Path;
 use std::sync;
 use std::time::SystemTime;
@@ -27,7 +27,7 @@ use crawl::Crawler;
 struct MusicHandler;
 impl handle::FileHandler for MusicHandler {
     #[allow(unused_must_use)]
-    fn handle(&self, entry: &DirEntry, idx: &mut index::IndexWriter, file: &mut File) {
+    fn handle(&self, entry: &DirEntry, idx: &mut index::IndexWriter) {
         // println!("Reading file {}", entry.path().display());
         match tags::load(entry.path()) {
             Ok(music_file) => {
@@ -42,15 +42,17 @@ impl handle::FileHandler for MusicHandler {
                     .unwrap()
                     .to_string();
 
+                trace!("Parsed music file {:?} (artist={:?}, album={:?}, title={:?})", path_string, artist, album, title);
+
                 idx.add(&title, path_string.clone())
                    .add(&artist, path_string.clone())
                    .add(&album, path_string.clone());
             },
             Err(ref e) if e.kind() == io::ErrorKind::Other => {
-                file.write(format!("Unrecognized Music: {}\n", entry.path().display()).as_bytes());
+                error!("Unrecognized music file found: {}", entry.path().display());
             },
             Err(e) => {
-                file.write(format!("Error reading {}: {:?}\n", entry.path().display(), e).as_bytes());
+                error!("Error reading file {}: {:?}", entry.path().display(), e);
             },
         }
     }
@@ -74,11 +76,11 @@ impl handle::FileHandler for MusicHandler {
 fn main() {
     // Open the output test file
     // NOTE: This isn't really necessary for final implementations (may want to remove from handle interface)
-    let output_file = Path::new("_files.txt");
-    let mut output = match File::create(&output_file) {
-        Err(_why) => panic!("couldn't create output tracking file"),
-        Ok(file) => file,
-    };
+    // let output_file = Path::new("_files.txt");
+    // let mut output = match File::create(&output_file) {
+    //     Err(_why) => panic!("couldn't create output tracking file"),
+    //     Ok(file) => file,
+    // };
 
     // Initialize the file handlers
     let mut crawler = crawl::WindowsCrawler::new();
@@ -90,7 +92,7 @@ fn main() {
     // Start working on the indexer
     let index_file = Path::new("index.json");
     let (idx, mut writer) = index::Index::from_file(&index_file);
-    let num_files = crawler.crawl(WalkDir::new("C:\\"), &mut writer, &mut output);
+    let num_files = crawler.crawl(WalkDir::new("C:\\"), &mut writer);
 
     if let Ok(time) = now.elapsed() {
         println!("Visited {} files in {} seconds", num_files, time.as_secs());

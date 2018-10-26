@@ -1,6 +1,5 @@
 
 use std::collections::HashMap;
-use std::fs;
 use std::sync;
 
 use walkdir::{DirEntry, WalkDir};
@@ -21,7 +20,7 @@ TODO: We currently split files between handlers based on their extension
 
 pub trait Crawler {
     fn is_relevant_file(&self, entry: &DirEntry) -> bool;
-    fn crawl(&self, fdir: WalkDir, index: &mut idx::IndexWriter, out: &mut fs::File) -> u64;
+    fn crawl(&self, fdir: WalkDir, index: &mut idx::IndexWriter) -> u64;
 }
 
 
@@ -46,7 +45,7 @@ impl WindowsCrawler {
 }
 
 impl Crawler for WindowsCrawler {
-    fn crawl(&self, fdir: WalkDir, index: &mut idx::IndexWriter, out: &mut fs::File) -> u64 {
+    fn crawl(&self, fdir: WalkDir, index: &mut idx::IndexWriter) -> u64 {
         let fdir = fdir.into_iter()
                    .filter_entry(|e| self.is_relevant_file(e))
                    .filter_map(|e| e.ok());
@@ -59,7 +58,7 @@ impl Crawler for WindowsCrawler {
                      .map(|ext| ext.to_str().unwrap_or(""))
                      .and_then(|ext| self.handles.get(ext))
                      .unwrap_or(&self.default_handle)
-                     .handle(&entry, index, out);
+                     .handle(&entry, index);
 
                 num_files += 1;
             }

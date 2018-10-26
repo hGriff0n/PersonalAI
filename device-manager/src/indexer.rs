@@ -80,10 +80,6 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
                     // TODO: Perform some degree of subsumption, etc. on the roots
                     // NOTE: If I'm push on any root file, we need to erase the index
 
-                    // NOTE: This will be removed eventually
-                    let output_file = path::Path::new("_files.txt");
-                    let mut output = File::create(&output_file).unwrap();
-
                     // Spawn-and-forget the crawling in a separate thread
                     // NOTE: Performing crawling within the sequential code-block causes tokio's processing
                     // To grind to a halt, harming system-wide uptime and responsiveness
@@ -91,7 +87,7 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
                     // thread::spawn(move || {
                         for root in folders {
                             info!("Starting crawling of {:?}", root);
-                            crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
+                            crawler.crawl(WalkDir::new(root), &mut writer);
                         }
 
                         trace!("Commiting reindexing changes to index term map");
@@ -137,7 +133,7 @@ pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
 struct MusicHandler;
 impl handle::FileHandler for MusicHandler {
     #[allow(unused_must_use)]
-    fn handle(&self, entry: &DirEntry, idx: &mut IndexWriter, file: &mut File) {
+    fn handle(&self, entry: &DirEntry, idx: &mut IndexWriter) {
         // println!("Reading file {}", entry.path().display());
         match tags::load(entry.path()) {
             Ok(music_file) => {
@@ -159,12 +155,10 @@ impl handle::FileHandler for MusicHandler {
                    .add(&album, path_string.clone());
             },
             Err(ref e) if e.kind() == ErrorKind::Other => {
-                error!("Unrecognized music file found: {}\n", entry.path().display());
-                file.write(format!("Unrecognized Music: {}\n", entry.path().display()).as_bytes());
+                error!("Unrecognized music file found: {}", entry.path().display());
             },
             Err(e) => {
                 error!("Error reading file {}: {:?}", entry.path().display(), e);
-                file.write(format!("Error reading {}: {:?}\n", entry.path().display(), e).as_bytes());
             },
         }
     }

@@ -220,7 +220,7 @@ impl DeviceManager {
             if let Some(dest) = dest {
                 let ref conn = self.connections.lock().unwrap()[&dest];
                 send_queue.push((conn.queue.clone(), false));
-                debug!("Adding {:?} to the send queue for message reception");
+                debug!("Adding {:?} to the send queue for message reception", dest);
 
                 // Send an ack message to the original sender if desired
                 if let Some(Some(sender)) = self.resolve_connection(&msg.sender) {
