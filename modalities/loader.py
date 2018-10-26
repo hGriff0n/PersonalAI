@@ -40,7 +40,6 @@ class CommChannel:
         self._event_queue[msg.id] = MessageEvent()
         await self._event_queue[msg.id].wait()
 
-        log.info("Event was resumed")
         resp = self._event_queue[msg.id].value
         del self._event_queue[msg.id]
         return resp
@@ -150,13 +149,13 @@ def writer(comm, sock, log):
             break
 
 
-def handshake(plugin, _plugin_handles, comm):
+async def handshake(plugin, _plugin_handles, comm):
     plugin.logger.info("Performing Initial Plugin Handshake")
 
     msg = Message(plugin=plugin)
     msg.action = 'handshake'
     msg.send_to(role='manager')
-    comm.send(msg, plugin.logger)
+    await comm.wait_for_response(msg, plugin.logger)
 
 
 async def run(plugin, comm, read_thread, write_thread):
@@ -245,7 +244,7 @@ if __name__ == "__main__":
     write_thread.start()
 
     # Run the plugin
-    handshake(plugin, handles, comm)
+    loop.run_until_complete(handshake(plugin, handles, comm))
     loop.run_until_complete(run(plugin, comm, read_thread, write_thread))
     plugin.logger.debug("Quit plugin while {} handles were running".format(len(asyncio.Task.all_tasks())))
 

@@ -6,19 +6,13 @@ Short Term:
       Rewrite the rust forwarding system to utilize the new routing system
         Replace the old device manager with the new system
           Make sure the new routing system works
-            Fix the dispatch plugin
-              Produces "unhashable type: 'dict'" on cli > "Find Muse"
-            Make the cli app responsive to the user, not the network
-              We can just send the query handling into a coroutine
-              However, I'm not certain how quit responses will be handled
-                If we just spawn the coroutine, they'll be silently ignored
-                  The best option is to have a wrapper and push a message to the writer
             Add in logging statements throughout the device manager
               Improve the logging messages throughout the system
             Harden the device-manager against requests from dead plugins
               Currently cli > "quit" causes a panic in the DeviceManager
               Need to double check that removed plugins don't break anything
             Add the indexer back in to the device-manager
+              Check that cli > "find Muse" works properly
           Enable the device manager to calculate the device's public ip address
             Find a way for the plugins to also use the public ip (instead of localhost)
         Change the loading process to allow for environment variables

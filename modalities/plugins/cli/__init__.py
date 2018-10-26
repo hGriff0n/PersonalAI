@@ -37,10 +37,8 @@ class CliPlugin(plugins.Plugin):
 
             return False
 
-        # TODO: Figure out how "quit" conditions would be communicated
+        # NOTE: "Quit" is handled by the reader
         await self._send_query(query, comm)
-        # loop = asyncio.get_event_loop()
-        # asyncio.run_coroutine_threadsafe(self._send_query(query, comm), loop)
 
         return True
 
