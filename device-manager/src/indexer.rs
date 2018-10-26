@@ -17,7 +17,7 @@ use seshat::handle;
 use seshat::index::IndexWriter;
 use tags;
 
-// use super::device::DeviceManager;
+// use device::DeviceManager;
 use alt_device::DeviceManager;
 
 // Create the fs crawler according to the configuration

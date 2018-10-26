@@ -19,7 +19,8 @@ struct Connection {
     pub addr: SocketAddr,
     pub close: Closer,
     pub queue: Communicator,
-    pub roles: Vec<String>,
+    pub role: String,
+    pub uuid: String
 }
 
 impl Connection {
@@ -28,7 +29,8 @@ impl Connection {
             addr: addr,
             close: close,
             queue: queue,
-            roles: Vec::new()
+            role: "".to_string(),
+            uuid: "".to_string(),
         }
     }
 }
@@ -37,6 +39,7 @@ impl Connection {
 pub struct DeviceManager {
     connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
     role_map: Arc<Mutex<MultiMap<String, SocketAddr>>>,
+    uuid_map: Arc<Mutex<HashMap<String, SocketAddr>>>,
 
     cancel: Closer,
     index: idx::Index,
@@ -57,6 +60,7 @@ impl DeviceManager {
         Self{
             connections: Arc::new(Mutex::new(HashMap::new())),
             role_map: Arc::new(Mutex::new(MultiMap::new())),
+            uuid_map: Arc::new(Mutex::new(HashMap::new())),
             cancel: cancel,
             index: index,
             device_addr: None,      // TODO: we need to get the device's ip addr (ie. where are we listening?)
@@ -67,20 +71,22 @@ impl DeviceManager {
         &self.index
     }
 
+    // TODO: Correctly implement this to clean out the whole cache
     fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) {
         let mut role_map = self.role_map.lock().unwrap();
+        info!("Closing connection {:?}", addr);
 
         let conn = &conns[&addr];
-        for role in &conn.roles {
-            let vec = role_map.get_vec_mut(role).unwrap();
-            vec.iter()
-                .position(|ad| *ad == addr)
-                .map(|e| vec.remove(e));
-        }
+        // for role in &conn.roles {
+        //     let vec = role_map.get_vec_mut(role).unwrap();
+        //     vec.iter()
+        //         .position(|ad| *ad == addr)
+        //         .map(|e| vec.remove(e));
+        // }
 
         conn.close.send(()).expect("Failed to close connection");
         // NOTE: We purposefully do not remove the connection from the connection map here
-        // TODO: This is an optimization for "quit", could we also get this optimization for 'role'
+        // TODO: This is an optimization for "quit", could we also get this optimization for the 'role_map'
     }
 
     // Resolve who sent the message
@@ -90,45 +96,81 @@ impl DeviceManager {
 
     // Resolve where the message is being requested to be directed
     fn resolve_destination(&self, dest: &message::MessageDest) -> Option<Option<SocketAddr>> {
-        let role = dest.role.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
-        match role.as_str() {
-            "manager" => None,
-            "search" => None,
-            _ => Some(None)
+        // If the specific app is specified, send it there
+        if let Some(ref uuid) = dest.uuid {
+            let uuid_map = self.uuid_map.lock().unwrap();
+            if uuid_map.contains_key(uuid) {
+                return Some(uuid_map.get(uuid).map(|addr| addr.to_owned()));
+            }
+
+            debug!("Requested sending to uuid {:?} but no such application was found", uuid);
         }
+
+        // If the device IP is specified, send it there
+        // NOTE: This won't currently work, because we don't send things correctly
+        // if let Some(addr) = dest.addr {
+        //     if self.connections.lock().unwrap().contains_key(&addr) {
+        //         return addr.clone();
+        //     }
+        // }
+
+        let role = dest.role.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
+        let dest = match role.as_str() {
+            "manager" => None,
+            "device" => None,
+            role => Some(self.role_map.lock().unwrap().get(role).map(|addr| addr.clone()))
+        };
+
+        // Log resolution status
+        match dest {
+            Some(Some(addr)) => debug!("Resolved destination connection: {:?}", addr),
+            Some(None) => debug!("Failed to resolve destination: No connection registered for {:?}", role),
+            None => debug!("Resolved destination connection: device-manager"),
+        }
+
+        dest
     }
 
     // Handle any server specific requests
     fn handle_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
+        info!("Handling server request");
+
         let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
         match action.as_str() {
             "handshake" => {
-                if let Some(ref roles) = msg.args {
-                    let roles: Vec<String> = roles.iter().map(|key| key.as_str().unwrap().to_string()).collect();
+                // NOTE: This may not borrow check
+                let mut conn_lock = self.connections.lock().unwrap();
+                let mut conn = conn_lock.get_mut(&addr);
 
-                    // Register the role keys for the connection
-                    if let Some(conn) = self.connections.lock().unwrap().get_mut(&addr) {
-                        conn.roles = roles.clone();
-                    }
-
-                    // Register the connection for the role keys
-                    let mut role_map = self.role_map.lock().unwrap();
-                    for role in roles.into_iter() {
-                        role_map.insert(role, addr.clone());
+                if let Some(uuid) = msg.sender.uuid.clone() {
+                    self.uuid_map.lock().unwrap().insert(uuid.clone(), addr.clone());
+                    if let Some(ref mut conn) = conn {
+                        conn.uuid = uuid;
                     }
                 }
 
-                // TODO: Should this be an error?
+                if let Some(role) = msg.sender.role.clone() {
+                    self.role_map.lock().unwrap().insert(role.clone(), addr.clone());
+                    if let Some(ref mut conn) = conn {
+                        conn.role = role;
+                    }
+                }
             },
             "search" => {
+                // Perform a filesystem search over the given arguments
                 if let Some(ref args) = msg.args {
                     let query = &args[0].as_str().unwrap();
                     let results = seshat::default_search(query, &self.index);
                     msg.resp = Some(json!(results));
                 }
             },
-            "stop" => <Self as networking::BasicServer>::drop_connection(self, *addr),
+            "stop" => {
+                info!("Received stop request from {:?}", addr);
+                <Self as networking::BasicServer>::drop_connection(self, *addr)
+            },
             "quit" => {
+                info!("Received quit request from {:?}", addr);
+
                 // Send a close signal to all connected devices
                 // NOTE: We don't remove the connections as the manager is closing anyways
                 // TODO: Wouldn't this message actually be received as a broadcast?
@@ -154,10 +196,13 @@ impl DeviceManager {
 
     // Handle routing the message to the requested destination
     fn route_message(&mut self, msg: message::Message, dest: Option<SocketAddr>) -> Result<(), Error> {
+        debug!("Routing the message to another modality");
         if !msg.dest.broadcast.unwrap_or(false) {
             // Produce a list of the connection sinks that we want to send the message to
             // NOTE: This allows us to turn the 'dest' field into an array
             let mut send_queue = Vec::new();
+
+            debug!("Routing the message according to it's `dest` field");
 
             // Add the specified destination device to the queue
             if let Some(dest) = dest {
@@ -188,8 +233,8 @@ impl DeviceManager {
         } else {
             let msg = serde_json::to_value(msg).unwrap();
 
+            debug!("Performing broadcast of {:?} to all registered modalities", msg);
             for (_, ref conn) in self.connections.lock().unwrap().iter() {
-                debug!("Broadcasting message to {:?}", conn.addr);
                 conn.queue.unbounded_send(msg.clone());
             }
         }
@@ -202,7 +247,7 @@ impl networking::BasicServer for DeviceManager {
     fn handle_request(&mut self, msg: serde_json::Value, addr: &SocketAddr) -> Result<(), Error> {
         debug!("Got {:?} from {:?}", msg, addr);
         let mut msg: message::Message = serde_json::from_value(msg)?;
-        debug!("Parsed message struct");
+        debug!("Parsed message {:?}", msg);
 
         // 1) Append the current device addr to the route array
         // 2) Set the sender's addr value if not already set
@@ -231,8 +276,10 @@ impl networking::BasicServer for DeviceManager {
     }
 
     fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
-        debug!("Adding connection to {:?}", addr);
-        self.connections.lock().unwrap().insert(addr.clone(), Connection::new(addr.clone(), close_signal, write_signal));
+        info!("Adding connection to {:?}", addr);
+        let mut conns = self.connections.lock().unwrap();
+        conns.insert(addr, Connection::new(addr.clone(), close_signal, write_signal));
+        info!("Added connection at {:?} ({})", addr, conns.contains_key(&addr));
         Ok(())
     }
 

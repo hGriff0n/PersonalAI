@@ -10,8 +10,8 @@ plugins:
 device-manager:
   path: C:\Users\ghoop\Desktop\PersonalAI\device-manager\target\debug\device-manager.exe
   index-cache: C:\Users\ghoop\Desktop\PersonalAI\index_cache.json
-  addr: 127.0.0.1:6142
-  log-level: trace
+  addr: 127.0.0.1:6143
+  log-level: debug
 
 # ai-manager:
 #   path: C:\Users\ghoop\Desktop\PersonalAI\ai-manager\target\debug\ai-manager.exe
@@ -22,7 +22,7 @@ loader_config:
   script_path: C:\Users\ghoop\Desktop\PersonalAI\modalities\loader.py
   plugin-dir: C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins
   host: 127.0.0.1
-  port: 6142
+  port: 6143
   log-dir: ./log
   retry-delay: 5
   max-retries: 10

@@ -15,7 +15,11 @@ class Message:
             'dest': {},
         }
         if plugin is not None:
-            self._msg['sender']['uuid'] = plugin.uuid
+            self._msg['sender'] = {
+                'uuid': plugin.uuid,
+                'role': plugin.role
+            }
+
         if role is not None:
             self._msg['sender']['role'] = role
 

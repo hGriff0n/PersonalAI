@@ -27,9 +27,11 @@ class Plugin:
     RESERVED_ACTIONS = []
 
     def __init__(self, logger, config=None):
-        self._uuid = str(uuid.uuid4())
         self._log = logger
         _config = config
+
+        self._role = None
+        self._uuid = str(uuid.uuid4())
 
         self._register_handle('ack', self.handle_ack)
         self._register_handle('error', self.handle_error)
@@ -90,6 +92,14 @@ class Plugin:
     @property
     def uuid(self):
         return self._uuid
+
+    @property
+    def role(self):
+        return self._role
+
+    @property
+    def logger(self):
+        return self._log
 
 
 def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):

@@ -45,6 +45,7 @@ songs = {
 class AudioPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
         super().__init__(logger, config=config)
+        self._role = 'audio'
 
         self._speaker = pyaudio.PyAudio()
         self._voice = win32com.client.Dispatch('SAPI.SpVoice')
@@ -81,10 +82,10 @@ class AudioPlugin(plugins.Plugin):
 
             else:
                 self._log.debug("HEARD <{}>".format(query))
-                msg = Message(plugin=self, role='audio')
+                msg = Message(plugin=self)
                 msg.action = 'dispatch'
                 msg.args = query
-                comm.send(msg)
+                comm.send(msg, self._log)
 
         return True
 

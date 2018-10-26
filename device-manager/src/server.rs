@@ -7,7 +7,7 @@ use tokio::prelude::*;
 use tokio::net::{ TcpListener, TcpStream };
 
 use networking::spawn::spawn_connection;
-// use super::device::DeviceManager;
+// use device::DeviceManager;
 use alt_device::DeviceManager;
 
 // NOTE: I need the 'Box' type because I'm returning 2 different 'futures::Future' types
@@ -42,11 +42,11 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches) -> impl fut
         .unwrap_or("127.0.0.1:6142")
         .parse::<SocketAddr>()
         .unwrap();
-    trace!("Parsed device-server listening address: {:?}", addr);
+    info!("Parsed device-server listening address: {:?}", addr);
 
     // let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
     let parent = None;
-    trace!("Parsed device-server parent address: {:?}", parent);
+    info!("Parsed device-server parent address: {:?}", parent);
 
     // Create the server "futures"
     create_server(device.clone(), addr, parent)

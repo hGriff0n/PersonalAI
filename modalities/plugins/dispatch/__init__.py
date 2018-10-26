@@ -13,6 +13,7 @@ from common import plugins
 class DispatchPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
         super().__init__(logger, config=config)
+        self._role = 'dispatch'
 
         self._client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
         self._register_handle('dispatch', DispatchPlugin.handle_dispatch)
@@ -25,6 +26,7 @@ class DispatchPlugin(plugins.Plugin):
 
     async def run(self, comm):
         await asyncio.sleep(10)
+        self._log.info("Finished run")
         return True
 
     async def handle_dispatch(self, msg, comm):
@@ -68,14 +70,16 @@ class DispatchPlugin(plugins.Plugin):
             msg.action = 'unk'
             msg.args = "I have no idea what you meant"
 
+        self._log.info("Handled dispatch")
         msg.return_to_sender()
-        comm.send(msg)
+        comm.send(msg, self._log)
 
 
     """
     Handle messages as indicated from the nlp results
     """
     async def _handle_stop(self, msg, _comm, _quest):
+        self._log.info("Received stop message")
         msg.action = "send"
         msg.args = "stop"
 
@@ -92,8 +96,8 @@ class DispatchPlugin(plugins.Plugin):
         msg.set_dest(role='audio')
 
     async def _handle_find(self, msg, comm, quest):
-        search = Message(plugin=self, role='dispatch')
-        search.send_to(role='search')
+        search = Message(plugin=self)
+        search.send_to(role='manager')
         search.parent_id = msg.id
         search.action = 'search'
 
@@ -101,7 +105,7 @@ class DispatchPlugin(plugins.Plugin):
             search.args = [q['value'] for q in quest['search_query']]
             self._log.info("FINDING <{}>".format(search.args))
 
-        resp = await comm.wait_for_response(search)
+        resp = await comm.wait_for_response(search, self._log)
         self._log.info("RESPONSE <{}>".format(resp.response))
 
         msg.response = resp.response

@@ -10,6 +10,7 @@ class CliPlugin(plugins.Plugin):
 
         self._msgs = []
         self._cli_lock = asyncio.Lock()
+        self._role = 'cli'
 
         self._register_handle('print', CliPlugin.handle_print)
         self._msg_handles = {
@@ -29,27 +30,33 @@ class CliPlugin(plugins.Plugin):
         elif query == "quit":
             self._log.info("Stopping cli plugin")
 
-            msg = Message(plugin=self, role='cli')
+            msg = Message(plugin=self)
             msg.action = 'quit'
             msg.send_to(role='manager')
-            comm.send(msg)
+            comm.send(msg, self._log)
 
             return False
 
-        # Send query to network and get response
-        msg = Message(plugin=self, role='cli')
+        # TODO: Figure out how "quit" conditions would be communicated
+        await self._send_query(query, comm)
+        # loop = asyncio.get_event_loop()
+        # asyncio.run_coroutine_threadsafe(self._send_query(query, comm), loop)
+
+        return True
+
+    async def _send_query(self, query, comm):
+        msg = Message(plugin=self)
         msg.action = 'dispatch'
         msg.args = query
         msg.send_to(role='dispatch')
-        resp = await comm.wait_for_response(msg)
+        resp = await comm.wait_for_response(msg, self._log)
 
         with await self._cli_lock:
-            self._msgs.append(msg.args)
+            self._msgs.append(resp)
 
         # if resp.action in self._msg_handles:
         #     await self._msg_handles()
 
-        return True
 
     async def handle_print(self, msg, comm):
         self._log.debug("Received text action")
@@ -59,6 +66,6 @@ class CliPlugin(plugins.Plugin):
     def _print_all_msgs(self):
         if len(self._msgs) != 0:
             for msg in self._msgs:
-                print(msg)
+                print(msg.json_packet)
 
         self._msgs = []

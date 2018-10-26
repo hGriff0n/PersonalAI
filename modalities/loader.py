@@ -32,19 +32,21 @@ class CommChannel:
         self._msg_queue = queue.Queue()
         self._handles = handles
 
-    async def wait_for_response(self, msg):
+    async def wait_for_response(self, msg, log):
         """
         Send a message to some other plugin and wait for a response message
         """
-        self.send(msg)
+        self.send(msg, log)
         self._event_queue[msg.id] = MessageEvent()
         await self._event_queue[msg.id].wait()
 
+        log.info("Event was resumed")
         resp = self._event_queue[msg.id].value
         del self._event_queue[msg.id]
         return resp
 
-    def send(self, msg):
+    def send(self, msg, log):
+        log.info("Queuing <{}>".format(msg.json_packet))
         self._msg_queue.put(msg)
 
     def get_msg(self):
@@ -85,17 +87,22 @@ class _JsonProtocol:
                 buf = sock.recv(msg_len)
                 msg = json.loads(buf.decode('utf-8'))
 
-                log.debug("RECEIVED <{}>".format(msg))
+                log.info("RECEIVED <{}>".format(msg))
                 yield Message.from_json(msg)
 
-        except ConnectionResetError:
+        except ConnectionResetError as e:
             log.error("Lost connection to server")
 
+        except Exception as e:
+            log.error("EXCEPTION: {}".format(e))
 
-def reader(comm, sock, plugin, loop, log):
+
+def reader(comm, sock, plugin, loop):
     """
     Thread callback to dispatch and handle messages sent to this plugin
     """
+    log = plugin.logger
+
     async def _exc_wrapper(msg):
         """
         Wrap asyncio handle to catch and report thrown exceptions
@@ -109,25 +116,25 @@ def reader(comm, sock, plugin, loop, log):
             msg.action = 'error'
             msg.args = str(e)
             msg.return_to_sender()
-            comm.send(msg)
+            comm.send(msg, log)
 
     # For every message that we receive from the server
     for msg in _JsonProtocol.get_messages(sock, log):
         if Message.is_quit(msg):
-            log.debug("Received quit message in reader thread")
+            log.info("Received quit message in reader thread <{}>".format(msg))
             break
 
         # If we have requested this message in some other handler
         elif msg.id in comm.events:
             comm.events[msg.id].value = msg
-            comm.evetns[msg.id].set()
+            loop.call_soon_threadsafe(comm.events[msg.id].set)
 
         # Otherwise call the registered plugin handler
         elif msg.action in comm.handles:
             asyncio.run_coroutine_threadsafe(_exc_wrapper(msg), loop=loop)
 
         else:
-            log.debug("Received unexpected message <{}>".format(msg))
+            log.info("Received unexpected message <{}>".format(msg.json_packet))
 
 
 def writer(comm, sock, log):
@@ -143,23 +150,23 @@ def writer(comm, sock, log):
             break
 
 
-def handshake(plugin, plugin_handles, comm, log):
-    log.info("Performing Initial Plugin Handshake")
+def handshake(plugin, _plugin_handles, comm):
+    plugin.logger.info("Performing Initial Plugin Handshake")
 
     msg = Message(plugin=plugin)
     msg.action = 'handshake'
-    msg.args = plugin_handles.keys()
     msg.send_to(role='manager')
+    comm.send(msg, plugin.logger)
 
-    comm.send(msg)
 
-
-async def run(plugin, comm, log, read_thread, write_thread):
+async def run(plugin, comm, read_thread, write_thread):
     """
     Run the plugin within the asyncio event loop
 
     TODO: Should I add in an `asyncio.sleep` call here or should the plugins handle that?
     """
+    log = plugin.logger
+
     try:
         while True:
             finish_run = await plugin.run(comm)
@@ -213,7 +220,7 @@ if __name__ == "__main__":
 
     # Handle connection errors
     while True:
-        log.debug("Attempting to connect to {}:{}".format(host, port))
+        log.info("Attempting to connect to {}:{}".format(host, port))
         num_connection_attempts += 1
 
         try:
@@ -232,15 +239,15 @@ if __name__ == "__main__":
     # Create the communication threads
     comm = CommChannel(handles)
     loop = asyncio.get_event_loop()
-    read_thread = threading.Thread(target=reader, args=(comm, sock, plugin, loop, log))
+    read_thread = threading.Thread(target=reader, args=(comm, sock, plugin, loop))
     read_thread.start()
-    write_thread = threading.Thread(target=writer, args=(comm, sock, log))
+    write_thread = threading.Thread(target=writer, args=(comm, sock, plugin.logger))
     write_thread.start()
 
     # Run the plugin
-    handshake(plugin, handles, comm, log)
-    loop.run_until_complete(run(plugin, comm, log, read_thread, write_thread))
-    log.debug("Quit plugin while {} handles were running".format(len(asyncio.Task.all_tasks())))
+    handshake(plugin, handles, comm)
+    loop.run_until_complete(run(plugin, comm, read_thread, write_thread))
+    plugin.logger.debug("Quit plugin while {} handles were running".format(len(asyncio.Task.all_tasks())))
 
     # Clean up everything
     write_thread.join()

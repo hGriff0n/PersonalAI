@@ -6,13 +6,23 @@ Short Term:
       Rewrite the rust forwarding system to utilize the new routing system
         Replace the old device manager with the new system
           Make sure the new routing system works
-            Implement `alt_device::DeviceManager::resolve_destination`
-            Figure out why the cli plugin isn't returning to the command prompt once the message is sent
-              I think it might be network related, propably need to add a delay on the queue
+            Fix the dispatch plugin
+              Produces "unhashable type: 'dict'" on cli < "Find Muse"
+            Make the cli app responsive to the user, not the network
+              We can just send the query handling into a coroutine
+              However, I'm not certain how quit responses will be handled
+                If we just spawn the coroutine, they'll be silently ignored
+                  The best option is to have a wrapper and push a message to the writer
             Add in logging statements throughout the alt device manager
-            Put the sending code to the plugin's logger instead of the loader's logger
+              Improve the logging messages throughout the system
+            Harden the device-manager against requests from dead plugins
+              Need to double check that removed plugins don't break anything
+            Add the indexer back in to the device-manager
           Enable the device manager to calculate the device's public ip address
             Find a way for the plugins to also use the public ip (instead of localhost)
+          Replace the DeviceManager with the alt_device::DeviceManager
+        Change the loading process to allow for environment variables
+          I do realize I can just change the config file too
         Need to define the procedure for when a device-manager shuts-down in the wider network
           NOTE: The issue is the correct propogation of quit and stop messages
             "stop" indicates that the "sender" is going to stop
@@ -24,7 +34,7 @@ Short Term:
       Make the wit_ai key a config argument
         TODO: Need to learn how the config system works
         Fill in the 'cmd_args.yaml' file appropriately
-        Utilzie the config arg in the dispatch plugin
+        Utilize the config arg in the dispatch plugin
       See if we can make the communication asyncio as well (within the plugins)
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
     See if I can make the 'action' handling somewhat generic in the device manager
@@ -76,6 +86,10 @@ Short Term:
 Produce a short video of the project
 
 Medium Term:
+  Rework routing to follow a "kubernetes" style system
+    Unify 'sender' and 'dest' into the same structure
+    Allow for plugins to sign up under multiple "labels"
+    Enable querying plugins based on the join of these labels
   Improve message routing to prevent looping messages (particularly broadcasts)
   Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
     Rewrite routing process inside of device-manager
