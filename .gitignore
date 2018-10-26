@@ -2,6 +2,7 @@
 # Text/log files
 *.log
 resources.txt
+conf.yaml
 
 
 # Python files
@@ -23,4 +24,3 @@ index_cache.json
 *.lock
 **/target/
 \.vscode/
-
