@@ -39,7 +39,7 @@ class DispatchPlugin(plugins.Plugin):
 
         if 'intent' in quest:
             self._log.info("INTENT <{}>".format(quest['intent']))
-            intent = quest['intent'][0]
+            intent = quest['intent'][0]['value']
 
             if intent in self._intent_handles:
                 await self._intent_handles[intent](self, msg, comm, quest)

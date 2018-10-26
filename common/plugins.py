@@ -119,10 +119,13 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
 
     # Load the plugin arguments
     plugin_config_args = {}
-    arg_yaml = os.path.join(location, 'cmd_args.yaml')
+    arg_yaml = os.path.join(location, 'config_def.yaml')
     if os.path.exists(arg_yaml):
-        cmd = clg.CommandLine(yaml.load(open(arg_yaml)))
-        plugin_config_args = vars(cmd.parse(args or []))
+        try:
+            cmd = clg.CommandLine(yaml.load(open(arg_yaml)))
+            plugin_config_args = vars(cmd.parse(args or []))
+        except Exception as e:
+            plugin_logger.error("Error loading plugin configuration, assuming no configuration: {}".format(e))
 
     # Load the plugin
     log.info("Loading plugin {}".format(desired_plugin))

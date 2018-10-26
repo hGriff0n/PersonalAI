@@ -13,9 +13,10 @@ Short Term:
               However, I'm not certain how quit responses will be handled
                 If we just spawn the coroutine, they'll be silently ignored
                   The best option is to have a wrapper and push a message to the writer
-            Add in logging statements throughout the alt device manager
+            Add in logging statements throughout the device manager
               Improve the logging messages throughout the system
             Harden the device-manager against requests from dead plugins
+              Currently cli > "quit" causes a panic in the DeviceManager
               Need to double check that removed plugins don't break anything
             Add the indexer back in to the device-manager
           Enable the device manager to calculate the device's public ip address
