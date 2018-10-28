@@ -13,9 +13,9 @@ from common import plugins
 class DispatchPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
         super().__init__(logger, config=config)
-        self._role = 'dispatch'
 
-        self._client = Wit('CM7NKOIYX5BSFGPOPYFAWZDJTZWEVPSR', logger=logger)
+        self._role = 'dispatch'
+        self._client = Wit(config['wit_token'], logger=logger)
         self._register_handle('dispatch', DispatchPlugin.handle_dispatch)
 
         self._intent_handles = {
@@ -23,6 +23,10 @@ class DispatchPlugin(plugins.Plugin):
             'play_music': DispatchPlugin._handle_music,
             'find': DispatchPlugin._handle_find
         }
+
+    def _validate_configuration(self, config):
+        if 'wit_token' not in config:
+            raise Exception("Missing wit.ai api token")
 
     async def run(self, comm):
         return True

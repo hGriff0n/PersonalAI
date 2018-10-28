@@ -3,24 +3,14 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
-      Rewrite the rust forwarding system to utilize the new routing system
-        Enable the device manager to calculate the device's public ip address
-          Find a way for the plugins to also use the public ip (instead of localhost)
-        Change the loading process to allow for environment variables
-          I do realize I can just change the config file too
-        Need to define the procedure for when a device-manager shuts-down in the wider network
-          NOTE: The issue is the correct propogation of quit and stop messages
-            "stop" indicates that the "sender" is going to stop
-            "quit" indicates that evertyhing should stop
-              IDEA: "quit" -> all connections receive a "stop"
-              NOTE: Plugins would also interpret this "stop" as a "quit"
-        Look into auto-generating the python message class
-          Rust code works alot better by specifying the message as a struct
-      Make the wit_ai key a config argument
-        TODO: Need to learn how the plugin config system works
-        Fill in the 'config_def.yaml' file appropriately
-        Utilize the config arg in the dispatch plugin
-      See if we can make the communication asyncio as well (within the plugins)
+      Enable the device manager to calculate the device's public ip address
+        NOTE: I have a way of doing this in python from work
+          https://stackoverflow.com/questions/51001463/how-do-i-use-udpsocket-to-send-using-a-specific-network-interface
+        Find a way for the plugins to also use the public ip (instead of localhost)
+      Change the loading process to allow for environment variables (could just change the config files)
+        This is just a way to try to get me to not have to change everything in config files
+        I think what I really want is to interpolate variables from within the yaml file
+      See if we can make the communication (in the plugins) asyncio as well
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
     See if I can make the 'action' handling somewhat generic in the device manager
       This would mean removing the hardcoded "action" keys in `handle_requests`
@@ -72,10 +62,21 @@ Short Term:
       Setup an app "privilege" system
       Improve the handshake procedure to add a degree of confidence
   Look into publishing some of my rust work as "crates"
+  Cleanup the "Medium Term" checklist
+    Plan out the next dev work
 
 Produce a short video of the project
 
 Medium Term:
+  Improve documentation
+    Better document how the plugin configuration files are processed
+      Also see if there's a way to have multiple config files (aggregation)
+  Look into auto-generating the python message class
+    Rust code works alot better by specifying the message as a struct
+  Add in ability to handle a 'quit-all' command in the device-manager
+    Consider changing `cli > "quit"` to produce this command
+    NOTE: This may be better reserved for when we actually migrate to a fully distributed setup
+      I think we'll have to rethink alot of the design/architecture of this system then anyways
   Add ability to dynamically register python "apps"
     ie. send "stop" from cli, then relaunch cli from separate terminal, continue running
   Add ability to dynamically load "plugins" for specific file types

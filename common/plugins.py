@@ -27,8 +27,9 @@ class Plugin:
     RESERVED_ACTIONS = []
 
     def __init__(self, logger, config=None):
+        self._validate_configuration(config)
+        self._config = config
         self._log = logger
-        _config = config
 
         self._role = None
         self._uuid = str(uuid.uuid4())
@@ -42,6 +43,14 @@ class Plugin:
 
         global LoadedPlugin
         LoadedPlugin = cls
+
+    def _validate_configuration(self, config):
+        """
+        Read through the provided configuration dictionary and throw an exception if any values are in error
+
+        Override to fit the plugin specific configuration
+        """
+        pass
 
     # Plugin interface
     @abc.abstractmethod
