@@ -2,7 +2,7 @@ extern crate futures;
 extern crate tokio;
 extern crate tokio_io;
 extern crate tokio_serde_json;
-#[macro_use] extern crate serde_json;
+extern crate serde_json;
 #[macro_use] extern crate log;
 
 pub mod spawn;

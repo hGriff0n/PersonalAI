@@ -72,7 +72,7 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
     let indexer = load_index(args, writer)
         .and_then(move |(delay, mut writer)| {
             trace!("Spawning reindexer tasks on hourly timetable. Next task in {:?}", delay);
-            let reindexer = tokio::timer::Interval::new(delay, hour)
+            tokio::timer::Interval::new(delay, hour)
                 .for_each(move |_| {
                     let folders = writer.queued_folders();
                     trace!("Performing reindexing on the following folders: {:?}", folders);
@@ -96,8 +96,7 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
 
                     Ok(())
                 })
-                .map_err(|_| ());
-            tokio::spawn(reindexer)
+                .map_err(|_| ())
         });
 
     // Periodically push on all root folders to force re-indexing

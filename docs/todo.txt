@@ -4,12 +4,8 @@ Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
       Rewrite the rust forwarding system to utilize the new routing system
-        Replace the old device manager with the new system
-          Make sure the new routing system works
-            Add the indexer back in to the device-manager
-              Check that cli > "find Muse" works properly
-          Enable the device manager to calculate the device's public ip address
-            Find a way for the plugins to also use the public ip (instead of localhost)
+        Enable the device manager to calculate the device's public ip address
+          Find a way for the plugins to also use the public ip (instead of localhost)
         Change the loading process to allow for environment variables
           I do realize I can just change the config file too
         Need to define the procedure for when a device-manager shuts-down in the wider network
@@ -40,6 +36,10 @@ Short Term:
   Improve system performance and granularity
     Enable stopping the device-manager internally
       The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
+    Remove the startup penalty when dealing with the indexer
+      Startup time when an index cache file delays plugin handshakes
+      When a re-crawl is being performed, no connections will be handled
+      Would need to add a way to indicate a "reindex" is currently being performed in the return results
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
     Improve seshat memory usage and performance
@@ -53,6 +53,7 @@ Short Term:
       Right now, it's up to the server implementation about how to respond
         I think, in most cases a response is automatic
         It would be nice to be able to specify that on the client side
+    Find a way to "pretty-print" the time information inside of the log messages
   Add in "device-querying" capabilities to the cli interface
     NOTE: cli-specific interactions to produce statistics about the ai operations
     Come up with a data-collection framework

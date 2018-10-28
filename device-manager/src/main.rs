@@ -59,10 +59,9 @@ fn main() {
     let manager = device::DeviceManager::new(index, tx.clone());
     trace!("Created device state manager");
 
-    // TODO: This currently hangs until the indexing has completed
-        // This should not be the case (futures::lazy?)
-    // let indexer = indexer::launch(manager.clone(), &args, writer);
-    // trace!("Created async fs indexer");
+    // Create the seshat indexer (and search engine portal)
+    let indexer = indexer::launch(manager.clone(), &args, writer);
+    trace!("Created async fs indexer");
 
     // TODO: Figure out how these will interact with the new system
     // TODO: Spawn any persistent system tools and register them with the server
@@ -75,7 +74,7 @@ fn main() {
 
     // Combine all futures
     let device = server
-        // .select2(indexer)
+        .select2(indexer)
         ;
 
     // Add in the ability to pre-emptively short-circuit all computations
