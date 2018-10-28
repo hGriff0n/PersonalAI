@@ -54,7 +54,6 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
         .select2(write_action)
         .select2(cancel)
         .map(move |_| close_state.drop_connection(addr))
-        // .map_err(|err| { error!("Closing Error: {:?}", err); });
         .map_err(|_| { error!("Error closing the server"); });
 
     // Spawn the connection

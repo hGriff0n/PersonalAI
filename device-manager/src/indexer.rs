@@ -78,7 +78,7 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
                     trace!("Performing reindexing on the following folders: {:?}", folders);
 
                     // TODO: Perform some degree of subsumption, etc. on the roots
-                    // NOTE: If I'm push on any root file, we need to erase the index
+                    // NOTE: If I'm pushing on any root file, we need to erase the index
 
                     // Spawn-and-forget the crawling in a separate thread
                     // NOTE: Performing crawling within the sequential code-block causes tokio's processing

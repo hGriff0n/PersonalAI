@@ -6,12 +6,6 @@ Short Term:
       Rewrite the rust forwarding system to utilize the new routing system
         Replace the old device manager with the new system
           Make sure the new routing system works
-            Add in logging statements throughout the device manager
-              Have crawl use the logger instead of a file
-                This requires changing 'tags' to use a logger instead of a file too
-            Harden the device-manager against requests from dead plugins
-              Currently cli > "quit" causes a panic in the DeviceManager
-              Need to double check that removed plugins don't break anything
             Add the indexer back in to the device-manager
               Check that cli > "find Muse" works properly
           Enable the device manager to calculate the device's public ip address
@@ -44,6 +38,8 @@ Short Term:
       Rewrite the audio app completely
       Improve logging support in the audio app
   Improve system performance and granularity
+    Enable stopping the device-manager internally
+      The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
     Improve seshat memory usage and performance
@@ -68,20 +64,22 @@ Short Term:
           NOTE: So we'd be able to type 'dispatch -i' and switch over to using dispatch only mode
           Or make a separate "chat" plugin/config
     Enable querying of that data
+    Add ability for plugins to communicate "command syntax" with cli app
   Make sure that everything works properly
     Add in documentation for how to launch everything
-      Improve the launcher code
     Improve network security with the loading of apps
       Setup an app "privilege" system
       Improve the handshake procedure to add a degree of confidence
   Look into publishing some of my rust work as "crates"
-  Add ability to dynamically load "plugins" for specific file types
-    https://github.com/emoon/dynamic_reload
-    NOTE: If we do the dynamic reloading, we'd also need to allow for the python modules to be reloaded
 
 Produce a short video of the project
 
 Medium Term:
+  Add ability to dynamically register python "apps"
+    ie. send "stop" from cli, then relaunch cli from separate terminal, continue running
+  Add ability to dynamically load "plugins" for specific file types
+    https://github.com/emoon/dynamic_reload
+    NOTE: If we do the dynamic reloading, we'd also need to allow for the python modules to be reloaded
   Rework routing to follow a "kubernetes" style system
     Unify 'sender' and 'dest' into the same structure
     Allow for plugins to sign up under multiple "labels"

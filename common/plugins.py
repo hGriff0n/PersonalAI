@@ -123,7 +123,7 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
 
     # Create the plugin specific logger
     plugin_logger = logger.create('{}.log'.format(desired_plugin), log_dir=log_dir)
-    plugin_logger.setLevel(logger.logging.INFO)
+    plugin_logger.setLevel(logger.logging.DEBUG)
 
     # Load the plugin arguments
     plugin_config_args = {}

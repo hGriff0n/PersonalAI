@@ -49,17 +49,17 @@ class DispatchPlugin(plugins.Plugin):
                 msg.args = "Unknown message"
 
         elif 'greetings' in quest:
-            self._log.trace("Translated dispatch message as a greeting")    # TODO: Could I add in confidence here ???
+            self._log.info("Translated dispatch message as a greeting")    # TODO: Could I add in confidence here ???
             msg.action = 'greet'
             msg.args = "Hello"
 
         elif 'thanks' in quest:
-            self._log.trace("Translated dispatch message as a thank you")
+            self._log.info("Translated dispatch message as a thank you")
             msg.action = 'ack'
             msg.args = "You're welcome"
 
         elif 'bye' in quest:
-            self._log.trace("Translated dispatch message as a goodbye. Closing dispatch plugin")
+            self._log.info("Translated dispatch message as a goodbye. Closing dispatch plugin")
             self._handle_stop(msg, comm, None)
             msg.args.append("Goodbye")
 
@@ -76,12 +76,12 @@ class DispatchPlugin(plugins.Plugin):
     Handle messages as indicated from the nlp results
     """
     async def _handle_stop(self, msg, _comm, _quest):
-        self._log.trace("Received stop dispatch message. Returning 'stop'")
+        self._log.info("Received stop dispatch message. Returning 'stop'")
         msg.action = "send"
         msg.args = "stop"
 
     async def _handle_music(self, msg, _comm, quest):
-        self._log.trace("Received request to play music. Determining song to play")
+        self._log.info("Received request to play music. Determining song to play")
 
         song = 'Magnet'
 
@@ -94,7 +94,7 @@ class DispatchPlugin(plugins.Plugin):
         msg.set_dest(role='audio')
 
     async def _handle_find(self, msg, comm, quest):
-        self._log.trace("Received request to find search query")
+        self._log.info("Received request to find search query")
 
         search = Message(plugin=self)
         search.send_to(role='manager')

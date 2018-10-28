@@ -86,7 +86,7 @@ class _JsonProtocol:
                 buf = sock.recv(msg_len)
                 msg = json.loads(buf.decode('utf-8'))
 
-                log.info("Received message: {}".format(msg)
+                log.info("Received message: {}".format(msg))
                 yield Message.from_json(msg)
 
         except ConnectionResetError as e:
@@ -127,15 +127,17 @@ def reader(comm, sock, plugin, loop):
 
         # If we have requested this message in some other handler
         elif msg.id in comm.events:
-            log.trace("Received response to message {}".format(msg.id))
+            log.info("Received response to message {}".format(msg.id))
 
             comm.events[msg.id].value = msg
             loop.call_soon_threadsafe(comm.events[msg.id].set)
 
         # Otherwise call the registered plugin handler
         else:
-            log.trace("Handling message through plugin handles: action=msg.action")
+            log.info("Handling message through plugin handles: action=msg.action")
             asyncio.run_coroutine_threadsafe(_exc_wrapper(msg), loop=loop)
+
+    log.debug("Closing reader thread")
 
 
 def writer(comm, sock, log):
@@ -152,7 +154,7 @@ def writer(comm, sock, log):
 
 
 async def handshake(plugin, _plugin_handles, comm):
-    plugin.logger.trace("Initiating plugin handshake with device-manager")
+    plugin.logger.info("Initiating plugin handshake with device-manager")
 
     msg = Message(plugin=plugin)
     msg.action = 'handshake'
@@ -211,7 +213,7 @@ if __name__ == "__main__":
     # Load the specified plugin
     name = loader_args['plugin'][0]
     log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
-    log.setLevel(logger.logging.INFO)
+    log.setLevel(logger.logging.DEBUG)
 
     plugin, handles = plugin_system.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
     if plugin is None:
@@ -257,3 +259,4 @@ if __name__ == "__main__":
     write_thread.join()
     read_thread.join()
     sock.close()
+    log.info("Finished running `{}`".format(name))

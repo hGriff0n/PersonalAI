@@ -75,15 +75,20 @@ impl DeviceManager {
     fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) {
         let mut role_map = self.role_map.lock().unwrap();
 
-        let conn = &conns[&addr];
-        // for role in &conn.roles {
-        //     let vec = role_map.get_vec_mut(role).unwrap();
-        //     vec.iter()
-        //         .position(|ad| *ad == addr)
-        //         .map(|e| vec.remove(e));
-        // }
+        if let Some(ref conn) = conns.get(&addr) {
+            // for role in &conn.roles {
+            //     let vec = role_map.get_vec_mut(role).unwrap();
+            //     vec.iter()
+            //         .position(|ad| *ad == addr)
+            //         .map(|e| vec.remove(e));
+            // }
 
-        conn.close.send(()).expect("Failed to close connection");
+            conn.close.send(()).expect("Failed to send closing signal to communicator");
+
+        } else {
+            debug!("Couldn't close connection {:?}: Connection was not found in the connections map", addr);
+        }
+
         // NOTE: We purposefully do not remove the connection from the connection map here
         // TODO: This is an optimization for "quit", could we also get this optimization for the 'role_map'
     }
@@ -188,8 +193,11 @@ impl DeviceManager {
                 // TODO: Shouldn't we close the connection that gave us the message first (to prevent loops)
                 let mut conns = self.connections.lock().unwrap();
                 for (addr, _) in conns.iter() {
+                    trace!("Closing connection on {:?} in response to `quit` request", *addr);
                     self.on_connection_close(&conns, *addr);
                 }
+                conns.clear();
+                info!("Send asynchronous close requests to all connections. Closing device manager");
 
                 // Send the server close signal
                 return self.cancel.send(())
@@ -200,8 +208,12 @@ impl DeviceManager {
 
         // Return the message to the sender
         msg.dest = msg.sender.clone().into();
-        let ref conn = self.connections.lock().unwrap()[&addr];
-        conn.queue.unbounded_send(serde_json::to_value(msg).unwrap());
+        if let Some(ref conn) = self.connections.lock().unwrap().get(&addr) {
+            conn.queue.unbounded_send(serde_json::to_value(msg).unwrap());
+
+        } else if action != "stop" {
+            debug!("Failed to send response to unrecognized address {:?}: {:?}", addr, msg);
+        }
         Ok(())
     }
 
@@ -218,18 +230,25 @@ impl DeviceManager {
 
             // Add the specified destination device to the queue
             if let Some(dest) = dest {
-                let ref conn = self.connections.lock().unwrap()[&dest];
-                send_queue.push((conn.queue.clone(), false));
-                debug!("Adding {:?} to the send queue for message reception", dest);
+                if let Some(ref conn) = self.connections.lock().unwrap().get(&dest) {
+                    send_queue.push((conn.queue.clone(), false));
+                    debug!("Adding {:?} to the send queue for message reception", dest);
 
-                // Send an ack message to the original sender if desired
-                if let Some(Some(sender)) = self.resolve_connection(&msg.sender) {
-                    if sender != dest {
-                        debug!("The receiving app was not the same as the sending message. Adding ack message to {:?} to sending queue", sender);
+                    // Send an ack message to the original sender if desired
+                    if let Some(Some(sender)) = self.resolve_connection(&msg.sender) {
+                        if sender != dest {
+                            debug!("The receiving app was not the same as the sending message. Adding ack message to {:?} to sending queue", sender);
 
-                        let ref conn = self.connections.lock().unwrap()[&sender];
-                        send_queue.push((conn.queue.clone(), true));
+                            if let Some(ref conn) = self.connections.lock().unwrap().get(&sender) {
+                                send_queue.push((conn.queue.clone(), true));
+                            } else {
+                                debug!("Failed to send ack message to unknown addres {:?}: {:?}", sender, msg);
+                            }
+                        }
                     }
+
+                } else {
+                    debug!("Failed to send message to unknown address {:?}: {:?}", dest, msg);
                 }
             }
 
@@ -302,7 +321,7 @@ impl networking::BasicServer for DeviceManager {
         let mut conns = self.connections.lock().unwrap();
         self.on_connection_close(&conns, addr);
         conns.remove(&addr);
-        info!("Dropped connect to {:?}", addr);
+        info!("Dropped connection to {:?}", addr);
     }
 }
 
