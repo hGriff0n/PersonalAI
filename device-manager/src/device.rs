@@ -1,8 +1,9 @@
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
+use get_if_addrs;
 use multimap::MultiMap;
 use serde_json;
 use tokio::io::{Error, ErrorKind};
@@ -45,25 +46,33 @@ pub struct DeviceManager {
     index: idx::Index,
 
     // NOTE: We can remove the option once we can determine the device's public ip addr
-    device_addr: Option<SocketAddr>
+    public_ip: IpAddr
 }
-
-// NOTE: This should give us the public ip. Not sure how well it'd works
-// fn resolve_ip(host: &str) -> io::Result<Vec<IpAddr>> {
-//     (host, 0).to_socket_addrs().map(|iter| iter.map(|sock| sock.ip()).collect())
-// }
 
 // TODO: I need to add in the capability to recognize sent messages (for broadcasts specifically)
 // TODO: I want to have the device's address here
 impl DeviceManager {
     pub fn new(index: idx::Index, cancel: Closer) -> Self {
+        // Extract the device's public ip (NOTE: For now I'm just taking the first non-localhost interface on the system)
+        let my_public_ip = get_if_addrs::get_if_addrs()
+            .unwrap()
+            .iter()
+            .map(|iface| iface.ip().clone())
+            .filter(|&addr| match addr {
+                IpAddr::V4(addr) => addr != Ipv4Addr::LOCALHOST,
+                IpAddr::V6(addr) => addr != Ipv6Addr::LOCALHOST,
+            })
+            .next()
+            .unwrap();
+        info!("Calculated public ip address: {:?}", my_public_ip);
+
         Self{
             connections: Arc::new(Mutex::new(HashMap::new())),
             role_map: Arc::new(Mutex::new(MultiMap::new())),
             uuid_map: Arc::new(Mutex::new(HashMap::new())),
             cancel: cancel,
             index: index,
-            device_addr: None,      // TODO: we need to get the device's ip addr (ie. where are we listening?)
+            public_ip: my_public_ip,
         }
     }
 
@@ -282,13 +291,9 @@ impl networking::BasicServer for DeviceManager {
 
         // 1) Append the current device addr to the route array
         // 2) Set the sender's addr value if not already set
-        // TODO: An `unwrap` here is apparently panicking (I haven't implemented that yet)
-        if let Some(addr) = self.device_addr {
-            msg.route.push(addr);
-        }
-        // msg.route.push(self.device_addr);
+        msg.route.push(self.public_ip);
         if msg.sender.addr.is_none() {
-            msg.sender.addr = self.device_addr;
+            msg.sender.addr = Some(self.public_ip);
         }
         trace!("Appended required sender data");
 

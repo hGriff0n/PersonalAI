@@ -202,7 +202,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Load {personal ai} plugin')
     parser.add_argument('plugin', type=str, nargs=1, help='plugin to load')
     parser.add_argument('--plugin-dir', type=str, help='location of plugins')
-    parser.add_argument('--host', type=str, help='ip address of the host server')
+    # NOTE: Because the plugins are device-local, the host is almost guaranteed to always be `localhost`. However, I will keep the configuration just in case
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='ip address of the host server')
     parser.add_argument('--port', type=int, help='port that the server is listening on')
     parser.add_argument('--log-dir', type=str, help='location to write log files')
     parser.add_argument('--retry-delay', type=int, help='Num seconds to sleep in between connection retries')

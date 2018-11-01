@@ -3,6 +3,7 @@ extern crate chrono;
 extern crate clap;
 extern crate fern;
 extern crate futures;
+extern crate get_if_addrs;
 #[macro_use]
 extern crate log;
 extern crate multimap;

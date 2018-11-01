@@ -3,15 +3,10 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
-      Enable the device manager to calculate the device's public ip address
-        NOTE: I have a way of doing this in python from work
-          https://stackoverflow.com/questions/51001463/how-do-i-use-udpsocket-to-send-using-a-specific-network-interface
-        Find a way for the plugins to also use the public ip (instead of localhost)
-      Change the loading process to allow for environment variables (could just change the config files)
-        This is just a way to try to get me to not have to change everything in config files
-        I think what I really want is to interpolate variables from within the yaml file
       See if we can make the communication (in the plugins) asyncio as well
         We also need to improve the plugins to push more code in the asyncio (particularly the cli)
+      TODO: Merge the 'RoutingRewrite' branch into master
+    Modify the config files to allow for running the project on the desktop
     See if I can make the 'action' handling somewhat generic in the device manager
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
@@ -19,6 +14,7 @@ Short Term:
       Turn them into 'Error' returns instead
       Setup the tokio system to report these errors
         NOTE: This may have already been done
+      Minimize the warnings produced during compilation
     Enable the python logger levels to be changed in the config files
     Reintegrate the audio app with the new search functionality
       Rewrite the audio app completely

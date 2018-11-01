@@ -94,7 +94,7 @@ def launch_device(config):
             proc.kill()
 
 def _will_plugins_connect(manager_addr, loader_config):
-    return manager_addr == "{}:{}".format(loader_config['host'], loader_config['port'])
+    return manager_addr == "127.0.0.1:{}".format(loader_config['port'])
 
 
 def launch_ai_node(config):

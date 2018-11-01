@@ -1,6 +1,6 @@
 
 use std::convert;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 
 use serde_json;
 
@@ -14,7 +14,7 @@ pub struct Message {
     pub message_id: String,
     pub parent_id: Option<String>,
     pub ack_uuid: Option<String>,
-    pub route: Vec<SocketAddr>,
+    pub route: Vec<IpAddr>,
     pub forward: Option<bool>,
     pub sender: MessageSender,
     pub dest: MessageDest,
@@ -33,14 +33,14 @@ pub struct Message {
 pub struct MessageSender {
     pub uuid: Option<String>,
     pub role: Option<String>,
-    pub addr: Option<SocketAddr>,
+    pub addr: Option<IpAddr>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MessageDest {
     pub broadcast: Option<bool>,
     pub role: Option<String>,
-    pub addr: Option<SocketAddr>,
+    pub addr: Option<IpAddr>,
     pub uuid: Option<String>,
     pub intra_device: Option<bool>
 }

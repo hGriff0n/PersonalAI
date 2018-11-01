@@ -19,7 +19,6 @@ device-manager:
 loader_config:
   script_path: <Path to the python loader script>
   plugin-dir: <Path to the plugins dir. NOTE What is this doing?>
-  host: <ip address the plugins should connect to>
   port: <port to connect on>  # NOTE: These must match the socket address the device-manager is listening on
   log-dir: ./log
   retry-delay: <number of seconds between retrying initial connection if it fails>
