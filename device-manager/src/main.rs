@@ -3,8 +3,13 @@ extern crate chrono;
 extern crate clap;
 extern crate fern;
 extern crate futures;
+extern crate get_if_addrs;
 #[macro_use]
 extern crate log;
+extern crate multimap;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 extern crate tokio;
@@ -20,6 +25,7 @@ mod device;
 mod indexer;
 mod logging;
 mod server;
+mod message;
 
 // Imports
 use std::sync::mpsc;
@@ -42,9 +48,7 @@ Of local device statistics, among others.
 
 fn main() {
     let args = load_configuration();
-
     logging::launch(&args).expect("Failed to initialize logging");
-    trace!("Logger setup properly");
 
     // Construct the indexer
     // TODO: Loading the index from file causes some start-up delay
@@ -56,8 +60,7 @@ fn main() {
     let manager = device::DeviceManager::new(index, tx.clone());
     trace!("Created device state manager");
 
-    // TODO: This currently hangs until the indexing has completed
-        // This should not be the case (futures::lazy?)
+    // Create the seshat indexer (and search engine portal)
     let indexer = indexer::launch(manager.clone(), &args, writer);
     trace!("Created async fs indexer");
 
@@ -83,6 +86,7 @@ fn main() {
     trace!("Created tokio task description");
 
     // Spawn the futures in the tokio event loop
+    info!("Launching tokio task chain");
     tokio::run(device);
     info!("System shutdown");
 }

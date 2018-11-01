@@ -1,0 +1,6 @@
+
+# Read https://clg.readthedocs.io/en/latest/examples.html for more information on how to construct these files
+
+options:
+  wit_token:
+    help: Wit.ai API token

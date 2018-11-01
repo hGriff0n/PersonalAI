@@ -17,12 +17,16 @@ use seshat::handle;
 use seshat::index::IndexWriter;
 use tags;
 
-use super::device::DeviceManager;
+use device::DeviceManager;
 
 // Create the fs crawler according to the configuration
 fn create_crawler<'a>(_args: &'a clap::ArgMatches) -> impl Crawler {
+    trace!("Creating the windows crawler for the file system");
     let mut crawler = WindowsCrawler::new();
+
+    trace!("Registering file handles for `mp3`, `mp4`, and `m4a` file types");
     crawler.register_handle(&["mp3", "mp4", "m4a"], Arc::new(MusicHandler));
+
     crawler
 }
 
@@ -40,19 +44,23 @@ pub fn load_index<'a>(args: &'a clap::ArgMatches, mut writer: IndexWriter) -> La
         .and_then(|dst| Some(dst.to_string()));
 
     match index_cache {
-        Some(file) =>
-            Box::new(future::lazy(move || {
-                let file = path::Path::new(&file);
-                info!("Loading index from file `{:?}`", file);
+        Some(file) => {
+            trace!("Found configuration for index cache file. Spawning task to load index from file `{:?}`", file);
 
+            Box::new(future::lazy(move || {
+                info!("Loading index cache file `{:?}`", file);
+                let file = path::Path::new(&file);
                 writer.load_file(file);
                 Ok((time::Instant::now() + hour, writer))
-            })),
+            }))
+        },
         None => Box::new(future::lazy(|| Ok((time::Instant::now(), writer))))
     }
 }
 
 pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: IndexWriter) -> impl Future {
+    trace!("Launching indexer task system");
+
     let hour = chrono::Duration::hours(1).to_std().unwrap();
     let week = chrono::Duration::weeks(1).to_std().expect("Unable to convert 1 week to seconds");
 
@@ -63,16 +71,14 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
     // Load the index, then setup a periodic check every hour for reindexing
     let indexer = load_index(args, writer)
         .and_then(move |(delay, mut writer)| {
-            let reindexer = tokio::timer::Interval::new(delay, hour)
+            trace!("Spawning reindexer tasks on hourly timetable. Next task in {:?}", delay);
+            tokio::timer::Interval::new(delay, hour)
                 .for_each(move |_| {
                     let folders = writer.queued_folders();
+                    trace!("Performing reindexing on the following folders: {:?}", folders);
 
                     // TODO: Perform some degree of subsumption, etc. on the roots
-                    // NOTE: If I'm push on any root file, we need to erase the index
-
-                    // NOTE: This will be removed eventually
-                    let output_file = path::Path::new("_files.txt");
-                    let mut output = File::create(&output_file).unwrap();
+                    // NOTE: If I'm pushing on any root file, we need to erase the index
 
                     // Spawn-and-forget the crawling in a separate thread
                     // NOTE: Performing crawling within the sequential code-block causes tokio's processing
@@ -81,24 +87,25 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: Ind
                     // thread::spawn(move || {
                         for root in folders {
                             info!("Starting crawling of {:?}", root);
-                            crawler.crawl(WalkDir::new(root), &mut writer, &mut output);
+                            crawler.crawl(WalkDir::new(root), &mut writer);
                         }
 
+                        trace!("Commiting reindexing changes to index term map");
                         writer.commit();
-                        debug!("Finished reindexing");
                     // });
 
                     Ok(())
                 })
-                .map_err(|_| ());
-            tokio::spawn(reindexer)
+                .map_err(|_| ())
         });
 
     // Periodically push on all root folders to force re-indexing
     // NOTE: This capability means that to support 'file-watchers', we just add an event to push the new folder on the channel
     let root_queue_instant = time::Instant::now() + week;
+    trace!("Spawning indexer task to automatically refresh the filesystem data every {:?} (next: {:?})", week, root_queue_instant);
     let queue_roots = tokio::timer::Interval::new(root_queue_instant, week)
         .for_each(move |_| {
+            trace!("Adding root folders to reindex queue to refresh filesystem data: {:?}", root_folders);
             for root_folder in &root_folders {
                 device.get_index().push_folder(root_folder)
                     .map_err(|_| tokio::timer::Error::shutdown())?
@@ -125,7 +132,7 @@ pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
 struct MusicHandler;
 impl handle::FileHandler for MusicHandler {
     #[allow(unused_must_use)]
-    fn handle(&self, entry: &DirEntry, idx: &mut IndexWriter, file: &mut File) {
+    fn handle(&self, entry: &DirEntry, idx: &mut IndexWriter) {
         // println!("Reading file {}", entry.path().display());
         match tags::load(entry.path()) {
             Ok(music_file) => {
@@ -140,15 +147,17 @@ impl handle::FileHandler for MusicHandler {
                     .unwrap()
                     .to_string();
 
+                trace!("Parsed music file {:?} (artist={:?}, album={:?}, title={:?})", path_string, artist, album, title);
+
                 idx.add(&title, path_string.clone())
                    .add(&artist, path_string.clone())
                    .add(&album, path_string.clone());
             },
             Err(ref e) if e.kind() == ErrorKind::Other => {
-                file.write(format!("Unrecognized Music: {}\n", entry.path().display()).as_bytes());
+                error!("Unrecognized music file found: {}", entry.path().display());
             },
             Err(e) => {
-                file.write(format!("Error reading {}: {:?}\n", entry.path().display(), e).as_bytes());
+                error!("Error reading file {}: {:?}", entry.path().display(), e);
             },
         }
     }

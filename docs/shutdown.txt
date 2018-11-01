@@ -1,0 +1,6 @@
+Initial planning document for device manager shutdown
+  If a device-manager receives a quit-all command, it must:
+    Forward message on all connections
+    Close all connections
+  If a device-manager recieves a quit command, it must:
+    Close all connections (ie. current behavior)

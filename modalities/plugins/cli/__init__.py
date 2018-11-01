@@ -1,69 +1,71 @@
-#!/usr/bin/env python3
 
-import logging
-import threading
+import asyncio
 
 from common.msg import Message
-from common.plugins import Plugin
+from common import plugins
 
-# TODO: Look at moving the logger into the 'Plugin' class
-# TODO: Implement a time-keeping system
-    # We probably shouldn't print messages that are too out of date
-# TODO: Implement periodic "polling" of the input loop
-    # I should be able to "switch" out of input to print messages that are pilling up
-
-class CliPlugin(Plugin):
+class CliPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
-        self.msgs = []
-        self.lock = threading.Lock()
+        super().__init__(logger, config=config)
 
-        self.log = logger
-        self.log.setLevel(logging.INFO)
-        self.log.info("Finished initialization")
+        self._msgs = []
+        self._cli_lock = asyncio.Lock()
+        self._role = 'cli'
 
-    def _print_all(self):
-        if len(self.msgs) != 0:
-            for msg in self.msgs:
-                print(msg)
+        self._register_handle('print', CliPlugin.handle_print)
+        self._msg_handles = {
 
-            self.msgs = []
+        }
 
-    def run(self, queue):
-        with self.lock:
-            self._print_all()
+    # TODO: The message handling code needs to be put into a separate coroutine
+    # Otherwise, we're just single threading the input
+    async def run(self, comm):
+        with await self._cli_lock:
+            self._print_all_msgs()
 
         query = input("> ")
         if query == "":
-            self._print_all()
             return True
 
-        if query == "quit":
-            self.log.info("STOPPING")
-            queue.put(Message({ 'action': 'quit', 'routing': 'broadcast' }))
+        elif query == "quit":
+            self._log.info("Stopping all plugins from user input")
+
+            msg = Message(plugin=self)
+            msg.action = 'quit'
+            msg.send_to(role='manager')
+            comm.send(msg, self._log)
+
             return False
 
-        msg = Message('cli')
-        msg.dispatch(query)
-        queue.put(msg)
-        self.log.info("SENT <{}>".format(msg))
+        # NOTE: "Quit" is handled by the reader
+        await self._send_query(query, comm)
 
         return True
 
-    def dispatch(self, msg, queue):
-        if 'text' in msg:
-            self.log.debug("Received text action")
-            with self.lock:
-                self.msgs.append(msg['text'])
+    async def _send_query(self, query, comm):
+        self._log.info("Putting message into sending queue")
 
-        elif 'find' in msg:
-            self.log.debug("Received search results")
-            with self.lock:
-                self.msgs.append(msg)
+        msg = Message(plugin=self)
+        msg.action = 'dispatch'
+        msg.args = query
+        msg.send_to(role='dispatch')
+        resp = await comm.wait_for_response(msg, self._log)
 
-        self.log.info("RECEIVED <{}>".format(msg))
-        return ""
+        with await self._cli_lock:
+            self._msgs.append(resp)
 
-    def get_hooks(self):
-        return [ 'cli' ]
+        # if resp.action in self._msg_handles:
+        #     await self._msg_handles()
 
-# API Documentation:
+
+    async def handle_print(self, msg, comm):
+        self._log.info("Adding message to print queue")
+        with await self._cli_lock:
+            self._msgs.append(' '.join(msg.args))
+
+    def _print_all_msgs(self):
+        if len(self._msgs) != 0:
+            for msg in self._msgs:
+                print(msg.json_packet)
+
+        self._msgs = []

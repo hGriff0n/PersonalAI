@@ -3,35 +3,43 @@
 Short Term:
   Integrate Seshat with device-manager
     Rework the routing system according to 'routing.md'
-      Modify python code to correctly produce/sign it's messages for sending
-        Include the 'uuid' module for producing guids
-          TODO: How-to integrate into the plugin system
-      Modify rust code to correctly produce/sign/forward messages
-        Introduce a rust crate for parsing/producing the messages
-      Extend the message/plugin system to enable 'event-driven' programming
-        This is necessary to implement the "find Muse" feature
-          dispatch receives "dispatch: 'find Muse'"
-            dispatch sends "find: 'Muse'"
-            manager returns "results: [...]"
-          dispatch sends "results: [...]"
-        NOTE: The key thing is the synching of the uuid results, etc.
-        We can also use this system to order the printing of messages in the cli plugin
-    See if I can make the 'action' handling somewhat generic
+      See if we can make the communication (in the plugins) asyncio as well
+        We also need to improve the plugins to push more code in the asyncio (particularly the cli)
+      TODO: Merge the 'RoutingRewrite' branch into master
+    Modify the config files to allow for running the project on the desktop
+    See if I can make the 'action' handling somewhat generic in the device manager
       This would mean removing the hardcoded "action" keys in `handle_requests`
       Probably replace with a map lookup into a lambda/function
-    Be sure to handle cases where the Index map is out-of-date (due to fs changes)
+    Reduce the number of unwrap calls in the device manager
+      Turn them into 'Error' returns instead
+      Setup the tokio system to report these errors
+        NOTE: This may have already been done
+      Minimize the warnings produced during compilation
+    Enable the python logger levels to be changed in the config files
+    Reintegrate the audio app with the new search functionality
+      Rewrite the audio app completely
+      Improve logging support in the audio app
   Improve system performance and granularity
+    Enable stopping the device-manager internally
+      The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
+    Remove the startup penalty when dealing with the indexer
+      Startup time when an index cache file delays plugin handshakes
+      When a re-crawl is being performed, no connections will be handled
+      Would need to add a way to indicate a "reindex" is currently being performed in the return results
     Look at ripgrep (blog and codereview) for ideas
     Improve usage of rust features, streamline memory usage particularly
     Improve seshat memory usage and performance
       Look into filtering out common words (or integrating tf-idf)
-      Have crawl use the logger instead of a file
-        This requires changing 'tags' to use a logger instead of a file too
       Adapt the reindexer future to spawn a daemon thread instead of crawling in sequence
         The current code will stop all handling of requests while the crawler is running
     Look at allowing the device-manager to load a config file
       This would better allow us to configure the root folders (in case there are multiple)
         NOTE: We could possibly do this in the command line alone
+    Look at adding Notifications to the communication spec
+      Right now, it's up to the server implementation about how to respond
+        I think, in most cases a response is automatic
+        It would be nice to be able to specify that on the client side
+    Find a way to "pretty-print" the time information inside of the log messages
   Add in "device-querying" capabilities to the cli interface
     NOTE: cli-specific interactions to produce statistics about the ai operations
     Come up with a data-collection framework
@@ -43,19 +51,38 @@ Short Term:
           NOTE: So we'd be able to type 'dispatch -i' and switch over to using dispatch only mode
           Or make a separate "chat" plugin/config
     Enable querying of that data
+    Add ability for plugins to communicate "command syntax" with cli app
   Make sure that everything works properly
     Add in documentation for how to launch everything
-      Improve the launcher code
     Improve network security with the loading of apps
       Setup an app "privilege" system
       Improve the handshake procedure to add a degree of confidence
   Look into publishing some of my rust work as "crates"
-  Add ability to dynamically load "plugins" for specific file types
-    https://github.com/emoon/dynamic_reload
+  Cleanup the "Medium Term" checklist
+    Plan out the next dev work
 
 Produce a short video of the project
 
 Medium Term:
+  Improve documentation
+    Better document how the plugin configuration files are processed
+      Also see if there's a way to have multiple config files (aggregation)
+  Look into auto-generating the python message class
+    Rust code works alot better by specifying the message as a struct
+  Add in ability to handle a 'quit-all' command in the device-manager
+    Consider changing `cli > "quit"` to produce this command
+    NOTE: This may be better reserved for when we actually migrate to a fully distributed setup
+      I think we'll have to rethink alot of the design/architecture of this system then anyways
+  Add ability to dynamically register python "apps"
+    ie. send "stop" from cli, then relaunch cli from separate terminal, continue running
+  Add ability to dynamically load "plugins" for specific file types
+    https://github.com/emoon/dynamic_reload
+    NOTE: If we do the dynamic reloading, we'd also need to allow for the python modules to be reloaded
+  Rework routing to follow a "kubernetes" style system
+    Unify 'sender' and 'dest' into the same structure
+    Allow for plugins to sign up under multiple "labels"
+    Enable querying plugins based on the join of these labels
+  Improve message routing to prevent looping messages (particularly broadcasts)
   Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
     Rewrite routing process inside of device-manager
       We need to be able to generically indicate which messages have to be forwarded to the ai-manager
