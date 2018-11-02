@@ -8,15 +8,15 @@ setup(name='PersonalAI',
     url='https://github.com/hGriff0n/PersonalAI',
     description='personal ai platform',
     long_description=open('README.md').read(),
-    requires=[
+    install_requires=[
         'wit',
         'PyAudio',
         'SpeechRecognition',
         'pywin32',
         'pydub',
         'clg',
-        'yaml',
-        'anyconfig'
+        'anyconfig',
+        'pyyaml'
     ],
 #     dependency_links=[
 #         'https://github.com/DeepHorizons/tts/tarball/master#egg=package-1.0'

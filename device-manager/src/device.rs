@@ -206,7 +206,7 @@ impl DeviceManager {
                     self.on_connection_close(&conns, *addr);
                 }
                 conns.clear();
-                info!("Send asynchronous close requests to all connections. Closing device manager");
+                info!("Sent asynchronous close requests to all connections. Closing device manager");
 
                 // Send the server close signal
                 return self.cancel.send(())

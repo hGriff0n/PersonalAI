@@ -111,38 +111,40 @@ def clean(config):
             print("Removing log file `{}`".format(log_file))
             os.unlink(log_file)
 
-def build(_config):
+def build(config):
+    launch_dir = os.getcwd()
+
     # os.chdir('ai-manager')
     # ret = os.system("cargo build")
     # os.chdir('..')
 
     # if ret == 0:
     if True:
-        os.chdir('device-manager')
-        ret = os.system("cargo build")
-        os.chdir('..')
+        src_dir = config.get('device-manager', {}).get('src')
+        if src_dir is not None:
+            os.chdir(src_dir)
+            ret = os.system("cargo build")
+            os.chdir(launch_dir)
+        else:
+            print("Not building device-manager: No src directory was specified")
 
     return ret
 
 
 def main(args, conf):
+    commands = {
+        'device': lambda: launch_device(conf),
+        'brain': lambda: launch_ai_node(conf),
+        'clean': lambda: clean(conf),
+        'debug': lambda: os.system("$Env:RUST_BACKTRACE=1"),
+        'build': lambda: build(conf)
+    }
+
     for mode in sys.argv[1:]:
-        if mode == "device":
-            launch_device(conf)
-
-        elif mode == "brain":
-            launch_ai_node(conf)
-
-        elif mode == "clean":
-            clean(conf)
-
-        elif mode == "debug":
-            os.system("$Env:RUST_BACKTRACE=1")
-
-        elif mode == "build":
-            if build(conf) != 0:
+        if mode in commands:
+            ret = commands[mode]()
+            if ret is not None and ret != 0:
                 return
-
         else:
             print("Unrecognized mode argument `{}`".format(mode))
 
