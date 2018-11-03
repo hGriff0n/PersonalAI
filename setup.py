@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages
+import sys
+
+if sys.version_info >= (3, 7):
+    print("PyAudio currently does not install with python versions >= 3.7. Setup is not supported")
+    exit(1)
 
 # TODO: Figure out how to get the rust exectuable built from this script
 setup(name='PersonalAI',

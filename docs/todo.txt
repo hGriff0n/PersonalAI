@@ -2,11 +2,6 @@
 
 Short Term:
   Integrate Seshat with device-manager
-    Fix the 'wit' import error
-      `python setup.py install --user` has some errors with pyaudio
-        src/_portaudiomodule.c(29): fatal error C1083: Cannot open include file: 'portaudio.h': No such file or directory
-        error: Setup script exited with error: command 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Tools\\MSVC\\14.15.26726\\bin\\HostX86\\x64\\cl.exe' failed with exit status 2b
-        NOTE: This is causing the wit dependency to not be installed, leading to the error
     Merge `DeviceCallback`
     Reintegrate the audio app with the new search functionality
       Ensure the audio app works on the desktop
@@ -22,7 +17,7 @@ Short Term:
     Look at adding Notifications to the communication spec
       Right now, it's up to the server implementation about how to respond
         It would be nice to be able to specify that on the client side
-    Find a way to "pretty-print" the time information inside of the log messages
+    Find a way to "pretty-print" the time information inside of the log `messages
   Add in "device-querying" capabilities to the cli interface
     Change cli app to have a 'cmd' mode and a 'chat' mode
       'chat' is the current (and would be default) operation

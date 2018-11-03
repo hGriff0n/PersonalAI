@@ -5,6 +5,7 @@ use tokio;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
 use tokio_io::codec::length_delimited;
+// use tokio::codec::*;
 
 use futures;
 use serde_json::Value;
@@ -27,6 +28,12 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
     server.add_connection(addr, tx, sink).expect("Failed to add connection");
 
     // Setup the json communicators
+    // TODO: We need to update this has the length_delimited stuff has been deprecated and moved
+    // Unfortunately, the WriteJson repo relies on the writer to have a `BytesMut` sink while the updated codec has a `Bytes` sink
+    // This requirement is derived from tokio_serde
+    // let (writer, reader) = Framed::new(conn, length_delimited::LengthDelimitedCodec::new()).split();
+    // let writer = WriteJson::<_, Value>::new(writer);
+
     let (writer, reader) = length_delimited::Framed::new(conn).split();
     let writer = WriteJson::<_, Value>::new(writer)
         .sink_map_err(|err| { error!("Error in json serialization: {:?}", err); });
