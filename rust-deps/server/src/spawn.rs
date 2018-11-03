@@ -23,9 +23,8 @@ pub fn spawn_connection<Server: 'static + BasicServer>(conn: TcpStream, server: 
     let (sink, source) = futures::sync::mpsc::unbounded();
 
     // Register the connection
-    let addr = conn.peer_addr().unwrap();
-    server.add_connection(addr, tx, sink)
-          .expect("Failed to add connection");
+    let addr = conn.peer_addr().expect("Failed to extract peer address from TcpStream");
+    server.add_connection(addr, tx, sink).expect("Failed to add connection");
 
     // Setup the json communicators
     let (writer, reader) = length_delimited::Framed::new(conn).split();

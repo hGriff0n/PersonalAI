@@ -47,9 +47,9 @@ def launch_device(config):
     if 'ai-manager' in config:
         print("Launching the ai-manager")
         manager = config['ai-manager']
-        manager_exe = manager['path']
-        del manager['path']
-        if 'stdio-log' in manager: del manager['stdio-log']
+        manager_exe = manager.pop('path')
+        manager.pop('src', None)
+        manager.pop('stdio-log', None)
         procs.append(spawn_with_args(manager_exe, manager))
 
         # TODO: Spawn ai modalities
@@ -63,9 +63,9 @@ def launch_device(config):
         print("Configuration Error: Plugins not set to connect to local device-manager")
         return 1
 
-    manager_exe = manager['path']
-    del manager['path']
-    if 'stdio-log' in manager: del manager['stdio-log']
+    manager_exe = manager.pop('path')
+    manager.pop('src', None)
+    manager.pop('stdio-log', None)
     procs.append(spawn_with_args(manager_exe, manager))
 
     # Split out the modalities (cause we need to special case the cli plugin (if it exists))

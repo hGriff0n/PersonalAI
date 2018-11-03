@@ -114,6 +114,7 @@ impl Index {
 impl Serialize for Index {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(Some(self.read_handle.len()))?;
+        // NOTE: The unwrap call is needed because `read_handle.for_each` takes a closure which returns '()'
         self.read_handle.for_each(|k, v| { map.serialize_entry(k, v).unwrap(); });
         map.end()
     }

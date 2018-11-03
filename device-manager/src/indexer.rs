@@ -1,6 +1,5 @@
 
-use std::fs::File;
-use std::io::{ErrorKind, Write};
+use std::io::ErrorKind;
 use std::sync::Arc;
 use std::path;
 use std::time;
@@ -142,16 +141,15 @@ impl handle::FileHandler for MusicHandler {
                 let album = tag.album().unwrap_or("Unknown".to_string());
                 let title = tag.title().unwrap_or("Unknown".to_string());
 
-                let path_string = entry.path()
-                    .to_str()
-                    .unwrap()
-                    .to_string();
+                if let Some(path_string) = entry.path().to_str() {
+                    let path_string = path_string.to_string();
 
-                trace!("Parsed music file {:?} (artist={:?}, album={:?}, title={:?})", path_string, artist, album, title);
+                    trace!("Parsed music file {:?} (artist={:?}, album={:?}, title={:?})", path_string, artist, album, title);
 
-                idx.add(&title, path_string.clone())
-                   .add(&artist, path_string.clone())
-                   .add(&album, path_string.clone());
+                    idx.add(&title, path_string.clone())
+                        .add(&artist, path_string.clone())
+                        .add(&album, path_string.clone());
+                }
             },
             Err(ref e) if e.kind() == ErrorKind::Other => {
                 error!("Unrecognized music file found: {}", entry.path().display());

@@ -3,11 +3,8 @@
 Short Term:
   Integrate Seshat with device-manager
     See if I can make the 'action' handling somewhat generic in the device manager
-      Reduce the number of unwrap calls in the device manager
-        Turn them into 'Error' returns instead
-        Setup the tokio system to report these errors
-          NOTE: This may have already been done
-        Minimize the warnings produced during compilation
+      Handle unrecognized command line arguments
+      Fix the 'wit' import error
     Enable the python logger levels to be changed in the config files
     Reintegrate the audio app with the new search functionality
       Ensure the audio app works on the desktop
@@ -78,6 +75,9 @@ Medium Term:
     Improve usage of rust features, streamline memory usage particularly
     Look at ripgrep (blog and codereview) for optimization ideas
       https://gist.github.com/jFransham/369a86eff00e5f280ed25121454acec1
+    Upgrade rust to rust 2018
+      Improve errors to all use a common error type (enum type like fern::InitError)
+  Implement system process to write index data to a cache file
   Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
     Rewrite routing process inside of device-manager
       We need to be able to generically indicate which messages have to be forwarded to the ai-manager
