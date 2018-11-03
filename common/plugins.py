@@ -130,10 +130,6 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
             log.error("Could not find plugin {}".format(desired_plugin))
         return None
 
-    # Create the plugin specific logger
-    plugin_logger = logger.create('{}.log'.format(desired_plugin), log_dir=log_dir)
-    plugin_logger.setLevel(logger.logging.DEBUG)
-
     # Load the plugin arguments
     plugin_config_args = {}
     arg_yaml = os.path.join(location, 'config_def.yaml')
@@ -143,6 +139,10 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
             plugin_config_args = vars(cmd.parse(args or []))
         except Exception as e:
             log.error("Error loading plugin configuration for {}, assuming no configuration: {}".format(desired_plugin, e))
+
+    # Create the plugin specific logger
+    log.debug("Setting plugin logger level={}".format(plugin_config_args.get('log-level', None)))
+    plugin_logger = logger.create('{}.log'.format(desired_plugin), log_dir=log_dir, level=plugin_config_args.pop('log-level', None))
 
     # Load the plugin
     log.info("Loading plugin module {}".format(desired_plugin))

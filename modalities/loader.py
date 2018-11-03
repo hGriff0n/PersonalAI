@@ -200,21 +200,21 @@ async def run(plugin, comm, read_thread, write_thread):
 if __name__ == "__main__":
     # Parse the command line for the loader arguments
     parser = argparse.ArgumentParser(description='Load {personal ai} plugin')
-    parser.add_argument('plugin', type=str, nargs=1, help='plugin to load')
     parser.add_argument('--plugin-dir', type=str, help='location of plugins')
     # NOTE: Because the plugins are device-local, the host is almost guaranteed to always be `localhost`. However, I will keep the configuration just in case
     parser.add_argument('--host', type=str, default='127.0.0.1', help='ip address of the host server')
     parser.add_argument('--port', type=int, help='port that the server is listening on')
     parser.add_argument('--log-dir', type=str, help='location to write log files')
+    parser.add_argument('--log-level', type=str, help='logging level', default='INFO')
     parser.add_argument('--retry-delay', type=int, help='Num seconds to sleep in between connection retries')
     parser.add_argument('--max-retries', type=int, help='Maximum retry attempts before connection failed')
-    [loader_args, plugin_args] = parser.parse_known_args()
-    loader_args = vars(loader_args)
+    parser.add_argument('plugin', nargs=argparse.REMAINDER)
+    loader_args = vars(parser.parse_args())
+    plugin_args = loader_args.pop('plugin', [])
 
     # Load the specified plugin
-    name = loader_args['plugin'][0]
-    log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
-    log.setLevel(logger.logging.DEBUG)
+    name = plugin_args.pop(0)
+    log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], level=loader_args.pop('log-level', None), fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
 
     plugin, handles = plugin_system.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
     if plugin is None:

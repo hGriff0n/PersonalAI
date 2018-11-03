@@ -11,14 +11,18 @@ import anyconfig
     # https://github.com/ActiveState/appdirs
 
 # Wrapper for automatically transforming a dict into process arguments and then spawning the process
-def spawn_with_args(program, arg_dict, shell=None):
+def spawn_with_args(program, prog_args, shell=None):
     if not isinstance(program, list):
         program = [ program ]
 
-    if arg_dict is not None:
-        program.extend('--{}={}'.format(k, v) for k, v in arg_dict.items())
+    if isinstance(prog_args, dict):
+        program.extend('--{}={}'.format(k, v) for k, v in prog_args.items())
+    elif isinstance(prog_args, list):
+        program.extend(arg for arg in prog_args)
+    elif isinstance(prog_args, str):
+        program.append(prog_args)
 
-    if shell is not None and shell:
+    if shell:
         return Popen(program, shell=True)
 
     return Popen(program, shell=False, stdout=PIPE)
@@ -26,18 +30,17 @@ def spawn_with_args(program, arg_dict, shell=None):
 # Wrapper for simplifying plugin spawning
 # Also automatically special cases the shell to only spawn for the cli plugin
 def spawn_plugin(plugin, arg_dict, loader):
-    loader_path = loader['script_path']
-    del loader['script_path']
+    loader_path = loader.pop('script-path')
 
     # Merge the command arguments
     # NOTE: This overwrites any plugin specific args with the loader args where clashes occur
-    if arg_dict is None:
-        arg_dict = loader
-    else:
-        arg_dict = { **arg_dict, **loader }
+    args = list('--{}={}'.format(k, v) for k, v in loader.items())
+    args.append(plugin)
+    if arg_dict is not None:
+        args.extend('--{}={}'.format(k, v) for k, v in arg_dict.items())
 
     print("Spawning the `{}` plugin".format(plugin))
-    return spawn_with_args(['python', loader_path, plugin], arg_dict, plugin == 'cli')
+    return spawn_with_args(['python', loader_path], args, plugin == 'cli')
 
 
 def launch_device(config):
@@ -56,11 +59,11 @@ def launch_device(config):
 
 
     # Launch the device manager
-    print("Launching the device-manager")
-    manager = config['device-manager']
+    print("Launching the device manager")
+    manager = config['device_manager']
 
     if not _will_plugins_connect(manager['addr'], config['loader_config']):
-        print("Configuration Error: Plugins not set to connect to local device-manager")
+        print("Configuration Error: Plugins not set to connect to local device manager")
         return 1
 
     manager_exe = manager.pop('path')
@@ -73,8 +76,7 @@ def launch_device(config):
     plugins = config['plugins']
     cli = []
     if 'cli' in plugins:
-        cli.append(plugins['cli'])
-        del plugins['cli']
+        cli.append(plugins.pop('cli'))
 
     # Launch all plugins
     procs.extend(spawn_plugin(name, plugin, config['loader_config'].copy()) for name, plugin in plugins.items())
@@ -120,13 +122,13 @@ def build(config):
 
     # if ret == 0:
     if True:
-        src_dir = config.get('device-manager', {}).get('src')
+        src_dir = config.get('device_manager', {}).get('src')
         if src_dir is not None:
             os.chdir(src_dir)
             ret = os.system("cargo build")
             os.chdir(launch_dir)
         else:
-            print("Not building device-manager: No src directory was specified")
+            print("Not building device manager: No src directory was specified")
 
     return ret
 
