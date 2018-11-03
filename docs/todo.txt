@@ -2,20 +2,9 @@
 
 Short Term:
   Integrate Seshat with device-manager
-    See if I can make the 'action' handling somewhat generic in the device manager
-      This would mean removing the hardcoded "action" keys in `handle_requests`
-      Probably replace with a map lookup into a lambda/function
-    Reduce the number of unwrap calls in the device manager
-      Turn them into 'Error' returns instead
-      Setup the tokio system to report these errors
-        NOTE: This may have already been done
-      Minimize the warnings produced during compilation
-    Enable the python logger levels to be changed in the config files
+    Merge `DeviceCallback`
     Reintegrate the audio app with the new search functionality
       Ensure the audio app works on the desktop
-        `python setup.py install --user` has some errors with pyaudio
-          src/_portaudiomodule.c(29): fatal error C1083: Cannot open include file: 'portaudio.h': No such file or directory
-          error: Setup script exited with error: command 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Tools\\MSVC\\14.15.26726\\bin\\HostX86\\x64\\cl.exe' failed with exit status 2
       Rewrite the audio app completely
       Improve logging support in the audio app
   Improve system performance and granularity
@@ -25,16 +14,10 @@ Short Term:
       Startup time when an index cache file delays plugin handshakes
         When a re-crawl is being performed, no connections will be handled
       Would need to add a way to indicate a "reindex" is currently being performed in the return results
-    Integrate tf-idf ranking into seshat (or at least filter out common words)
-      Investigate ways of integrating machine learning into the search results
-      Investigate ways of handling misspellings in search queries
-    Look at allowing the device-manager to load a config file (instead of requiring everything from the command line)
-      This would better allow us to configure the root folders (in case there are multiple)
-        NOTE: We could possibly do this in the command line alone
     Look at adding Notifications to the communication spec
       Right now, it's up to the server implementation about how to respond
         It would be nice to be able to specify that on the client side
-    Find a way to "pretty-print" the time information inside of the log messages
+    Find a way to "pretty-print" the time information inside of the log `messages
   Add in "device-querying" capabilities to the cli interface
     Change cli app to have a 'cmd' mode and a 'chat' mode
       'chat' is the current (and would be default) operation
@@ -53,13 +36,17 @@ Short Term:
     Improve documentation on system design
   Integrate an app "privilege" system to improve security
     Look into ways of "certifying" apps to prevent loading plugins "erroneously"
-  Look into publishing some of my rust work as "crates"
   Cleanup the "Medium Term" checklist
     Plan out the next dev work cycle
 
 Produce a short video of the project
 
 Medium Term:
+  Move the plugin default arg dictionary into a yaml file, with the path specified in `conf.yaml`
+    Then have the plugin.load function load from this yaml
+  Integrate tf-idf ranking into seshat (or at least filter out common words)
+    Investigate ways of integrating machine learning into the search results
+    Investigate ways of handling misspellings in search queries
   Improve documentation
     Better document how the plugin configuration files are processed
       Also see if there's a way to have multiple config files (aggregation)
@@ -83,6 +70,15 @@ Medium Term:
     Improve usage of rust features, streamline memory usage particularly
     Look at ripgrep (blog and codereview) for optimization ideas
       https://gist.github.com/jFransham/369a86eff00e5f280ed25121454acec1
+    Upgrade rust to rust 2018
+      Improve errors to all use a common error type (enum type like fern::InitError)
+    Handle unrecognized command line arguments
+      Apparently clap doesn't natively support this
+      https://github.com/clap-rs/clap/blob/eac457bdb095dade2efadd033af8d33e9c296f08/src/app/parser.rs
+        The `get_matches_with` method immediately returns with an `Error::unknown_argument` when an unknown_argument is encountered
+          I'd like it to instead just ignore these arguments and continue with parsing
+          Apparently, there are cli utilities that allow for ignoring unknown arguments
+  Implement system process to write index data to a cache file
   Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
     Rewrite routing process inside of device-manager
       We need to be able to generically indicate which messages have to be forwarded to the ai-manager

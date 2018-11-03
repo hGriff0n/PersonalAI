@@ -1,5 +1,6 @@
 
 use std;
+use std::io::{Error, ErrorKind};
 
 use chrono;
 use clap;
@@ -12,7 +13,7 @@ pub fn launch<'a>(args: &'a clap::ArgMatches) -> Result<(), fern::InitError> {
     let level = args.value_of("log-level")
         .unwrap_or("warn")
         .parse::<log::LevelFilter>()
-        .unwrap();
+        .map_err(|_err| fern::InitError::Io(Error::new(ErrorKind::NotFound, "Log level not found in configuration")))?;
 
     let log_dir = args.value_of("log-dir")
         .unwrap_or("./log");

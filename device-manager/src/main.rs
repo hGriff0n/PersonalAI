@@ -46,6 +46,7 @@ Of local device statistics, among others.
     // We then utilize 'clap' to overwrite argument values (and locate the config file)
         // NOTE: We have to implement config-rs::Source for 'clap' to enable this
 
+// fn main() -> Result<(), Error> {
 fn main() {
     let args = load_configuration();
     logging::launch(&args).expect("Failed to initialize logging");
@@ -94,7 +95,7 @@ fn main() {
 
 // Parse the command line arguments
 fn load_configuration<'a>() -> clap::ArgMatches<'a> {
-    use clap::Arg;
+    // use clap::Arg;
 
     // Create the base app and arguments
     let app = clap::App::new("Device Manager")

@@ -1,6 +1,6 @@
 
 use std::convert;
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 
 use serde_json;
 

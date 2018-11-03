@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use clap;
 use futures;
 use tokio::prelude::*;
-use tokio::net::{ TcpListener, TcpStream };
+use tokio::net::{TcpListener, TcpStream};
 
 use networking::spawn::spawn_connection;
 use device::DeviceManager;
@@ -15,7 +15,7 @@ fn create_server(device: DeviceManager, addr: SocketAddr, parent: Option<SocketA
     let ai_device = device.clone();
     info!("Spawning device manager server listening on {:?}", addr);
     let server = TcpListener::bind(&addr)
-        .unwrap()
+        .expect("Failed to bind server to specified socket address")
         .incoming()
         .for_each(move |conn| Ok(spawn_connection(conn, device.clone())))
         .map_err(|err| error!("Server Error: {:?}", err));
@@ -43,7 +43,7 @@ pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches) -> impl fut
     let addr = args.value_of("addr")
         .unwrap_or("127.0.0.1:6142")
         .parse::<SocketAddr>()
-        .unwrap();
+        .expect("Value of `addr` field was not a valid socket address");
     info!("Parsed device-server listening address: {:?}", addr);
 
     // let parent = "127.0.0.1:6141".parse::<SocketAddr>().ok();
