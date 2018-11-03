@@ -41,6 +41,7 @@ pub struct DeviceManager {
     connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
     role_map: Arc<Mutex<MultiMap<String, SocketAddr>>>,
     uuid_map: Arc<Mutex<HashMap<String, SocketAddr>>>,
+    handle_map: Arc<Mutex<HashMap<String, DeviceCallback>>>,
 
     cancel: Closer,
     index: idx::Index,
@@ -48,6 +49,8 @@ pub struct DeviceManager {
     // NOTE: We can remove the option once we can determine the device's public ip addr
     public_ip: IpAddr
 }
+
+type DeviceCallback = fn(&mut DeviceManager, &mut message::Message, addr: &SocketAddr) -> Option<Result<(), Error>>;
 
 // TODO: I need to add in the capability to recognize sent messages (for broadcasts specifically)
 // TODO: I want to have the device's address here
@@ -66,14 +69,90 @@ impl DeviceManager {
             .unwrap();
         info!("Calculated public ip address: {:?}", my_public_ip);
 
+        let mut handle_map = HashMap::<String, DeviceCallback>::new();
+        handle_map.insert("handshake".to_string(), Self::handshake);
+        handle_map.insert("search".to_string(), Self::handle_search);
+        handle_map.insert("stop".to_string(), Self::handle_stop);
+        handle_map.insert("quit".to_string(), Self::handle_quit);
+
         Self{
             connections: Arc::new(Mutex::new(HashMap::new())),
             role_map: Arc::new(Mutex::new(MultiMap::new())),
             uuid_map: Arc::new(Mutex::new(HashMap::new())),
+            handle_map: Arc::new(Mutex::new(handle_map)),
             cancel: cancel,
             index: index,
             public_ip: my_public_ip,
         }
+    }
+
+    fn handshake(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> Option<Result<(), Error>> {
+        trace!("Received handshake request from {:?}", addr);
+
+        // NOTE: This may not borrow check
+        let mut conn_lock = self.connections.lock().unwrap();
+        let mut conn = conn_lock.get_mut(&addr);
+
+        if let Some(uuid) = msg.sender.uuid.clone() {
+            info!("Adding uuid {:?} to point to socket address {:?}", uuid, addr);
+            self.uuid_map.lock().unwrap().insert(uuid.clone(), addr.clone());
+            if let Some(ref mut conn) = conn {
+                conn.uuid = uuid;
+            }
+        }
+
+        if let Some(role) = msg.sender.role.clone() {
+            info!("Adding role {:?} to point to socket address {:?}", role, addr);
+            self.role_map.lock().unwrap().insert(role.clone(), addr.clone());
+            if let Some(ref mut conn) = conn {
+                conn.role = role;
+            }
+        }
+
+        None
+    }
+
+    fn handle_search(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> Option<Result<(), Error>> {
+        trace!("Received search request from {:?}", addr);
+
+        // Perform a filesystem search over the given arguments
+        if let Some(ref args) = msg.args {
+            info!("Searching for {:?}", args);
+
+            let query = &args[0].as_str().unwrap();
+            let results = seshat::default_search(query, &self.index);
+            msg.resp = Some(json!(results));
+
+            info!("Found results: {:?}", msg.resp);
+        }
+        None
+    }
+
+    fn handle_stop(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> Option<Result<(), Error>> {
+        trace!("Received stop request from {:?}", addr);
+        <Self as networking::BasicServer>::drop_connection(self, *addr);
+        None
+    }
+
+    fn handle_quit(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> Option<Result<(), Error>> {
+        trace!("Received quit request from {:?}", addr);
+
+        // Send a close signal to all connected devices
+        // NOTE: We don't remove the connections as the manager is closing anyways
+        // TODO: Wouldn't this message actually be received as a broadcast?
+        // TODO: Shouldn't we close the connection that gave us the message first (to prevent loops)
+        let mut conns = self.connections.lock().unwrap();
+        for (addr, _) in conns.iter() {
+            trace!("Closing connection on {:?} in response to `quit` request", *addr);
+            self.on_connection_close(&conns, *addr);
+        }
+
+        conns.clear();
+        info!("Sent asynchronous close requests to all connections. Closing device manager");
+
+        // Send the server close signal
+        Some(self.cancel.send(())
+            .map_err(|_| Error::new(ErrorKind::ConnectionAborted, "Failed to send cancel signal")))
     }
 
     pub fn get_index(&self) -> &idx::Index {
@@ -150,70 +229,17 @@ impl DeviceManager {
     fn handle_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
         trace!("Handling server request");
 
+        // Clone the map to satisfy the borrow checker
+        let handle_map = self.handle_map.clone();
+
+        // Dispatch the action into the registered handles
         let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
-        match action.as_str() {
-            "handshake" => {
-                trace!("Received handshake request from {:?}", addr);
-
-                // NOTE: This may not borrow check
-                let mut conn_lock = self.connections.lock().unwrap();
-                let mut conn = conn_lock.get_mut(&addr);
-
-                if let Some(uuid) = msg.sender.uuid.clone() {
-                    info!("Adding uuid {:?} to point to socket address {:?}", uuid, addr);
-                    self.uuid_map.lock().unwrap().insert(uuid.clone(), addr.clone());
-                    if let Some(ref mut conn) = conn {
-                        conn.uuid = uuid;
-                    }
-                }
-
-                if let Some(role) = msg.sender.role.clone() {
-                    info!("Adding role {:?} to point to socket address {:?}", role, addr);
-                    self.role_map.lock().unwrap().insert(role.clone(), addr.clone());
-                    if let Some(ref mut conn) = conn {
-                        conn.role = role;
-                    }
-                }
-            },
-            "search" => {
-                trace!("Received search request from {:?}", addr);
-
-                // Perform a filesystem search over the given arguments
-                if let Some(ref args) = msg.args {
-                    info!("Searching for {:?}", args);
-
-                    let query = &args[0].as_str().unwrap();
-                    let results = seshat::default_search(query, &self.index);
-                    msg.resp = Some(json!(results));
-
-                    info!("Found results: {:?}", msg.resp);
-                }
-            },
-            "stop" => {
-                trace!("Received stop request from {:?}", addr);
-                <Self as networking::BasicServer>::drop_connection(self, *addr)
-            },
-            "quit" => {
-                trace!("Received quit request from {:?}", addr);
-
-                // Send a close signal to all connected devices
-                // NOTE: We don't remove the connections as the manager is closing anyways
-                // TODO: Wouldn't this message actually be received as a broadcast?
-                // TODO: Shouldn't we close the connection that gave us the message first (to prevent loops)
-                let mut conns = self.connections.lock().unwrap();
-                for (addr, _) in conns.iter() {
-                    trace!("Closing connection on {:?} in response to `quit` request", *addr);
-                    self.on_connection_close(&conns, *addr);
-                }
-                conns.clear();
-                info!("Sent asynchronous close requests to all connections. Closing device manager");
-
-                // Send the server close signal
-                return self.cancel.send(())
-                    .map_err(|_| Error::new(ErrorKind::ConnectionAborted, "Failed to send cancel signal"));
-            },
-            _ => ()
-        };
+        let mut handles = handle_map.lock().unwrap();
+        if let Some(result) = handles.get(&action)
+            .and_then(|handle| handle(self, &mut msg, addr))
+        {
+            return result;
+        }
 
         // Return the message to the sender
         msg.dest = msg.sender.clone().into();

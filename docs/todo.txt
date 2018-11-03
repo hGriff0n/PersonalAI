@@ -3,13 +3,11 @@
 Short Term:
   Integrate Seshat with device-manager
     See if I can make the 'action' handling somewhat generic in the device manager
-      This would mean removing the hardcoded "action" keys in `handle_requests`
-      Probably replace with a map lookup into a lambda/function
-    Reduce the number of unwrap calls in the device manager
-      Turn them into 'Error' returns instead
-      Setup the tokio system to report these errors
-        NOTE: This may have already been done
-      Minimize the warnings produced during compilation
+      Reduce the number of unwrap calls in the device manager
+        Turn them into 'Error' returns instead
+        Setup the tokio system to report these errors
+          NOTE: This may have already been done
+        Minimize the warnings produced during compilation
     Enable the python logger levels to be changed in the config files
     Reintegrate the audio app with the new search functionality
       Ensure the audio app works on the desktop
@@ -28,9 +26,6 @@ Short Term:
     Integrate tf-idf ranking into seshat (or at least filter out common words)
       Investigate ways of integrating machine learning into the search results
       Investigate ways of handling misspellings in search queries
-    Look at allowing the device-manager to load a config file (instead of requiring everything from the command line)
-      This would better allow us to configure the root folders (in case there are multiple)
-        NOTE: We could possibly do this in the command line alone
     Look at adding Notifications to the communication spec
       Right now, it's up to the server implementation about how to respond
         It would be nice to be able to specify that on the client side
