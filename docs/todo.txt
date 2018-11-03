@@ -8,9 +8,6 @@ Short Term:
         error: Setup script exited with error: command 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Tools\\MSVC\\14.15.26726\\bin\\HostX86\\x64\\cl.exe' failed with exit status 2b
         NOTE: This is causing the wit dependency to not be installed, leading to the error
     Merge `DeviceCallback`
-    Enable plugins to have different log levels
-      clg.CommandLine currently ignores them because they're not specified in the config yaml
-        TODO: Need a way to add in default plugin args
     Reintegrate the audio app with the new search functionality
       Ensure the audio app works on the desktop
       Rewrite the audio app completely
@@ -50,6 +47,8 @@ Short Term:
 Produce a short video of the project
 
 Medium Term:
+  Move the plugin default arg dictionary into a yaml file, with the path specified in `conf.yaml`
+    Then have the plugin.load function load from this yaml
   Integrate tf-idf ranking into seshat (or at least filter out common words)
     Investigate ways of integrating machine learning into the search results
     Investigate ways of handling misspellings in search queries

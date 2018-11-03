@@ -208,7 +208,9 @@ if __name__ == "__main__":
     parser.add_argument('--log-level', type=str, help='logging level', default='INFO')
     parser.add_argument('--retry-delay', type=int, help='Num seconds to sleep in between connection retries')
     parser.add_argument('--max-retries', type=int, help='Maximum retry attempts before connection failed')
-    parser.add_argument('plugin', nargs=argparse.REMAINDER)
+    parser.add_argument('plugin', nargs=argparse.REMAINDER, help='Name of the plugin to launch plus all plugin-specific arguments')
+
+    # Extract the arguments from the command line
     loader_args = vars(parser.parse_args())
     plugin_args = loader_args.pop('plugin', [])
 

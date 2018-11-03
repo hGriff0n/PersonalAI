@@ -132,6 +132,10 @@ def build(config):
 
     return ret
 
+def build_python(_config):
+    os.system("python setup.py build")
+    os.system("python setup.py install --user")
+
 
 def main(args, conf):
     commands = {
@@ -139,7 +143,8 @@ def main(args, conf):
         'brain': lambda: launch_ai_node(conf),
         'clean': lambda: clean(conf),
         'debug': lambda: os.system("$Env:RUST_BACKTRACE=1"),
-        'build': lambda: build(conf)
+        'build': lambda: build(conf),
+        'install': lambda: build_python(conf)
     }
 
     for mode in sys.argv[1:]:

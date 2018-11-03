@@ -119,26 +119,49 @@ class Plugin:
         return self._log
 
 
+# TODO: Is there a way to move this into a yaml file??
+def _get_plugin_default_arg_config():
+    return {
+        'options': {
+            'log-level': {
+                'help': 'Specify the level for logging messages'
+            }
+        }
+    }
+
 def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
     if plugin_dir is None:
-        plugin_dir = r"C:\Users\ghoop\Desktop\PersonalAI\modalities\plugins"
+        log.error("plugin_dir was not specified")
+        return
 
     # Make sure the plugin exists
-    location = os.path.join(plugin_dir, desired_plugin)
-    if not os.path.isdir(location) or not "__init__.py" in os.listdir(location):
+    plugin_location = os.path.join(plugin_dir, desired_plugin)
+    if not os.path.isdir(plugin_location) or not "__init__.py" in os.listdir(plugin_location):
         if log is not None:
             log.error("Could not find plugin {}".format(desired_plugin))
         return None
 
-    # Load the plugin arguments
+    # Load the plugin argument config file
+    yaml_config_def = _get_plugin_default_arg_config()
+    yaml_config_path = os.path.join(plugin_location, 'config_def.yaml')
+    if os.path.exists(yaml_config_path):
+        with open(yaml_config_path) as yaml_file:
+            try:
+                plugin_config = yaml.safe_load(yaml_file)
+                # Merge the user config into the default config
+                for k, v in plugin_config.items():
+                    yaml_config_def[k] = {
+                        **yaml_config_def.get(k, {}), **v
+                    }
+            except Exception as e:
+                log.error("Error loading plugin configuration for {}, assuming empty file: {}".format(desired_plugin, e))
+    log.info(yaml_config_def)
+
     plugin_config_args = {}
-    arg_yaml = os.path.join(location, 'config_def.yaml')
-    if os.path.exists(arg_yaml):
-        try:
-            cmd = clg.CommandLine(yaml.load(open(arg_yaml)))
-            plugin_config_args = vars(cmd.parse(args or []))
-        except Exception as e:
-            log.error("Error loading plugin configuration for {}, assuming no configuration: {}".format(desired_plugin, e))
+    try:
+        plugin_config_args = vars(clg.CommandLine(yaml_config_def).parse(args or []))
+    except Exception as e:
+        log.error("Error loading plugin configuration for {}, assuming no configuration: {}".format(desired_plugin, e))
 
     # Create the plugin specific logger
     log.debug("Setting plugin logger level={}".format(plugin_config_args.get('log-level', None)))
@@ -146,7 +169,7 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
 
     # Load the plugin
     log.info("Loading plugin module {}".format(desired_plugin))
-    info = imp.find_module("__init__", [location])
+    info = imp.find_module("__init__", [plugin_location])
     imp.load_module("__init__", *info)
     log.info("Loaded plugin {}".format(desired_plugin))
 

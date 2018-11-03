@@ -12,6 +12,8 @@ def create(file, name=None, log_dir=None, fmt=None, level=None):
 
     logger = logging.getLogger(name or __name__)
     logger.addHandler(hdlr)
-    logger.setLevel(logging.getLevelName(level or 'DEBUG'))
+
+    level = level or 'DEBUG'
+    logger.setLevel(logging.getLevelName(level.upper()))
 
     return logger
