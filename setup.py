@@ -17,7 +17,7 @@ setup(name='PersonalAI',
         'wit',
         'PyAudio',
         'SpeechRecognition',
-        'pywin32',
+        'pypiwin32',
         'pydub',
         'clg',
         'anyconfig',
@@ -30,3 +30,4 @@ setup(name='PersonalAI',
     )
 
 print("Be sure to install libav or ffmpeg for pydub to work on non-wav files")
+print("Also know that the win32 package may not be installed correctly. Go onto the github page to download and run the post-installer for final setup")

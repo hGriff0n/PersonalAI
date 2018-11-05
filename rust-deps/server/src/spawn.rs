@@ -4,6 +4,7 @@ use std::sync::mpsc;
 use tokio;
 use tokio::prelude::*;
 use tokio::net::TcpStream;
+#[allow(deprecated)]
 use tokio_io::codec::length_delimited;
 // use tokio::codec::*;
 

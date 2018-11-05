@@ -51,28 +51,33 @@ class DispatchPlugin(plugins.Plugin):
 
                 msg.action = 'error'
                 msg.args = "Unknown message"
+                msg.return_to_sender()
 
         elif 'greetings' in quest:
             self._log.info("Translated dispatch message as a greeting")    # TODO: Could I add in confidence here ???
             msg.action = 'greet'
             msg.args = "Hello"
+            msg.return_to_sender()
 
         elif 'thanks' in quest:
             self._log.info("Translated dispatch message as a thank you")
             msg.action = 'ack'
             msg.args = "You're welcome"
+            msg.return_to_sender()
 
         elif 'bye' in quest:
             self._log.info("Translated dispatch message as a goodbye. Closing dispatch plugin")
             self._handle_stop(msg, comm, None)
             msg.args.append("Goodbye")
+            msg.return_to_sender()
 
         else:
             self._log.debug("Failed to translate dispatch message: Unknown message")
             msg.action = 'unk'
             msg.args = "I have no idea what you meant"
+            msg.return_to_sender()
 
-        msg.return_to_sender()
+        # TODO: This is wrong, it prevents us from "forwarding" messages from the cli plugin to the audio plugin
         comm.send(msg, self._log)
 
 
@@ -83,6 +88,7 @@ class DispatchPlugin(plugins.Plugin):
         self._log.info("Received stop dispatch message. Returning 'stop'")
         msg.action = "send"
         msg.args = "stop"
+        msg.return_to_sender()
 
     async def _handle_music(self, msg, _comm, quest):
         self._log.info("Received request to play music. Determining song to play")
@@ -95,7 +101,7 @@ class DispatchPlugin(plugins.Plugin):
         self._log.info("Returning audio request to play {}".format(song))
         msg.action = 'play'
         msg.args = song
-        msg.set_dest(role='audio')
+        msg.send_to(role='audio')
 
     async def _handle_find(self, msg, comm, quest):
         self._log.info("Received request to find search query")
@@ -113,3 +119,4 @@ class DispatchPlugin(plugins.Plugin):
 
         self._log.info("Returning search results to requesting application")
         msg.response = resp.response
+        msg.return_to_sender()

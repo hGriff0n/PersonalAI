@@ -2,11 +2,15 @@
 
 Short Term:
   Integrate Seshat with device-manager
-    Merge `DeviceCallback`
     Reintegrate the audio app with the new search functionality
-      Ensure the audio app works on the desktop
+      Integrate the search functionality so that it works
+        If the index file doesn't exist, then we should run the crawl immediately
+          I think we currently run it immediately iff the index file isn't specified in the config
+        We should always write the index file to cache on drop (TODO: Configure this?)
       Rewrite the audio app completely
-      Improve logging support in the audio app
+        Fix the ack splitting behavior (Message get's sent to the audio plugin, but the ack doesn't get sent to the cli plugin)
+        'Speak' isn't working on the desktop
+      Look at splitting audio app into voice-recognition and audio-player apps
   Improve system performance and granularity
     Enable stopping the device-manager internally
       The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
@@ -50,6 +54,8 @@ Medium Term:
   Improve documentation
     Better document how the plugin configuration files are processed
       Also see if there's a way to have multiple config files (aggregation)
+    Rename the 'common' package to something that won't have as many name-clashes
+    See if I cant' get the list of received messages to all go to the same log file
   Look into auto-generating the python message class
     Rust code works alot better by specifying the message as a struct
   Add in ability to handle a 'quit-all' command in the device-manager
