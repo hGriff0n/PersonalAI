@@ -21,10 +21,6 @@ from common import plugins
 #   Work on making the voice a bit louder (I can't hear it)
 #   Move resetting the 'play_beep' code to the dispatch app
 #     We can still accept input before then, but this should eliminate some annoyance with using the plugin to play music
-# TODO: Implement a database (or something) to track all local music files
-#   This would end up being subsumed by the "backing storage" server though (it's the responsibility)
-#     NOTE: This may be handled by server not dispatching "play" events to the cli app (in which case I need to rework the control flow of this app)
-#   I'll probably have to implement a queuing/thread system to handle networked requests
 # TODO: Implement resource contention resolution (accounting for audio usage)
 #   Look into adding a "wake word" for these situations
 # TODO: Add in spotify playback (once the web api allows it)
@@ -32,6 +28,12 @@ from common import plugins
 # TODO: Implement voice recognition (probably requires AI)
 
 
+# NOTE: This plugin is designed to handle both audio playback through device speakers, etc. and voice recognition dispatch through device microphones
+# However, some devices may not have any microphones to listen to, making some chunk of this plugin unusable
+# As currently implemented, the plugin "ignores" any voice recognition code if it is unable to setup the device's microphone
+# It may be beneficial, to instead split this plugin into two plugins, each handling only playback or voice recognition, but not both
+# I have chosen for the moment to not pursue this approach as the voice recognition currently uses the playback system to indicate "listening" status
+# NOTE: The voice recognition system does not use a "wake" keyword. It is always on though that is something to work on to improve system performance
 class AudioPlugin(plugins.Plugin):
     def __init__(self, logger, config=None):
         super().__init__(logger, config=config)
@@ -40,8 +42,7 @@ class AudioPlugin(plugins.Plugin):
         self._speaker = pyaudio.PyAudio()
         self._voice = win32com.client.Dispatch('SAPI.SpVoice')
 
-        # TODO: Some devices may have a speaker, but no microphone
-        # Decide if I want to split out the audio handling into two plugins
+        # Handle errors in microphone setup (indicating the device does not have a usable microphone)
         try:
             self._mic = sr.Microphone()
             self._rec = sr.Recognizer()
@@ -58,6 +59,7 @@ class AudioPlugin(plugins.Plugin):
         self._audio_control = asyncio.Lock()
         self._played_beep = False
 
+        # Register the audio playback handles
         self._register_handle('play', AudioPlugin.handle_play)
         self._register_handle('speak', AudioPlugin.handle_speak)
 

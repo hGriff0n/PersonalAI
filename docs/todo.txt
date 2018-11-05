@@ -10,7 +10,6 @@ Short Term:
       Rewrite the audio app completely
         Fix the ack splitting behavior (Message get's sent to the audio plugin, but the ack doesn't get sent to the cli plugin)
         'Speak' isn't working on the desktop
-      Look at splitting audio app into voice-recognition and audio-player apps
   Improve system performance and granularity
     Enable stopping the device-manager internally
       The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
