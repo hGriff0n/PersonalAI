@@ -40,17 +40,17 @@ class DispatchPlugin(plugins.Plugin):
         quest = query['entities']
 
         if 'intent' in quest:
-            self._log.info("INTENT <{}>".format(quest['intent']))
+            self._log.info("Interpreted command with intent `{}`".format(quest['intent']))
             intent = quest['intent'][0]['value']
 
             if intent in self._intent_handles:
                 await self._intent_handles[intent](self, msg, comm, quest)
 
             else:
-                self._log.error("Received unknown message <{}>".format(msg))
+                self._log.error("Received message with no registered intent handles. msg.id={} msg={}".format(msg.id, msg))
 
                 msg.action = 'error'
-                msg.args = "Unknown message"
+                msg.args = "No registered handle for message"
                 msg.return_to_sender()
 
         elif 'greetings' in quest:
@@ -85,12 +85,15 @@ class DispatchPlugin(plugins.Plugin):
     Handle messages as indicated from the nlp results
     """
     async def _handle_stop(self, msg, _comm, _quest):
+        # TODO: This probably doesn't work the way I expect it to
+        # However, communicating a stop "response" doesn't fit into the current system
         self._log.info("Received stop dispatch message. Returning 'stop'")
-        msg.action = "send"
+        msg.action = 'send'
         msg.args = "stop"
         msg.return_to_sender()
 
     async def _handle_music(self, msg, _comm, quest):
+        # TODO: Determine whether this should be handled in the dispatcher or the audio plugin
         self._log.info("Received request to play music. Determining song to play")
 
         song = 'Magnet'

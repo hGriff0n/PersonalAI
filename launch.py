@@ -34,10 +34,10 @@ def spawn_plugin(plugin, arg_dict, loader):
 
     # Merge the command arguments
     # NOTE: This overwrites any plugin specific args with the loader args where clashes occur
-    args = list('--{}={}'.format(k, v) for k, v in loader.items())
+    args = list("--{}={}".format(k, v) for k, v in loader.items())
     args.append(plugin)
     if arg_dict is not None:
-        args.extend('--{}={}'.format(k, v) for k, v in arg_dict.items())
+        args.extend("--{}={}".format(k, v) for k, v in arg_dict.items())
 
     print("Spawning the `{}` plugin".format(plugin))
     return spawn_with_args(['python', loader_path], args, plugin == 'cli')
@@ -105,7 +105,7 @@ def launch_ai_node(config):
 def clean(config):
     if 'log-dir' not in config:
         print("Setting the `log-dir` config option to `./log`")
-        config['log-dir'] = './log'
+        config['log-dir'] = "./log"
 
     for root, _dirs, files in os.walk(config['log-dir']):
         for f in files:
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         print("Requires at least one cli argument")
 
     else:
-        conf = anyconfig.load('conf.yaml')
+        conf = anyconfig.load("conf.yaml")
         main(sys.argv[1:], conf)
 
 

@@ -72,6 +72,7 @@ class AudioPlugin(plugins.Plugin):
                 audio = None
                 with await self._audio_control:
                     if not self._played_beep:
+                        # TODO: Need a better way of locating this file (for other spawn locations)
                         self._play_song("data\\low_beep.mp3")
                         self._played_beep = True
 
@@ -85,7 +86,7 @@ class AudioPlugin(plugins.Plugin):
                 self._log.error("Microphone triggered but was unable to recognize audio snippet")
 
             else:
-                self._log.debug("HEARD <{}>".format(query))
+                self._log.debug("Heard voice command: {}".format(query))
 
                 msg = Message(plugin=self)
                 msg.action = 'dispatch'
@@ -111,7 +112,7 @@ class AudioPlugin(plugins.Plugin):
             resp = await comm.wait_for_response(song_path_request, self._log)
 
             if len(resp.resp) == 0:
-                self._log.error("Search results were empty. Song does not exist within the system".format(song))
+                self._log.error("Search results were empty. Song `{}` does not exist within the system".format(song))
                 return
 
             song = resp.resp[0]

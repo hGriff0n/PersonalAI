@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     # Load the specified plugin
     name = plugin_args.pop(0)
-    log = logger.create('loader.log', name='__loader__', log_dir=loader_args['log_dir'], level=loader_args.pop('log-level', None), fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
+    log = logger.create("loader.log", name='__loader__', log_dir=loader_args['log_dir'], level=loader_args.pop('log-level', None), fmt="%(asctime)s <%(levelname)s> [{}] %(message)s".format(name))
 
     plugin, handles = plugin_system.load(name, log=log, args=plugin_args, plugin_dir=loader_args['plugin_dir'], log_dir=loader_args['log_dir'])
     if plugin is None:

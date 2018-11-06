@@ -124,7 +124,7 @@ def _get_plugin_default_arg_config():
     return {
         'options': {
             'log-level': {
-                'help': 'Specify the level for logging messages'
+                'help': "Specify the level for logging messages"
             }
         }
     }
@@ -143,7 +143,7 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
 
     # Load the plugin argument config file
     yaml_config_def = _get_plugin_default_arg_config()
-    yaml_config_path = os.path.join(plugin_location, 'config_def.yaml')
+    yaml_config_path = os.path.join(plugin_location, "config_def.yaml")
     if os.path.exists(yaml_config_path):
         with open(yaml_config_path) as yaml_file:
             try:
@@ -164,13 +164,13 @@ def load(desired_plugin, log=None, args=None, plugin_dir=None, log_dir=None):
         log.error("Error loading plugin configuration for {}, assuming no configuration: {}".format(desired_plugin, e))
 
     # Create the plugin specific logger
-    log.debug("Setting plugin logger level={}".format(plugin_config_args.get('log-level', None)))
-    plugin_logger = logger.create('{}.log'.format(desired_plugin), log_dir=log_dir, level=plugin_config_args.pop('log-level', None))
+    log.debug("Setting plugin logger level={}".format(plugin_config_args.get('log-level')))
+    plugin_logger = logger.create("{}.log".format(desired_plugin), log_dir=log_dir, level=plugin_config_args.pop('log-level', None))
 
     # Load the plugin
     log.info("Loading plugin module {}".format(desired_plugin))
-    info = imp.find_module("__init__", [plugin_location])
-    imp.load_module("__init__", *info)
+    info = imp.find_module('__init__', [plugin_location])
+    imp.load_module('__init__', *info)
     log.info("Loaded plugin {}".format(desired_plugin))
 
     # Construct the plugin

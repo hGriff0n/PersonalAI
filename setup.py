@@ -8,11 +8,11 @@ if sys.version_info >= (3, 7):
     exit(1)
 
 # TODO: Figure out how to get the rust exectuable built from this script
-setup(name='PersonalAI',
+setup(name="PersonalAI",
     packages=[ 'common' ],
-    url='https://github.com/hGriff0n/PersonalAI',
-    description='personal ai platform',
-    long_description=open('README.md').read(),
+    url="https://github.com/hGriff0n/PersonalAI",
+    description="personal ai platform",
+    long_description=open("README.md").read(),
     install_requires=[
         'wit',
         'PyAudio',

@@ -45,8 +45,14 @@ Short Term:
 Produce a short video of the project
 
 Medium Term:
+  Disconnect the framework from the build directory structure
+    I should be able to create a plugin anywhere and still spawn it in the system
+    Probably should move the loader script to some package location
+      Also make it non-configurable
   Move the plugin default arg dictionary into a yaml file, with the path specified in `conf.yaml`
     Then have the plugin.load function load from this yaml
+  Figure out how to communicate a "stop" response from the dispatch plugin to a requesting app
+    Currently, either the device-manager will interpret it to stop the dispatcher or the requesting app may not handle it
   Integrate tf-idf ranking into seshat (or at least filter out common words)
     Investigate ways of integrating machine learning into the search results
     Investigate ways of handling misspellings in search queries

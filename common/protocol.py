@@ -61,7 +61,7 @@ class JsonCodec:
         log.info("Sending message id={}: {}".format(msg.get('message_id'), msg))
 
         data = json.dumps(msg).encode('utf-8')
-        frame = struct.pack(">I", len(data))
+        frame = struct.pack('>I', len(data))
         sock.sendall(frame + data)
 
     @staticmethod
@@ -72,7 +72,7 @@ class JsonCodec:
         try:
             while True:
                 len_buf = sock.recv(4)
-                msg_len = struct.unpack(">I", len_buf)[0]
+                msg_len = struct.unpack('>I', len_buf)[0]
                 buf = sock.recv(msg_len)
                 msg = json.loads(buf.decode('utf-8'))
 
