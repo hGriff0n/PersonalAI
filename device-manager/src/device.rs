@@ -167,9 +167,10 @@ impl DeviceManager {
     }
 
     // Resolve who sent the message
-    // TODO: I'm not sure why I need this
-    fn resolve_connection(&self, _send: &message::MessageSender) -> Option<Option<SocketAddr>> {
-        Some(None)
+    // TODO: I'm not sure why I need this (or how it's different from resolve_destination)
+    fn resolve_connection(&self, send: &message::MessageSender) -> Option<Option<SocketAddr>> {
+        let dest = send.clone().into();
+        self.resolve_destination(&dest)
     }
 
     // Resolve where the message is being requested to be directed
@@ -252,7 +253,8 @@ impl DeviceManager {
 
             // Add the specified destination device to the queue
             if let Some(dest) = dest {
-                if let Some(ref conn) = self.connections.lock().unwrap().get(&dest) {
+                let conns = self.connections.lock().unwrap();
+                if let Some(ref conn) = conns.get(&dest) {
                     debug!("Sending message to {:?}", dest);
                     conn.queue.unbounded_send(serde_json::to_value(msg.clone())?)
                         .map_err(|_err| Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
@@ -262,7 +264,7 @@ impl DeviceManager {
                         if sender != dest {
                             debug!("The receiving app was not the same as the sending message. Sending ack message to {:?}", sender);
 
-                            if let Some(ref conn) = self.connections.lock().unwrap().get(&sender) {
+                            if let Some(ref conn) = conns.get(&sender) {
                                 let mut msg = msg.clone();
                                 msg.action = Some("ack".to_string());
                                 conn.queue.unbounded_send(serde_json::to_value(msg)?)

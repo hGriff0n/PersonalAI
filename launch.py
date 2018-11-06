@@ -120,8 +120,8 @@ def build(config):
     # ret = os.system("cargo build")
     # os.chdir('..')
 
-    # if ret == 0:
-    if True:
+    ret = 0
+    if ret == 0:
         src_dir = config.get('device_manager', {}).get('src')
         if src_dir is not None:
             os.chdir(src_dir)

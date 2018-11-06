@@ -76,7 +76,7 @@ class AudioPlugin(plugins.Plugin):
                         self._play_song("data\\low_beep.mp3")
                         self._played_beep = True
 
-                        audio = self._rec.listen(source, 0.4, None)
+                    audio = self._rec.listen(source, 0.4, None)
                     query = self._rec.recognize_google(audio)
 
             except sr.WaitTimeoutError:
@@ -111,11 +111,11 @@ class AudioPlugin(plugins.Plugin):
 
             resp = await comm.wait_for_response(song_path_request, self._log)
 
-            if len(resp.resp) == 0:
+            if len(resp.response) == 0:
                 self._log.error("Search results were empty. Song `{}` does not exist within the system".format(song))
                 return
 
-            song = resp.resp[0]
+            song = resp.response[0]
             if not os.path.exists(song):
                 self._log.error("Song file does not exist at returned path `{}`. Cannot play song as requested".format(song))
                 return

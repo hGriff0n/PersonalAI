@@ -34,8 +34,8 @@ class Plugin:
         self._role = None
         self._uuid = str(uuid.uuid4())
 
-        self._register_handle('ack', self.handle_ack)
-        self._register_handle('error', self.handle_error)
+        self._register_handle('ack', Plugin.handle_ack)
+        self._register_handle('error', Plugin.handle_error)
 
     # NOTE: This is implicitly called when we import in the subclass
     def __init_subclass__(cls, **kwargs):
