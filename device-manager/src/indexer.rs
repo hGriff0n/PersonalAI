@@ -29,11 +29,6 @@ fn create_crawler<'a>(_args: &'a clap::ArgMatches) -> impl Crawler {
     crawler
 }
 
-// Parse the configuration arguments to extract the folders considered as "root" folders
-fn extract_roots<'a>(_args: &'a clap::ArgMatches) -> Vec<String> {
-    vec!["C:\\".to_string()]
-}
-
 // Delay the initial loading of the index from a file for a little bit
 // This helps us spawn up the server slightly faster, avoiding reconnection issues with the modalities
 type LazyLoader = Box<dyn Future<Item=(time::Instant, IndexWriter), Error=()> + Send>;
@@ -60,12 +55,21 @@ pub fn load_index<'a>(args: &'a clap::ArgMatches, mut writer: IndexWriter) -> La
 pub fn launch<'a>(device: DeviceManager, args: &'a clap::ArgMatches, writer: IndexWriter) -> impl Future {
     trace!("Launching indexer task system");
 
+    // Create indexer constants
     let hour = chrono::Duration::hours(1).to_std().unwrap();
     let week = chrono::Duration::weeks(1).to_std().expect("Unable to convert 1 week to seconds");
 
-    // TODO: Add in ability to configure roots from commandline/config
+    // Extract the root folders from the configuration, allowing for no-values to take the default root
+    let root_folders: Option<Vec<String>> = args.values_of("index-root")
+        .and_then(|roots| Some(roots.map(|s| s.to_string()).collect()));
+    if root_folders.is_none() {
+        debug!("Configuration did not specify a value for `index-root`. Assuming system default root");
+    }
+    let root_folders = root_folders.unwrap_or(vec![DEFAULT_ROOT.to_string()]);
+    debug!("Extracted root folders for index crawling operations: {:?}", root_folders);
+
+    // Create the crawler
     let crawler = create_crawler(args);
-    let root_folders = extract_roots(args);
 
     // Load the index, then setup a periodic check every hour for reindexing
     let indexer = load_index(args, writer)
@@ -120,10 +124,17 @@ pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
     use clap::Arg;
 
     app.arg(Arg::with_name("index-cache")
-        .long("index-cache")
-        .help("location of the index cache storage file")
-        .value_name("JSON")
-        .takes_value(true))
+            .long("index-cache")
+            .help("location of the index cache storage file")
+            .value_name("JSON")
+            .takes_value(true))
+        .arg(Arg::with_name("index-root")
+            .long("index-root")
+            .help("Root folder path for index crawling")
+            .takes_value(true)
+            .multiple(true)
+            .number_of_values(1)
+            .use_delimiter(true))
 }
 
 
@@ -160,3 +171,9 @@ impl handle::FileHandler for MusicHandler {
         }
     }
 }
+
+// Specify the default system root folder (for if none is specified in config)
+#[cfg(unix)]
+const DEFAULT_ROOT: &'static str = "/";
+#[cfg(windows)]
+const DEFAULT_ROOT: &'static str = "C:\\";

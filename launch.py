@@ -3,6 +3,7 @@
 import os
 from subprocess import Popen, PIPE
 import sys
+import types
 
 import anyconfig
 
@@ -10,15 +11,25 @@ import anyconfig
 # TODO: Use appdirs to automatically store the config file in system directories
     # https://github.com/ActiveState/appdirs
 
+# TODO: How do we handle strings
+# TODO: How do we handle values within the list
+def escape_arg(config_arg):
+    if isinstance(config_arg, list) or isinstance(config_arg, types.GeneratorType):
+        return ','.join(config_arg)
+
+    else:
+        return str(config_arg)
+
 # Wrapper for automatically transforming a dict into process arguments and then spawning the process
 def spawn_with_args(program, prog_args, shell=None):
     if not isinstance(program, list):
         program = [ program ]
 
     if isinstance(prog_args, dict):
-        program.extend('--{}={}'.format(k, v) for k, v in prog_args.items())
+        program.extend('--{}={}'.format(k, escape_arg(v)) for k, v in prog_args.items())
+
     elif isinstance(prog_args, list):
-        program.extend(arg for arg in prog_args)
+        program.extend(escape_arg(arg) for arg in prog_args)
     elif isinstance(prog_args, str):
         program.append(prog_args)
 
@@ -34,10 +45,10 @@ def spawn_plugin(plugin, arg_dict, loader):
 
     # Merge the command arguments
     # NOTE: This overwrites any plugin specific args with the loader args where clashes occur
-    args = list("--{}={}".format(k, v) for k, v in loader.items())
+    args = list("--{}={}".format(k, escape_arg(v)) for k, v in loader.items())
     args.append(plugin)
     if arg_dict is not None:
-        args.extend("--{}={}".format(k, v) for k, v in arg_dict.items())
+        args.extend("--{}={}".format(k, escape_arg(v)) for k, v in arg_dict.items())
 
     print("Spawning the `{}` plugin".format(plugin))
     return spawn_with_args(['python', loader_path], args, plugin == 'cli')
@@ -47,13 +58,13 @@ def launch_device(config):
     procs = []
 
     # Launch the ai manager
-    if 'ai-manager' in config:
-        print("Launching the ai-manager")
-        manager = config['ai-manager']
-        manager_exe = manager.pop('path')
-        manager.pop('src', None)
-        manager.pop('stdio-log', None)
-        procs.append(spawn_with_args(manager_exe, manager))
+    # if 'ai-manager' in config:
+    #     print("Launching the ai-manager")
+    #     manager = config['ai-manager']
+    #     manager_exe = manager.pop('path')
+    #     manager.pop('src', None)
+    #     manager.pop('stdio-log', None)
+    #     procs.append(spawn_with_args(manager_exe, manager))
 
         # TODO: Spawn ai modalities
 
