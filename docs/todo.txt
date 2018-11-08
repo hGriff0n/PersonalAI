@@ -23,120 +23,97 @@ Short Term:
     Add ability for plugins to communicate "command syntax" with cli app
   Improve documentation and specifications
     Fill in architecture specification
-    Come up with more message spec ideas
     Add in documentation about how to launch everything
     Improve documentation on system design
   Integrate an app "privilege" system to improve security
     Look into ways of "certifying" apps to prevent loading plugins "erroneously"
-  Cleanup the "Medium Term" checklist
-    Plan out the next dev work cycle
 
 Produce a short video of the project
+Plan out the next dev work cycle
 
 Medium Term:
-  Produce documentation about what "actions" standard plugins/managers handle
-    NOTE: Some actions are "notification endpoints", where no response is given
-      Apps will never receive a notification from the server
-      If a "notification" is needed, apps can query the system status
-  Figure out how plugins can extend the capabilities of the system when they are added
-    Rewrite the launcher script to load the dispatch plugin first
-    Rewrite the cli and audio plugins to utilize these addition capabilities
-      See if I can get the launcher to wait for the dispatch handshake to finish before launch the cli/audio
-  Extend the music playback with "playlist" functionality
-  Disconnect the framework from the build directory structure
-    I should be able to create a plugin anywhere and still spawn it in the system
-    Probably should move the loader script to some package location
-      Also make it non-configurable
-  Move the plugin default arg dictionary into a yaml file, with the path specified in `conf.yaml`
-    Then have the plugin.load function load from this yaml
-  Figure out how to communicate a "stop" response from the dispatch plugin to a requesting app
-    Currently, either the device-manager will interpret it to stop the dispatcher or the requesting app may not handle it
-  Integrate tf-idf ranking into seshat (or at least filter out common words)
-    Investigate ways of integrating machine learning into the search results
-    Investigate ways of handling misspellings in search queries
-  Improve documentation
-    Better document how the plugin configuration files are processed
-      Also see if there's a way to have multiple config files (aggregation)
-    Rename the 'common' package to something that won't have as many name-clashes
-    See if I cant' get the list of received messages to all go to the same log file
-  Look into auto-generating the python message class
-    Rust code works alot better by specifying the message as a struct
-  Add in ability to handle a 'quit-all' command in the device-manager
-    Consider changing `cli > "quit"` to produce this command
-    NOTE: This may be better reserved for when we actually migrate to a fully distributed setup
-      I think we'll have to rethink alot of the design/architecture of this system then anyways
-  Add ability to dynamically register python "apps"
-    ie. send "stop" from cli, then relaunch cli from separate terminal, continue running
-  Add ability to dynamically load "plugins" for specific file types
-    https://github.com/emoon/dynamic_reload
-    NOTE: If we do the dynamic reloading, we'd also need to allow for the python modules to be reloaded
-  Rework routing to follow a "kubernetes" style system
-    Unify 'sender' and 'dest' into the same structure
-    Allow for plugins to sign up under multiple "labels"
-    Enable querying plugins based on the join of these labels
-  Improve message routing to prevent looping messages (particularly broadcasts)
-  Optimize rust and python codebases
-    Find a way to "pretty-print" the time information inside of the log `messages
-    Figure out how to handle the python issue of binding 'self' when registering message handlers
-      If a message is registered with 'self.<handle>' instead of '<plugin>.<handle>' then the loader will fail when calling it (expects 3 positional args, 4 given)
-        NOTE: This may cause a lot of loops in the system
-    Fix issues with handler failures causing loops in the system (on plugin and manager sides)
-      NOTE: To trigger this, just replace the 'Plugin.handle_ack' with 'self.handle_ack' in plugins.py
-    Improve usage of rust features, streamline memory usage particularly
-    Look at ripgrep (blog and codereview) for optimization ideas
-      https://gist.github.com/jFransham/369a86eff00e5f280ed25121454acec1
-    Upgrade rust to rust 2018
-      Improve errors to all use a common error type (enum type like fern::InitError)
-    Handle unrecognized command line arguments
+  TODO: Audio Improvements
+    Add "playlist" functionality to the playback system
+      Play all the songs in the returned array
+      Add new "play next" and "add to playback" options
+  TODO:Manager Improvements
+    Augment routing system with the ability to recognize (and stop) loops
+      Enable device-manager to handle a `quit-all` message
+      Fix device-manager behavior with the Plugin handle error (which caused an infinite loop)
+        NOTE: To trigger this, just replace the 'self.__class__.handle_ack' with 'self.handle_ack' in plugins.py
+      NOTE: This may be better reserved for when we actually migrate to a fully distributed setup
+        I think we'll have to rethink alot of the design/architecture of this system then anyways
+    Figure out how to communicate a 'stop' "recognition" from the dispatch plugin
+    Enable the manager to spawn up python plugins as needed
+  TODO: New capabilities
+    Add separate ai-manager node project
+      Create ai-manager project to handle the administration of multiple devices
+        TODO: See if there's a way to integrate this with the device-manager (ie. through promotion with additional capabilities)
+      Rewrite device-manager routing and handles to account for this "parent" node
+      NOTE: We should also rewrite the routing to assume a more distributed device system
+      Come up with process for deciding where a plugin should reside
+      Implement "internal-only" communication actions
+    Add in a distributed file system implementation
+      TODO: Research one of the topics from the "papers" group I was at earlier this year
+      Rework seshat to operate on top of this distributed layer
+        TODO: Decide if device-managers need to query the ai-manager to access this layer (I don't think so)
+      Enable the ability to easily send documents between computers
+      NOTE: This will probably need to have a working "AI-manager" node
+      TODO: Figure out where 'search' should be handled in this system
+  TODO: Documentation
+    Produce documentation about what "actions" the std plugins/manager handle
+      NOTE: Some actions are "notification endpoints", where no response is given
+        Apps will never receive a notification from the server
+        If a "notification" is needed, apps can query the system status
+    Better document how plugin configuration files are processed
+      Also see if there's a way to aggregate config files
+  TODO: System design
+    Figure out how plugins can extend the capabilities of the system when they are added
+      Rewrite the launcher script to load the dispatch plugin first
+      Rewrite the cli and audio plugins to utilize these addition capabilities
+        See if I can get the launcher to wait for the dispatch handshake to finish before launch the cli/audio
+    Rework routing to follow a "kubernetes"-style system
+      Unify 'sender' and 'dest' into the same structure
+      Organize plugins under a "label" system (instead of our current multi-tiered approach)
+        Enable querying plugins under the join of these labels
+  TODO: System Build Improvments
+    Disconnect the framework from the build directory structure
+      I should be able to create a plugin anywhere and still spawn it in the system
+    Move the `loader.py` script into some standard, non-configurable package location
+    Move the plugin default arg dictionary into a yaml file, with the path specified in `conf.yaml`
+      Then have the plugin.load function load from this yaml
+    Rename the 'common' python package to something with fewer name clashes
+    Look into auto-generating the python message class from the Rust structure
+    Add ability to dynamically register/reload python "apps"
+    Improve `launch.py` to have some basic filewatch capabilities
+      Instead of using 'build' subcommand, automatically build if any rust files have changed
+      Instead of using 'install' subcommand, automatically reinstall if any package files have changed
+    Change 'plugin-dir' to take an array of values instead of one
+  TODO: Seshat Improvements
+    Improve results to be more accurate
+      Integrate tf-idf ranking (or at least filter common words)
+    Handle spelling errors in search results
+    Integrate ML to improve results ranking
+      NOTE: This may also be required for handling mis-spellings
+    Improve granularity of search functionality
+      ie. I should be able to search for only music files, etc.
+    Add ability to load file-system "plugins" for specific file types (https://github.com/emoon/dynamic_reload)
+    Figure out ways of tracking files to minimize need for reindexing
+      Recognize which root the data came from (to not throw it out if we're re-indexing a different root)
+  TODO: Optimization and Technical Debt
+    Find a way to "pretty-print" time information in rust logs
+    Figure out a way to detect registering `self.<handle>` instead of `<plugin>.<handle>`
+    Streamline memory usage in device-manager
+      NOTE: Look at ripgrep and clap for optimization ideas (https://gist.github.com/jFransham/369a86eff00e5f280ed25121454acec1)
+    Upgrade rust to "rust 2018" (Improve usage of rust features)
+    Change all errors to use a custom common type (ie. like `fern::InitError`)
+    Better handle unrecognized options in rust
       Apparently clap doesn't natively support this
       https://github.com/clap-rs/clap/blob/eac457bdb095dade2efadd033af8d33e9c296f08/src/app/parser.rs
         The `get_matches_with` method immediately returns with an `Error::unknown_argument` when an unknown_argument is encountered
           I'd like it to instead just ignore these arguments and continue with parsing
           Apparently, there are cli utilities that allow for ignoring unknown arguments
-  Implement system process to write index data to a cache file
-  Distribute ai processing into separate nodes (basically split the device-manager into the ai-manager)
-    Rewrite routing process inside of device-manager
-      We need to be able to generically indicate which messages have to be forwarded to the ai-manager
-      Optimize the new message and communication flows (to minimize number of messages)
-      NOTE: Some messages we'll be able to handle locally (some we'll have to)
-    Move plugins into the ai-manager orbit
-      Create a process for indicating where plugins should be located (ie. tied to device or ai managers)
-      Implement some degree of automatic python app registration
-        Handshake procedure, etc.
-    Make 'Seshat' distributed
-      TODO: We'll probably want to create a full distributed file system for this
-      TODO: We may want to separate the indexing in the ai-manager and device-manager
-        Depending on how we handle networking the search engine, we may want the device-manager to map the paths to their "index results"
-          The index results would be any "keys" extracted by the device handlers + the index data (ie. what we get from the search results + ranking data)
-          This data would be periodically sent to the ai-manager, which would convert that data into the searchable results (ie. the maps we have already)
-    Move the "search" and "dispatch" actions to forward to the ai-manager
-    Implement "internal-only" communication actions
-      eg. command to update global index (for when a file gets added on a local device)
-      This would also add in a lot of "negotiation" messages for internal management
-    Extract `loader.py` into common/scripts directory
-    Enable sending files across devices
-      NOTE: This is especially important for sending rust-plugins to new devices
-    See if there's any way to "unify" ai-manager and device-manager
-      ie. they should share as much code as possible, maybe not be under two separate folders
-  It would be nice if the server could spawn up "One-time use" plugins as needed
-  Improve the handshaking procedure to actually have some degree of security and utility
-    Current system only works because I have everything hardcoded
-  Improve launch script to incorporate some file watching
-    Automatically run `setup.py install --user` if anything in the setup script/packages have changed
-      Automatically run "build" if cargo modules change
-  Improve the configuration system
-    Change 'plugin-dir' to take an array of values instead of a single path
-  Improve the seshat engine with machine learning capabilities
-    This is particularly relevant in filtering the results (such as with mis-spellings)
-    Improve granularity of results
-      ie. I should be able to search only music files, etc.
-        This requires expanding what we store in the index (that or splitting into several indices)
-      Look into making an sql-esque interface
-  Reduce Technical Debt
-    Update 'futures' to use the most recent version
-    Ensure that all dependencies are at their most recent versions
-    Improve the tracking of files to minimize need for reindexing
-      Recognize which data did not come from under a specific root, so we don't have to throw it out if we're re-indexing that root
+    Update all dependencies to utilize the most recent version
 
 Long Term:
   Develop my own NLP system for decoding the purpose of messages (Wit doesn't seem to want to adapt)
