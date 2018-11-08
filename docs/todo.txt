@@ -10,9 +10,6 @@ Short Term:
       Would need to add a way to indicate a "reindex" is currently being performed in the return results
       Add in an immediate crawl if the index file doesn't exist (currently do it if it's not in the config file)
       Add in a task to write the index file to the cache on drop/reindex
-    Look at adding Notifications to the communication spec
-      Right now, it's up to the server implementation about how to respond
-        It would be nice to be able to specify that on the client side
   Add in "device-querying" capabilities to the cli interface
     Change cli app to have a 'cmd' mode and a 'chat' mode
       'chat' is the current (and would be default) operation
@@ -37,6 +34,14 @@ Short Term:
 Produce a short video of the project
 
 Medium Term:
+  Produce documentation about what "actions" standard plugins/managers handle
+    NOTE: Some actions are "notification endpoints", where no response is given
+      Apps will never receive a notification from the server
+      If a "notification" is needed, apps can query the system status
+  Figure out how plugins can extend the capabilities of the system when they are added
+    Rewrite the launcher script to load the dispatch plugin first
+    Rewrite the cli and audio plugins to utilize these addition capabilities
+      See if I can get the launcher to wait for the dispatch handshake to finish before launch the cli/audio
   Extend the music playback with "playlist" functionality
   Disconnect the framework from the build directory structure
     I should be able to create a plugin anywhere and still spawn it in the system

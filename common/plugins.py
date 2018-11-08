@@ -35,7 +35,7 @@ class Plugin:
         self._uuid = str(uuid.uuid4())
 
         # NOTE: We use `self.__class__` to enable overloading the handler methods in subclasses
-        # Using `Plugin.handle_ack` would restrict this handle to calling the default plugin handle
+        # Using `Plugin.handle_ack` would restrict this to calling the default plugin handle
         self._register_handle('ack', self.__class__.handle_ack)
         self._register_handle('error', self.__class__.handle_error)
 
