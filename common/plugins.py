@@ -34,8 +34,10 @@ class Plugin:
         self._role = None
         self._uuid = str(uuid.uuid4())
 
-        self._register_handle('ack', Plugin.handle_ack)
-        self._register_handle('error', Plugin.handle_error)
+        # NOTE: We use `self.__class__` to enable overloading the handler methods in subclasses
+        # Using `Plugin.handle_ack` would restrict this handle to calling the default plugin handle
+        self._register_handle('ack', self.__class__.handle_ack)
+        self._register_handle('error', self.__class__.handle_error)
 
     # NOTE: This is implicitly called when we import in the subclass
     def __init_subclass__(cls, **kwargs):
