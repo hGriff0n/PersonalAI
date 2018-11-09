@@ -21,10 +21,6 @@ Short Term:
       https://github.com/performancecopilot/hornet
     Enable querying of that data
     Add ability for plugins to communicate "command syntax" with cli app
-  Improve documentation and specifications
-    Fill in architecture specification
-    Add in documentation about how to launch everything
-    Improve documentation on system design
   Integrate an app "privilege" system to improve security
     Look into ways of "certifying" apps to prevent loading plugins "erroneously"
 
@@ -67,6 +63,7 @@ Medium Term:
         If a "notification" is needed, apps can query the system status
     Better document how plugin configuration files are processed
       Also see if there's a way to aggregate config files
+    Better document the system architecture and design
   TODO: System design
     Figure out how plugins can extend the capabilities of the system when they are added
       Rewrite the launcher script to load the dispatch plugin first
