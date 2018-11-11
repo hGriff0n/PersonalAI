@@ -11,16 +11,14 @@ Short Term:
       Add in an immediate crawl if the index file doesn't exist (currently do it if it's not in the config file)
       Add in a task to write the index file to the cache on drop/reindex
   Add in "device-querying" capabilities to the cli interface
-    Change cli app to have a 'cmd' mode and a 'chat' mode
-      'chat' is the current (and would be default) operation
-        NOTE: The "default" nature should probably be configurable
-      'cmd' would basically interface like a linux command line
-        Would have much more power and system access in 'cmd' mode
-        NOTE: This is because everything in 'chat' mode would have to go through the dispatcher
+    Figure out how to communicate `handle+role` information from manager to cli app
+      Test the command syntax implementation in the cli app
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
     Enable querying of that data
     Add ability for plugins to communicate "command syntax" with cli app
+      We could just view this as "<handle> args" but that doesn't quit work
+        This would require every client to check that the message is a "command packet", which isn't feasible
   Integrate an app "privilege" system to improve security
     Look into ways of "certifying" apps to prevent loading plugins "erroneously"
 
@@ -32,6 +30,12 @@ Medium Term:
     Add "playlist" functionality to the playback system
       Play all the songs in the returned array
       Add new "play next" and "add to playback" options
+  TODO: Cli Improvements
+    Add in the ability to specify "command" formatted messages in the routing system
+    Add the ability for apps to automatically run these messages through argparsers when received
+      Apps should also communicate errors when a "command" doesn't work
+    Compare this approach to having apps send their "argparse" format to the cli app
+      This approach would parse everything locally, before sending the message to the app
   TODO:Manager Improvements
     Augment routing system with the ability to recognize (and stop) loops
       Enable device-manager to handle a `quit-all` message
