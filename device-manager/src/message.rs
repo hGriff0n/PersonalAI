@@ -45,6 +45,34 @@ pub struct MessageDest {
     pub intra_device: Option<bool>
 }
 
+impl Message {
+    pub fn new() -> Self {
+        Self{
+            message_id: "".to_string(),
+            parent_id: None,
+            ack_uuid: None,
+            route: Vec::new(),
+            forward: None,
+            sender: MessageSender{
+                uuid: None,
+                role: None,
+                addr: None,
+            },
+            dest: MessageDest{
+                broadcast: None,
+                role: None,
+                addr: None,
+                uuid: None,
+                intra_device: None
+            },
+            action: None,
+            args: None,
+            resp: None,
+            body: None,
+        }
+    }
+}
+
 impl convert::Into<MessageDest> for MessageSender {
     fn into(self) -> MessageDest {
         MessageDest{

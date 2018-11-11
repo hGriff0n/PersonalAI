@@ -2,11 +2,16 @@
 
 Short Term:
   Add in "device-querying" capabilities to the cli interface
-    Figure out how to communicate `handle+role` information from manager to cli app
-      Extend manager tracking to be able to store what roles have registered what fields, etc.
+    Improve manager tracking so that it knows what connections have what registered fields/roles, etc and can query it
+    Modify the manager to consider the role/action combo when forwarding messages
+      If there is no connection for the role/action combo, then the server must return an error
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
-    Enable querying of that data
+    Instrument the device-manager to collect data about manager/plugin running
+    Add manager endpoint handles to enable query for performance data
+      One endpoint must enable getting list of connected apps
+    Remove message queuing in the main thread of the cli app
+      NOTE: We have to keep queuing for message received from outside
   Improve system performance and granularity
     Enable stopping the device-manager internally
       The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
@@ -99,7 +104,11 @@ Medium Term:
       NOTE: Say we add in a new audio plugin on the laptop with an extra handle
         Dispatching to use this handle may end up sending the message to the original plugin, which doesn't have it
         Even though the command is valid, this will return an error message
-  TODO: System Build Improvments
+    Introduce an "event framework" for system messages
+      This would allow apps to subscribe to receive data when certain "system events" occur (eg. "App connected/disconnected")
+        NOTE: This would be more of a generalization of the existing message system is some aspects
+          The actual implementation should be similar to multicast subscriptions
+  TODO: System Build Improvements
     Disconnect the framework from the build directory structure
       I should be able to create a plugin anywhere and still spawn it in the system
     Move the `loader.py` script into some standard, non-configurable package location
