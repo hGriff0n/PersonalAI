@@ -1,6 +1,12 @@
 
 
 Short Term:
+  Add in "device-querying" capabilities to the cli interface
+    Figure out how to communicate `handle+role` information from manager to cli app
+      Extend manager tracking to be able to store what roles have registered what fields, etc.
+    Come up with a data-collection framework both in python and rust
+      https://github.com/performancecopilot/hornet
+    Enable querying of that data
   Improve system performance and granularity
     Enable stopping the device-manager internally
       The `select2(cancel)` in 'main.rs' should work, but it doesn't seem to
@@ -10,15 +16,6 @@ Short Term:
       Would need to add a way to indicate a "reindex" is currently being performed in the return results
       Add in an immediate crawl if the index file doesn't exist (currently do it if it's not in the config file)
       Add in a task to write the index file to the cache on drop/reindex
-  Add in "device-querying" capabilities to the cli interface
-    Figure out how to communicate `handle+role` information from manager to cli app
-      Test the command syntax implementation in the cli app
-    Come up with a data-collection framework both in python and rust
-      https://github.com/performancecopilot/hornet
-    Enable querying of that data
-    Add ability for plugins to communicate "command syntax" with cli app
-      We could just view this as "<handle> args" but that doesn't quit work
-        This would require every client to check that the message is a "command packet", which isn't feasible
   Integrate an app "privilege" system to improve security
     Look into ways of "certifying" apps to prevent loading plugins "erroneously"
 
@@ -30,12 +27,30 @@ Medium Term:
     Add "playlist" functionality to the playback system
       Play all the songs in the returned array
       Add new "play next" and "add to playback" options
+    Remove the hardcoded path for the system sound files
+      Or find a way to "install" the data directory
   TODO: Cli Improvements
-    Add in the ability to specify "command" formatted messages in the routing system
-    Add the ability for apps to automatically run these messages through argparsers when received
-      Apps should also communicate errors when a "command" doesn't work
-    Compare this approach to having apps send their "argparse" format to the cli app
-      This approach would parse everything locally, before sending the message to the app
+    Decide on which approach to take for enabling apps to handle cli "command" messages
+      Approach #1: Command parsing on the app-client
+        NOTE: The cli client would be unchanged. However, we would indicate that the message is a "command" message which requires further parsing
+          When a client receives this message it automatically sends the argument array through the specified argparse instance
+          The results are then used to replace the 'args' key before being sent to the actual handle
+        TODO:
+          How to communicate errors
+          What to do when a handle receives a "command" message but it does not have an argparser
+      Approach #2: Command parsing on the cli-client
+        NOTE: The client app would be mostly unchanged. However, the cli app would be changed to send it's data through registered argparsers before sending
+          When a client is registered, it sends it's argparse instance as part of the handshake process. These argparsers are sent to any cli plugins which register
+          Once a cli plugin resolves it's role:handle, the command args are run through the relevant argparser and the results put into the 'arg' key
+        TODO:
+          How to store the data on the manager side
+          Handling handshake communications with new cli plugins and new apps
+            NOTE: We'll have to do this communication anyways in order to register new apps/handles with the cli plugin
+          How to communicate manager parsers (manager is in Rust, apps are language-agnostic)
+      Approach #3: Do nothing, cli usage requires knowing the app in question
+      TODO: (for #1 and #2)
+        How to register and specify the argparsers on the client end
+        How to adapt the current system to work when the new system is used
   TODO:Manager Improvements
     Augment routing system with the ability to recognize (and stop) loops
       Enable device-manager to handle a `quit-all` message
@@ -77,6 +92,10 @@ Medium Term:
       Unify 'sender' and 'dest' into the same structure
       Organize plugins under a "label" system (instead of our current multi-tiered approach)
         Enable querying plugins under the join of these labels
+    How should we handle new plugins which "extend" old plugins
+      NOTE: Say we add in a new audio plugin on the laptop with an extra handle
+        Dispatching to use this handle may end up sending the message to the original plugin, which doesn't have it
+        Even though the command is valid, this will return an error message
   TODO: System Build Improvments
     Disconnect the framework from the build directory structure
       I should be able to create a plugin anywhere and still spawn it in the system

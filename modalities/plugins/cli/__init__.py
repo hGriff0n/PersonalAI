@@ -23,8 +23,14 @@ class CliPlugin(plugins.Plugin):
         }
 
         # CLI command system
-        self._known_roles = []
-        self._handle_role_map = {}
+        self._known_roles = []          # TODO: What is this for?
+        self._handle_role_map = {       # TODO: Produce this list dynamically
+            'dispatch': ['dispatch'],
+            'play': ['audio'],
+            'search': ['manager'],
+            'stop': ['manager'],
+            'quit': ['manager']
+        }
         self._current_mode = self.CHAT
 
     # TODO: The message handling code needs to be put into a separate coroutine
@@ -37,6 +43,9 @@ class CliPlugin(plugins.Plugin):
         if query == "":
             return True
 
+        # Hard code in quit behavior
+        # NOTE: This may not be necessary with "command mode"
+        # I think this is because I couldn't get 'wit' to parse "quit" correctly
         elif query == "quit":
             self._log.info("Stopping all plugins from user input")
 
@@ -47,56 +56,62 @@ class CliPlugin(plugins.Plugin):
 
             return False
 
+        # Handle any command manipulation
+        elif query[0] == ':':
+            self._log.debug("Detected cli operation command")
+            await self._parse_cli_command(query)
+            return True
+
+        # In "chat" mode, we just forward everything to dispatch
+        # This means, we can implement "chat" in terms of "command mode"
         with await self._cli_lock:
             if self._current_mode == self.CHAT:
+                self._log.info("Translating chat query into dispatch command: {}".format(query))
                 query = "dispatch \"{}\"".format(query)
 
         await self._parse_command(query, comm)
 
         return True
 
-    async def _parse_cli_command(self, command, args):
+    async def _parse_cli_command(self, query):
+        command = shlex.split(query)
+        command, args = command[0][1:], command[1:]
+        self._log.debug("Received cli command `{}`".format(command))
+
         if command == "alias":
-            # TODO: Implement
-            pass
+            self._print_and_log("Aliasing cli command `{}` to expand to `{}`".format("unk", "unk"), 'info')
 
         elif command == "set-mode":
-            mode = (args.lower() == "chat")
+            mode = (args[0].lower() == "chat")
+            self._print_and_log("Switching cli operation into {} mode".format(mode and 'CHAT' or 'COMMAND'), 'info', dont_print_log_level=True)
 
             with await self._cli_lock:
                 self._current_mode = (mode and self.CHAT or self.COMMAND)
-
-        return
 
     async def _parse_command(self, query, comm):
         command = shlex.split(query)
 
         if len(command) == 0:
-            # TODO: Error
-            return
-
-        # Handle any command manipulation
-        if command[0][0] == ':':
-            return self._parse_cli_command(command[0][1:], command[1:])
+            return self._print_and_log("Received empty command: {}".format(query), 'error')
 
         # Parse out the handle (and role if provided)
         role = None
         handle, command = command[0], command[1:]
         # TODO: Need to handle aliases
         if ':' in handle:
+            self._log.debug("Detected role namespacing in handle `{}`".format(handle))
             role, handle = tuple(handle.split(':'))
 
         # Extract the actual role that corresponds to the provided handle
         targets = self._handle_role_map.get(handle, [])
         if len(targets) == 0:
-            # TODO: Error
-            return
+            return self._print_and_log("No targets found for handle `{}`".format(handle), 'error')
 
         # NOTE: The if check is for when `role is not None` (ie. the `or` is short-circuited)
         role = role or targets[0]
         if role not in targets:
-            # TODO: Error
-            return
+            return self._print_and_log("Namespaced role `{}` not found as a valid target for handle `{}`".format(role, handle), 'error')
+        self._log.info("Parsed command role={} and handle={}".format(role, handle))
 
         # Send the message
         # NOTE: For the moment, we're just relying on the user "knowning" the internal messages
@@ -108,8 +123,18 @@ class CliPlugin(plugins.Plugin):
         msg.send_to(role=role)
         resp = await comm.wait_for_response(msg, self._log)
 
+        # NOTE: Do not acquire the cli lock before sending the message as that will deadlock some processing
         with await self._cli_lock:
             self._msgs.append(resp)
+
+    def _print_and_log(self, msg, level, dont_print_log_level=None):
+        log_method = getattr(self._log, level)
+        log_method(msg)
+
+        if dont_print_log_level:
+            print(msg)
+        else:
+            print("{}: {}".format(level.capitalize(), msg))
 
     async def handle_print(self, msg, comm):
         self._log.info("Adding message to print queue")
