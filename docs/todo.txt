@@ -23,6 +23,9 @@ Produce a short video of the project
 Plan out the next dev work cycle
 
 Medium Term:
+  TODO: AI capabilities
+    We may be able to implement the ai-manager by just loading in an additional library to the device-manager
+      NOTE: This library would register additional handles, etc.
   TODO: Audio Improvements
     Add "playlist" functionality to the playback system
       Play all the songs in the returned array
