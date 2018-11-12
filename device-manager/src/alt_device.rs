@@ -22,7 +22,7 @@ use message;
     // We can fill it in by checking the route field (if it's empty, I'm the first to see it)
 #[derive(Clone)]
 pub struct DeviceManager {
-    connections: Arc<Mutex<HashMap<SocketAddr, DestinationTarget>>>,
+    connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
     registered_handles: Arc<Mutex<HashMap<String, DeviceCallback>>>,
 
     cancel: Closer,
@@ -57,8 +57,9 @@ impl DeviceManager {
         handle_map.insert("quit".to_string(), Self::handle_quit);
 
         // Add the manager into the "connections" list
-        let connections = HashMap::new();
-        connections.insert(manager_proxy_addr, Connection::manager(cancel.clone()));
+        let mut connections = HashMap::new();
+        let manager_proxy = Connection::manager(cancel.clone());
+        connections.insert(manager_proxy.addr, manager_proxy);
 
         // Finalize the device manager
         Self{
@@ -76,13 +77,15 @@ impl DeviceManager {
 
         // Get the connection object to modify it
         let mut conn_lock = self.connections.lock().unwrap();
-        let mut conn = conn_lock.get_mut(&addr);
+        let conn = conn_lock.get_mut(&addr);
         if conn.is_none() {
-            return Err(Error::new(ErrorKind::NotConnected, "No connection found for the specified address"));
+            return Some(
+                Err(Error::new(ErrorKind::NotConnected, "No connection found for the specified address"))
+            );
         }
 
         // Add the handshake data to the connection object
-        let mut conn = conn.unwrap();
+        let conn = conn.unwrap();
         if let Some(uuid) = msg.sender.uuid.clone() {
             info!("Registering app uuid {:?} connected to socket address {:?}", uuid, addr);
             conn.uuid = uuid;
@@ -115,13 +118,13 @@ impl DeviceManager {
         None
     }
 
-    fn handle_stop(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handle_stop(&mut self, _msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received stop request from {:?}", addr);
         <Self as networking::BasicServer>::drop_connection(self, *addr);
         None
     }
 
-    fn handle_quit(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handle_quit(&mut self, _msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received quit request from {:?}", addr);
 
         // Send a close signal to all connected devices
@@ -153,30 +156,33 @@ impl DeviceManager {
 
     fn resolve_destination_targets(&self, dest: &message::MessageDest) -> Result<Vec<(bool, SocketAddr)>, Error> {
         // TODO: We still have some work integrating the manager into the same `Connection` type
-        let mut conns = self.connections.lock().unwrap().values().iter();
+        let connections = self.connections.lock().unwrap();
+        let mut conns: Box<Iterator<Item=&Connection>> = Box::new(connections.values());
 
         if !dest.broadcast.unwrap_or(false) {
-            if let Some(role) = dest.role {
+            if let Some(role) = dest.role.clone() {
                 debug!("Filtering connections by role: {}", role);
-                conns = conns.filter(|conn| conn.role == role);
+                conns = Box::new(conns.filter(move |conn| conn.role == *role));
             }
 
             // TODO: These types don't match yet
-            // if let Some(addr) = dest.addr {
+            // if let Some(addr) = dest.addr.clone() {
             //     debug!("Filtering connections by address: {}", addr);
-            //     conns = conns.filter(|conn| conn.addr == addr);
+            //     conns = Box::new(conns.filter(move |conn| conn.addr == addr));
             // }
 
-            if let Some(uuid) = dest.uuid {
-                debug!("Filtering connections by uuid: {}", addr);
-                conns = conns.filter(|conn| conn.uuid == uuid);
+            if let Some(uuid) = dest.uuid.clone() {
+                debug!("Filtering connections by uuid: {}", uuid);
+                conns = Box::new(conns.filter(move |conn| conn.uuid == *uuid));
             }
         }
 
-        let conns: Vec<Connection> = conns.map(|conn| (conn.is_manager, conn.addr.clone())).collect();
+        let conns: Vec<(bool, SocketAddr)> = conns
+            .map(|conn| (conn.is_manager, conn.addr.clone()))
+            .collect();
         if conns.len() == 0 {
             error!("No connections found for specified destination target {:?}", dest);
-            Err(Error::new(ErrorKind::InvalidInput, "No connections regsitered for destination target"));
+            Err(Error::new(ErrorKind::InvalidInput, "No connections regsitered for destination target"))
 
         } else {
             Ok(conns)
@@ -190,9 +196,9 @@ impl DeviceManager {
         let handle_map = self.registered_handles.clone();
 
         // Dispatch the action into the registered handles
-        let action = msg.action.clone().unwrap_or(UNMATCHABLE_STRING.to_string());
         let handles = handle_map.lock().unwrap();
-        if let Some(result) = handles.get(&action)
+        if let Some(result) = msg.action.clone()
+            .and_then(|action| handles.get(&action))
             .and_then(|handle| handle(self, &mut msg, addr))
         {
             return result;
@@ -201,13 +207,13 @@ impl DeviceManager {
         // Return the message to the sender
         msg.dest = msg.sender.clone().into();
         if let Some(ref conn) = self.connections.lock().unwrap().get(&addr) {
-            if let Some(queue) = conn.queue {
+            if let Some(ref queue) = conn.queue {
                 queue.unbounded_send(serde_json::to_value(msg)?)
                     .map_err(|_err|
                         Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
             }
 
-        } else if action != "stop" {
+        } else if msg.action != Some("stop".to_string()) {
             debug!("Failed to send response to unrecognized address {:?}: {:?}", addr, msg);
         }
 
@@ -233,13 +239,15 @@ impl DeviceManager {
                 }
             }
         }
+
+        Ok(())
     }
 
     fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), Error> {
         trace!("Sending the message to another modality");
 
         if msg.dest.broadcast.unwrap_or(false) {
-            return route_broadcast_message(self, msg, conn_opts);
+            return self.route_broadcast_message(msg, conn_opts);
         }
 
         // TODO: Resolve the destinatino to a single connection, making sure 'handle' is valid on the app
@@ -250,8 +258,8 @@ impl DeviceManager {
 
         // Now that we've resolved the destination, send the messages
         let conns = self.connections.lock().unwrap();
-        if let Some(ref conn) = conns.get(selected_connection) {
-            debug!("Sending message to {:?}", dest);
+        if let Some(ref conn) = conns.get(&selected_connection) {
+            debug!("Sending message to {:?}", selected_connection);
             if let Some(ref queue) = conn.queue {
                 queue.unbounded_send(serde_json::to_value(msg.clone())?)
                     .map_err(|_err|
@@ -259,14 +267,14 @@ impl DeviceManager {
 
                 // We use the uuid to determine if the sender isn't the recipient
                 // and send an ack message if so
-                if msg.sender.uuid != Some(conn.uuid) && msg.sender.is_some() {
-                    let sender_uuid = msg.sender.uuid.unwrap();
+                if msg.sender.uuid != Some(conn.uuid.clone()) && msg.sender.uuid.is_some() {
+                    let sender_uuid = msg.sender.uuid.clone().unwrap();
                     debug!("The receiving app was not the same as the sending app. Sending ack message to {:?}", sender_uuid);
 
                     // Find the connection to the sender_uuid app and send the ack message over it's queue
                     if let Some(queue) = conns.values()
                         .find(|conn| conn.uuid == sender_uuid)
-                        .and_then(|conn| conn.queue)
+                        .and_then(|conn| conn.queue.clone())
                     {
                         let mut msg = msg.clone();
                         msg.action = Some("ack".to_string());
@@ -303,9 +311,9 @@ impl networking::BasicServer for DeviceManager {
 
         // Handle the message as requested by the sender
         let conns = self.resolve_destination_targets(&msg.dest)?;
-        match conns.iter().find(|(is_manager, _)| is_manager) {
+        match conns.iter().find(|(is_manager, _)| *is_manager) {
             Some(_) => self.route_server_message(msg, addr)?,
-            None => self.route_network_message(msg, conns)?
+            None => self.route_network_message(msg, &conns)?
         }
 
         Ok(())
@@ -321,7 +329,7 @@ impl networking::BasicServer for DeviceManager {
         trace!("Adding connection to {:?}", addr);
 
         let mut conns = self.connections.lock().unwrap();
-        conns.insert(addr, Connection::new(addr.clone(), close_signal, write_signal));\
+        conns.insert(addr, Connection::new(addr.clone(), close_signal, write_signal));
 
         info!("Added connection to {:?}", addr);
         Ok(())
@@ -340,19 +348,14 @@ impl networking::BasicServer for DeviceManager {
 }
 
 
-enum DestinationTarget {
-    Manager,
-    App(Vec<Connection>)
-}
-
 // Structure to encapsulate connection state for storage
 struct Connection {
     pub addr: SocketAddr,
     pub close: Closer,
     pub queue: Option<Communicator>,
     pub role: String,
-    pub uuid: String
-    pub is_manager: bool
+    pub uuid: String,
+    pub is_manager: bool,
 }
 
 impl Connection {
@@ -382,7 +385,3 @@ impl Connection {
 // Types for the device callback functions
 type CallbackResult = Option<Result<(), Error>>;        // Some(_) indicates return early with the result
 type DeviceCallback = fn(&mut DeviceManager, &mut message::Message, addr: &SocketAddr) -> CallbackResult;
-
-// NOTE: This is used to get around the borrow checker when matching against the `message` structs
-// For some reason, the borrow checker wouldn't allow me to transform an `Option<String>` into an `Option<&str>` temporarily
-const UNMATCHABLE_STRING: &'static str = "DO_NOT_MATCH_THIS_STRING";

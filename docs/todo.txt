@@ -2,9 +2,12 @@
 
 Short Term:
   Add in "device-querying" capabilities to the cli interface
-    Improve manager tracking so that it knows what connections have what registered fields/roles, etc and can query it
     Modify the manager to consider the role/action combo when forwarding messages
-      If there is no connection for the role/action combo, then the server must return an error
+      Test the new routing system to ensure it performs as expected
+      Test the new routing system for returning appropriate error messages
+      Implement the handshake process so that apps can register what handles they support
+      Look at being able to modify the routing system with networking-style "forwarding tables"
+        This is to reach apps held under a second device-manager
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
     Instrument the device-manager to collect data about manager/plugin running
