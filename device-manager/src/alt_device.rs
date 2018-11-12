@@ -151,27 +151,29 @@ impl DeviceManager {
         }
     }
 
-    fn resolve_destination_target(&self, dest: &message::MessageDest) -> Result<Vec<Connection>, Error> {
+    fn resolve_destination_targets(&self, dest: &message::MessageDest) -> Result<Vec<(bool, SocketAddr)>, Error> {
         // TODO: We still have some work integrating the manager into the same `Connection` type
         let mut conns = self.connections.lock().unwrap().values().iter();
 
-        if let Some(role) = dest.role {
-            debug!("Filtering connections by role: {}", role);
-            conns = conns.filter(|conn| conn.role == role);
+        if !dest.broadcast.unwrap_or(false) {
+            if let Some(role) = dest.role {
+                debug!("Filtering connections by role: {}", role);
+                conns = conns.filter(|conn| conn.role == role);
+            }
+
+            // TODO: These types don't match yet
+            // if let Some(addr) = dest.addr {
+            //     debug!("Filtering connections by address: {}", addr);
+            //     conns = conns.filter(|conn| conn.addr == addr);
+            // }
+
+            if let Some(uuid) = dest.uuid {
+                debug!("Filtering connections by uuid: {}", addr);
+                conns = conns.filter(|conn| conn.uuid == uuid);
+            }
         }
 
-        // TODO: These types don't match yet
-        // if let Some(addr) = dest.addr {
-        //     debug!("Filtering connections by address: {}", addr);
-        //     conns = conns.filter(|conn| conn.addr == addr);
-        // }
-
-        if let Some(uuid) = dest.uuid {
-            debug!("Filtering connections by uuid: {}", addr);
-            conns = conns.filter(|conn| conn.uuid == uuid);
-        }
-
-        let conns: Vec<Connection> = conns.collect();
+        let conns: Vec<Connection> = conns.map(|conn| (conn.is_manager, conn.addr.clone())).collect();
         if conns.len() == 0 {
             error!("No connections found for specified destination target {:?}", dest);
             Err(Error::new(ErrorKind::InvalidInput, "No connections regsitered for destination target"));
@@ -212,8 +214,74 @@ impl DeviceManager {
         Ok(())
     }
 
-    fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<Connection>) -> Result<(), Error> {
+    fn route_broadcast_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), Error> {
+        let msg = serde_json::to_value(msg)?;
+
+        debug!("Performing broadcast of {:?} to all registered modalities", msg);
+
+        // NOTE: We need to query the stored connections map to guard against the connection
+        // dropping in between when the `conn_opts` vector was generated and this method is called
+        // NOTE: We don't just use the `conns` map as we may use this system to broadcast "events"
+        // Which should only be sent to apps which explicitly register themselves for them
+        let conns = self.connections.lock().unwrap();
+        for (_, conn_addr) in conn_opts {
+            if let Some(ref conn) = conns.get(conn_addr) {
+                if let Some(ref queue) = conn.queue {
+                    queue.unbounded_send(msg.clone())
+                        .map_err(|_err|
+                            Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                }
+            }
+        }
+    }
+
+    fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), Error> {
         trace!("Sending the message to another modality");
+
+        if msg.dest.broadcast.unwrap_or(false) {
+            return route_broadcast_message(self, msg, conn_opts);
+        }
+
+        // TODO: Resolve the destinatino to a single connection, making sure 'handle' is valid on the app
+            // TODO: We may want to "precompute" the sender app here, in order to consider it in destination selection
+        // TODO: Need to store information about handles on a "per-app" basis
+        let selected_connection_index = 0 as usize;
+        let (_, selected_connection) = conn_opts[selected_connection_index];
+
+        // Now that we've resolved the destination, send the messages
+        let conns = self.connections.lock().unwrap();
+        if let Some(ref conn) = conns.get(selected_connection) {
+            debug!("Sending message to {:?}", dest);
+            if let Some(ref queue) = conn.queue {
+                queue.unbounded_send(serde_json::to_value(msg.clone())?)
+                    .map_err(|_err|
+                        Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+
+                // We use the uuid to determine if the sender isn't the recipient
+                // and send an ack message if so
+                if msg.sender.uuid != Some(conn.uuid) && msg.sender.is_some() {
+                    let sender_uuid = msg.sender.uuid.unwrap();
+                    debug!("The receiving app was not the same as the sending app. Sending ack message to {:?}", sender_uuid);
+
+                    // Find the connection to the sender_uuid app and send the ack message over it's queue
+                    if let Some(queue) = conns.values()
+                        .find(|conn| conn.uuid == sender_uuid)
+                        .and_then(|conn| conn.queue)
+                    {
+                        let mut msg = msg.clone();
+                        msg.action = Some("ack".to_string());
+
+                        queue.unbounded_send(serde_json::to_value(msg)?)
+                            .map_err(|_err|
+                                Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                    } else {
+                        debug!("Failed to send ack message to unknown app {:?}: {:?}", sender_uuid, msg);
+                    }
+                }
+            } else {
+                debug!("Failed to send message to unknown address {:?}: {:?}", selected_connection, msg);
+            }
+        }
 
         Ok(())
     }
@@ -235,7 +303,7 @@ impl networking::BasicServer for DeviceManager {
 
         // Handle the message as requested by the sender
         let conns = self.resolve_destination_targets(&msg.dest)?;
-        match conns.iter().find(|conn| conn.is_manager) {
+        match conns.iter().find(|(is_manager, _)| is_manager) {
             Some(_) => self.route_server_message(msg, addr)?,
             None => self.route_network_message(msg, conns)?
         }

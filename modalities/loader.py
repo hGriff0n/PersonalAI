@@ -69,11 +69,12 @@ def writer(comm, sock, log):
             break
 
 
-async def handshake(plugin, _plugin_handles, comm):
+async def handshake(plugin, plugin_handles, comm):
     plugin.logger.info("Initiating plugin handshake with device-manager")
 
     msg = Message(plugin=plugin)
     msg.action = 'handshake'
+    msg.args = { 'registered_handles': plugin_handles }
     msg.send_to(role='manager')
     await comm.wait_for_response(msg, plugin.logger)
 
