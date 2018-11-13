@@ -60,7 +60,7 @@ class CliPlugin(plugins.Plugin):
         with await self._cli_lock:
             if self._current_mode == self.CHAT:
                 self._log.info("Translating chat query into dispatch command: {}".format(query))
-                query = "dispatch \"{}\"".format(query)
+                query = "dispatch:dispatch \"{}\"".format(query)
 
         await self._parse_command(query, comm)
         return True
@@ -94,6 +94,8 @@ class CliPlugin(plugins.Plugin):
             self._log.debug("Detected role namespacing in handle `{}`".format(handle))
             role, handle = tuple(handle.split(':'))
             # TODO: Should we handle cases where more than one ':' is used? I think this crashes right now if that happens
+
+        # TODO: Without handling the "roles" in the cli app, how do I add the information to route it?
 
         # NOTE: This tracking is being moved into the device_manager
         # Extract the actual role that corresponds to the provided handle

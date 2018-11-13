@@ -74,7 +74,7 @@ async def handshake(plugin, plugin_handles, comm):
 
     msg = Message(plugin=plugin)
     msg.action = 'handshake'
-    msg.args = { 'registered_handles': plugin_handles }
+    msg.args = { 'registered_handles': list(plugin_handles.keys()) }
     msg.send_to(role='manager')
     await comm.wait_for_response(msg, plugin.logger)
 

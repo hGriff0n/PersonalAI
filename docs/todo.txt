@@ -3,15 +3,17 @@
 Short Term:
   Add in "device-querying" capabilities to the cli interface
     Modify the manager to consider the role/action combo when forwarding messages
-      Test the new routing system to ensure it performs as expected
-      Test the new routing system for returning appropriate error messages
-      Implement the handshake process so that apps can register what handles they support
+      Change routing system to be able to return error messages to the plugins
+        Add in handle sanity checks to destination routing (make sure it supports it)
+      Fix "ack" messages being sent prematurely (as soon as the device-manager receives it from the sender)
+      Figure out how to add in automatic role specifying for the cli app
+        Either implement the event system or enable "handle"-based routing
       Look at being able to modify the routing system with networking-style "forwarding tables"
         This is to reach apps held under a second device-manager
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
     Instrument the device-manager to collect data about manager/plugin running
-    Add manager endpoint handles to enable query for performance data
+    Add manager endpoint handles to enable querying performance data
       One endpoint must enable getting list of connected apps
     Remove message queuing in the main thread of the cli app
       NOTE: We have to keep queuing for message received from outside
