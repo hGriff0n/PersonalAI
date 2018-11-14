@@ -87,7 +87,7 @@ class Plugin:
 
         These messages are sent if a request/message fails for some reason
         """
-        self._log.error("Handled error message: {}".format(msg.args))
+        self._log.error("Handled error message: {}".format(msg.resp))
 
     # Plugin registration
     def _register_handle(self, action, callback):

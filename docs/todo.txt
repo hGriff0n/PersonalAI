@@ -3,8 +3,7 @@
 Short Term:
   Add in "device-querying" capabilities to the cli interface
     Modify the manager to consider the role/action combo when forwarding messages
-      Change routing system to be able to return error messages to the plugins
-        Add in handle sanity checks to destination routing (make sure it supports it)
+      Add in handle sanity checks to destination routing (make sure it supports it)
       Fix "ack" messages being sent prematurely (as soon as the device-manager receives it from the sender)
       Figure out how to add in automatic role specifying for the cli app
         Either implement the event system or enable "handle"-based routing
@@ -113,6 +112,7 @@ Medium Term:
       This would allow apps to subscribe to receive data when certain "system events" occur (eg. "App connected/disconnected")
         NOTE: This would be more of a generalization of the existing message system is some aspects
           The actual implementation should be similar to multicast subscriptions
+    Improve handling of apps entering and leaving the system
   TODO: System Build Improvements
     Disconnect the framework from the build directory structure
       I should be able to create a plugin anywhere and still spawn it in the system
@@ -151,6 +151,7 @@ Medium Term:
           I'd like it to instead just ignore these arguments and continue with parsing
           Apparently, there are cli utilities that allow for ignoring unknown arguments
     Update all dependencies to utilize the most recent version
+    See if there isn't some way to configure the system to automatically log all panics before actually exiting
 
 Long Term:
   Develop my own NLP system for decoding the purpose of messages (Wit doesn't seem to want to adapt)

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use get_if_addrs;
 use multimap::MultiMap;     // This is unused at the moment
 use serde_json;
-use tokio::io::{Error, ErrorKind};
+use tokio::io;
 
 use networking;
 use networking::{Closer, Communicator};
@@ -72,20 +72,13 @@ impl DeviceManager {
     }
 
     // TODO: How do we handle "multi-stage" handshakes with this format?
-    fn handshake(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handshake(&mut self, msg: &message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received handshake request from {:?}", addr);
 
-        // Get the connection object to modify it
+        // Get the connection object to add the handshake data to it
         let mut conn_lock = self.connections.lock().unwrap();
-        let conn = conn_lock.get_mut(&addr);
-        if conn.is_none() {
-            return Some(
-                Err(Error::new(ErrorKind::NotConnected, "No connection found for the specified address"))
-            );
-        }
+        let conn = conn_lock.get_mut(&addr).expect("Attempt to perform handshake registration with unregistered connection (not in the manager connection map)");
 
-        // Add the handshake data to the connection object
-        let conn = conn.unwrap();
         if let Some(uuid) = msg.sender.uuid.clone() {
             info!("Registering app uuid {:?} connected to socket address {:?}", uuid, addr);
             conn.uuid = uuid;
@@ -95,10 +88,10 @@ impl DeviceManager {
             conn.role = role;
         }
 
-        None
+        Ok(json!(null))
     }
 
-    fn handle_search(&mut self, msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handle_search(&mut self, msg: &message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received search request from {:?}", addr);
 
         // Perform a filesystem search over the given arguments
@@ -107,24 +100,25 @@ impl DeviceManager {
 
             if let Some(query) = &args[0].as_str() {
                 let results = seshat::default_search(query, &self.index);
-                msg.resp = Some(json!(results));
-                info!("Found results: {:?}", msg.resp);
+                info!("Successfully completed request for {:?}! Returning results: {:?}", query, results);
+                Ok(json!(results))
 
             } else {
                 debug!("Could not cast query arg to string: {:?}", args[0]);
+                Err(DeviceErrors::Sendable("Search expects arg[0] having type `String`".to_string()))
             }
+        } else {
+            Err(DeviceErrors::Sendable("No arguments provided to manager search query".to_string()))
         }
-
-        None
     }
 
-    fn handle_stop(&mut self, _msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handle_stop(&mut self, _msg: &message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received stop request from {:?}", addr);
         <Self as networking::BasicServer>::drop_connection(self, *addr);
-        None
+        Ok(json!(null))
     }
 
-    fn handle_quit(&mut self, _msg: &mut message::Message, addr: &SocketAddr) -> CallbackResult {
+    fn handle_quit(&mut self, _msg: &message::Message, addr: &SocketAddr) -> CallbackResult {
         trace!("Received quit request from {:?}", addr);
 
         // Send a close signal to all connected devices
@@ -134,27 +128,31 @@ impl DeviceManager {
         let mut conns = self.connections.lock().unwrap();
         for (addr, _) in conns.iter() {
             trace!("Closing connection on {:?} in response to `quit` request", *addr);
-            self.on_connection_close(&conns, *addr);
+            self.on_connection_close(&conns, *addr)?;
         }
-
         conns.clear();
-        info!("Sent asynchronous close requests to all connections. Closing device manager");
 
         // Send the server close signal
-        Some(self.cancel.send(())
-            .map_err(|_| Error::new(ErrorKind::ConnectionAborted, "Failed to send cancel signal")))
+        info!("Sent asynchronous close requests to all connections. Closing device manager");
+        self.cancel.send(())
+            .map_err(|_err| DeviceErrors::Internal("Failed to send cancel signal to the device manager".to_string()))?;
+
+        Ok(json!(null))
     }
 
-    fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) {
+    fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) -> Result<(), DeviceErrors>{
         if let Some(ref conn) = conns.get(&addr) {
             if !conn.is_manager {
+                // TODO: Convert this to an internal error
                 conn.close.send(())
-                    .expect("Failed to send closing signal to connection");
+                    .map_err(|_err| DeviceErrors::Internal(format!("Failed to send closing signal to connection on socket address {:?}", addr)))?
             }
         }
+
+        Ok(())
     }
 
-    fn resolve_destination_targets(&self, dest: &message::MessageDest) -> Result<Vec<(bool, SocketAddr)>, Error> {
+    fn resolve_destination_targets(&self, dest: &message::MessageDest) -> Result<Vec<(bool, SocketAddr)>, DeviceErrors> {
         // TODO: We still have some work integrating the manager into the same `Connection` type
         let connections = self.connections.lock().unwrap();
         let mut conns: Box<Iterator<Item=&Connection>> = Box::new(connections.values());
@@ -181,38 +179,27 @@ impl DeviceManager {
             .map(|conn| (conn.is_manager, conn.addr.clone()))
             .collect();
         if conns.len() == 0 {
-            error!("No connections found for specified destination target {:?}", dest);
-            Err(Error::new(ErrorKind::InvalidInput, "No connections regsitered for destination target"))
+            let error_msg = format!("No connections found for specified desination target {:?}", dest);
+            error!("{}", error_msg);
+            Err(DeviceErrors::Sendable(error_msg))
 
         } else {
             Ok(conns)
         }
     }
 
-    fn route_server_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), Error> {
-        trace!("Handling server request");
-
-        // Clone the map to satisfy the borrow checker
-        let handle_map = self.registered_handles.clone();
-
-        // Dispatch the action into the registered handles
-        let handles = handle_map.lock().unwrap();
-        if let Some(result) = msg.action.clone()
-            .and_then(|action| handles.get(&action))
-            .and_then(|handle| handle(self, &mut msg, addr))
-        {
-            return result;
-        }
-
-        // Return the message to the sender
+    fn return_to_sender(&self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), DeviceErrors> {
         msg.dest = msg.sender.clone().into();
         if let Some(ref conn) = self.connections.lock().unwrap().get(&addr) {
             if let Some(ref queue) = conn.queue {
-                queue.unbounded_send(serde_json::to_value(msg)?)
-                    .map_err(|_err|
-                        Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                let msg = serde_json::to_value(msg)
+                    .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
+                queue.unbounded_send(msg)
+                    .map_err(|_err| DeviceErrors::Recoverable(
+                        io::Error::new(io::ErrorKind::Other, format!("Failed to send message to communication queue of connection on socket address {:?}", addr))))?;
             }
 
+        // NOTE: We use this check to ignore messages that get sent to an app after the app "de-registers" itself
         } else if msg.action != Some("stop".to_string()) {
             debug!("Failed to send response to unrecognized address {:?}: {:?}", addr, msg);
         }
@@ -220,8 +207,30 @@ impl DeviceManager {
         Ok(())
     }
 
-    fn route_broadcast_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), Error> {
-        let msg = serde_json::to_value(msg)?;
+    fn route_server_message(&mut self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), DeviceErrors> {
+        trace!("Handling server request");
+
+        // Clone the map to satisfy the borrow checker
+        let handle_map = self.registered_handles.clone();
+
+        // Dispatch the action into the registered handles
+        let handles = handle_map.lock().unwrap();
+        match msg.action.clone()
+            .and_then(|action| handles.get(&action))
+            .and_then(|handle| Some(handle(self, &msg, addr)))
+            .unwrap_or(Err(DeviceErrors::Sendable("Attempt to query server using unknown action handle".to_string())))?
+        {
+            serde_json::Value::Null => (),
+            resp => msg.resp = Some(resp)
+        }
+
+        // Return the message to the sender
+        self.return_to_sender(msg, addr)
+    }
+
+    fn route_broadcast_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), DeviceErrors> {
+        let msg = serde_json::to_value(msg)
+            .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
 
         debug!("Performing broadcast of {:?} to all registered modalities", msg);
 
@@ -234,8 +243,8 @@ impl DeviceManager {
             if let Some(ref conn) = conns.get(conn_addr) {
                 if let Some(ref queue) = conn.queue {
                     queue.unbounded_send(msg.clone())
-                        .map_err(|_err|
-                            Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                        .map_err(|_err| DeviceErrors::Recoverable(
+                            io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
                 }
             }
         }
@@ -243,7 +252,7 @@ impl DeviceManager {
         Ok(())
     }
 
-    fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), Error> {
+    fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), DeviceErrors> {
         trace!("Sending the message to another modality");
 
         if msg.dest.broadcast.unwrap_or(false) {
@@ -261,12 +270,15 @@ impl DeviceManager {
         if let Some(ref conn) = conns.get(&selected_connection) {
             debug!("Sending message to {:?}", selected_connection);
             if let Some(ref queue) = conn.queue {
-                queue.unbounded_send(serde_json::to_value(msg.clone())?)
-                    .map_err(|_err|
-                        Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                let sending_msg = serde_json::to_value(msg.clone())
+                    .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
+                queue.unbounded_send(sending_msg)
+                    .map_err(|_err| DeviceErrors::Recoverable(
+                        io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
 
                 // We use the uuid to determine if the sender isn't the recipient
                 // and send an ack message if so
+                // TODO: This sends ack message after immediate reception
                 if msg.sender.uuid != Some(conn.uuid.clone()) && msg.sender.uuid.is_some() {
                     let sender_uuid = msg.sender.uuid.clone().unwrap();
                     debug!("The receiving app was not the same as the sending app. Sending ack message to {:?}", sender_uuid);
@@ -278,16 +290,18 @@ impl DeviceManager {
                     {
                         let mut msg = msg.clone();
                         msg.action = Some("ack".to_string());
+                        let msg = serde_json::to_value(msg)
+                            .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
 
-                        queue.unbounded_send(serde_json::to_value(msg)?)
-                            .map_err(|_err|
-                                Error::new(ErrorKind::Other, "Failed to send message through pipe"))?;
+                        queue.unbounded_send(msg)
+                            .map_err(|_err| DeviceErrors::Recoverable(
+                                io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
                     } else {
-                        debug!("Failed to send ack message to unknown app {:?}: {:?}", sender_uuid, msg);
+                        error!("Attempt to send ack message to unknown app {:?}: {:?}", sender_uuid, msg);
                     }
                 }
             } else {
-                debug!("Failed to send message to unknown address {:?}: {:?}", selected_connection, msg);
+                error!("Attempt to send message to unknown address {:?}: {:?}", selected_connection, msg);
             }
         }
 
@@ -297,7 +311,7 @@ impl DeviceManager {
 
 
 impl networking::BasicServer for DeviceManager {
-    fn handle_request(&mut self, msg: serde_json::Value, addr: &SocketAddr) -> Result<(), Error> {
+    fn handle_request(&mut self, msg: serde_json::Value, addr: &SocketAddr) -> Result<(), io::Error> {
         let mut msg: message::Message = serde_json::from_value(msg)?;
         debug!("Parsed received message {:?}", msg);
 
@@ -310,11 +324,22 @@ impl networking::BasicServer for DeviceManager {
         trace!("Appended required sender data");
 
         // Handle the message as requested by the sender
-        let conns = self.resolve_destination_targets(&msg.dest)?;
-        match conns.iter().find(|(is_manager, _)| *is_manager) {
-            Some(_) => self.route_server_message(msg, addr)?,
-            None => self.route_network_message(msg, &conns)?
-        }
+        let mut original_msg = msg.clone();
+        self.resolve_destination_targets(&msg.dest)
+            .and_then(|conns| match conns.iter().find(|(is_manager, _)| *is_manager) {
+                Some(_) => self.route_server_message(msg, addr),
+                None => self.route_network_message(msg, &conns),
+            })
+            .or_else(|err| match err {
+                DeviceErrors::Sendable(error) => {
+                    original_msg.action = Some("error".to_string());
+                    original_msg.resp = Some(json!(vec![json!(error)]));
+                    self.return_to_sender(original_msg, addr)
+                        .map_err(|_err| io::Error::new(io::ErrorKind::Other, format!("Failed to send error message to connection on socket addres: {:?}", addr)))
+                },
+                DeviceErrors::Recoverable(error) => Err(error),
+                DeviceErrors::Internal(error) => panic!(error),
+            })?;
 
         Ok(())
     }
@@ -325,7 +350,7 @@ impl networking::BasicServer for DeviceManager {
         msg
     }
 
-    fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), Error> {
+    fn add_connection(&self, addr: SocketAddr, close_signal: Closer, write_signal: Communicator) -> Result<(), io::Error> {
         trace!("Adding connection to {:?}", addr);
 
         let mut conns = self.connections.lock().unwrap();
@@ -340,7 +365,8 @@ impl networking::BasicServer for DeviceManager {
         trace!("Dropping connection to {:?}", addr);
 
         let mut conns = self.connections.lock().unwrap();
-        self.on_connection_close(&conns, addr);
+        self.on_connection_close(&conns, addr)
+            .expect(&format!("Failed to successfully close connection on socket address {:?}", addr));
         conns.remove(&addr);
 
         info!("Dropped connection to {:?}", addr);
@@ -383,5 +409,12 @@ impl Connection {
 }
 
 // Types for the device callback functions
-type CallbackResult = Option<Result<(), Error>>;        // Some(_) indicates return early with the result
-type DeviceCallback = fn(&mut DeviceManager, &mut message::Message, addr: &SocketAddr) -> CallbackResult;
+type CallbackResult = Result<serde_json::Value, DeviceErrors>;
+type DeviceCallback = fn(&mut DeviceManager, &message::Message, addr: &SocketAddr) -> CallbackResult;
+
+#[derive(Debug)]
+enum DeviceErrors {
+    Recoverable(io::Error),
+    Sendable(String),
+    Internal(String)
+}
