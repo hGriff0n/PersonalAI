@@ -10,6 +10,7 @@ class Message:
     def __init__(self, plugin=None, role=None):
         self._msg = {
             'message_id': str(uuid.uuid4()),
+            'send_ack': False,
             'route': [],
             'sender': {},
             'dest': {},
@@ -28,9 +29,13 @@ class Message:
         return self._msg
 
     @staticmethod
-    def from_json(json_msg):
+    def from_json(json_msg, send_ack=None):
         msg = Message()
         msg._msg = json_msg.copy()
+
+        if send_ack:
+            msg._msg['send_ack'] = True
+
         return msg
 
     @property

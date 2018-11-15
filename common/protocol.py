@@ -77,7 +77,7 @@ class JsonCodec:
                 msg = json.loads(buf.decode('utf-8'))
 
                 log.info("Received message id={}: {}".format(msg.get('message_id'), msg))
-                yield Message.from_json(msg)
+                yield Message.from_json(msg, send_ack=True)
 
         except ConnectionResetError as e:
             log.error("Lost connection to server")

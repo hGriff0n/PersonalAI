@@ -91,7 +91,7 @@ impl DeviceManager {
         if let Some(ref args) = msg.args {
             if let serde_json::Value::Array(ref handles) = args[0]["registered_handles"] {
                 conn.exported_handles.extend(handles.iter().filter(|handle| handle.is_string()).map(|handle| handle.as_str().unwrap().to_string()));
-                info!("Set handles for {:?} {:?}", addr, conn.exported_handles);
+                info!("Registering action handles for socket address {:?}: {:?}", addr, conn.exported_handles);
             }
         }
 
@@ -251,12 +251,19 @@ impl DeviceManager {
                 if let Some(ref queue) = conn.get_queue() {
                     queue.unbounded_send(msg.clone())
                         .map_err(|_err| DeviceErrors::Recoverable(
-                            io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
+                            io::Error::new(io::ErrorKind::Other, format!("Failed to send message to communication queue for connection on {:?}", conn.get_addr()))))?;
                 }
             }
         }
 
         Ok(())
+    }
+
+    fn resolve_sender<'a>(&self, sender: &message::MessageSender, conns: &'a HashMap<SocketAddr, Box<AppConnection>>) -> Option<&'a Box<AppConnection>> {
+        let sender_uuid = sender.uuid.clone();
+        let sender_uuid = sender_uuid.as_ref().map(|s| &**s);       // This is solely to type the coparison
+        conns.values()
+            .find(|conn| Some(conn.get_uuid()) == sender_uuid)
     }
 
     fn route_network_message(&mut self, msg: message::Message, conn_opts: &Vec<(bool, SocketAddr)>) -> Result<(), DeviceErrors> {
@@ -295,30 +302,38 @@ impl DeviceManager {
                     .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
                 queue.unbounded_send(sending_msg)
                     .map_err(|_err| DeviceErrors::Recoverable(
-                        io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
+                        io::Error::new(io::ErrorKind::Other, format!("Failed to send message to communication queue for connection on {:?}", conn.get_addr()))))?;
 
-                // We use the uuid to determine if the sender isn't the recipient
-                // and send an ack message if so
-                // TODO: This sends ack message after immediate reception
-                if msg.sender.uuid != Some(conn.uuid.clone()) && msg.sender.uuid.is_some() {
-                    let sender_uuid = msg.sender.uuid.clone().unwrap();
-                    debug!("The receiving app was not the same as the sending app. Sending ack message to {:?}", sender_uuid);
+                // Check whether we should consider producing an 'ack' message
+                // NOTE: We currently leave the question of whether we should even consider producing an "ack" to the `responder`
+                // This is not entireably desirable as it leaves a large hole for introducing app errors (see cli app which requires an 'ack' response)
+                // TODO: Move towards a more "progressive" ack-ing mechanism where the original sending app requests that an ack "should" be sent
+                if msg.send_ack {
 
-                    // Find the connection to the sender_uuid app and send the ack message over it's queue
-                    if let Some(queue) = conns.values()
-                        .find(|conn| conn.uuid == sender_uuid)
-                        .and_then(|conn| conn.get_queue().clone())
-                    {
-                        let mut msg = msg.clone();
-                        msg.action = Some("ack".to_string());
-                        let msg = serde_json::to_value(msg)
-                            .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
+                    // We first have to determine which connection is responsible for the sender app
+                    // NOTE: We currently perform this check solely on the basis of the app's uuid
+                    if let Some(sender_conn) = self.resolve_sender(&msg.sender, &conns) {
 
-                        queue.unbounded_send(msg)
-                            .map_err(|_err| DeviceErrors::Recoverable(
-                                io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
+                        // If the immediate recipient cannot also send this message on to the sender, then we send the ack out to the sender connection
+                        if conn.get_addr() != sender_conn.get_addr() {
+                            debug!("The receiving app was not the same as the sending app. Sending ack message to {:?}", sender_conn.get_uuid());
+                            if let Some(queue) = sender_conn.get_queue().clone() {
+                                let mut msg = msg;
+                                msg.action = Some("ack".to_string());
+
+                                let msg = serde_json::to_value(msg)
+                                    .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
+
+                                queue.unbounded_send(msg)
+                                    .map_err(|_err| DeviceErrors::Recoverable(
+                                        io::Error::new(io::ErrorKind::Other, format!("Failed to send message to communication queue for connection on {:?}", conn.get_addr()))))?;
+                            } else {
+                                return Err(DeviceErrors::Recoverable(
+                                    io::Error::new(io::ErrorKind::Other, format!("Failed to get communication queue for connection {:?}", sender_conn.get_uuid()))));
+                            }
+                        }
                     } else {
-                        error!("Attempt to send ack message to unknown app {:?}: {:?}", sender_uuid, msg);
+                        error!("Attempt to send message from unknown app {:?}: {:?}", msg.sender.uuid, msg);
                     }
                 }
             } else {

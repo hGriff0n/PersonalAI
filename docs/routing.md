@@ -25,7 +25,7 @@ required to be specified at construction.
   "forward": null,
   "message_id": "5e17c49d-9332-587a-98d0-3a16ff21c3fb",
   "parent_id": null,
-  "ack_uuid": "084c32bc-8f7a-54c9-ae26-41c3c4c4bae4"
+  "send_ack": false
   ```
 
 Every message **must** be assigned a guid at creation in the 'message_id' field.
@@ -45,8 +45,7 @@ unable, particularly with the 'addr' field
 
 > The 'uuid' field **must** contain the guid of the specific producing plugin/manager combo
 
-If an ACK message is desired (such as when a message from *A* triggers actions in another app *B*), the
-'ack_uuid' field **may** be set to the value of 'sender.uuid'.
+If an ACK message is desired (such as when a message from *A* triggers actions in another app *B*, yet knowledge of message "success" is desired in *A*), the 'send_ack' field **must** be set to 'true'. Otherwise, the 'send_ack' field **must** be set to 'false'
 
 When a manager receives a message such that the 'ack_uuid' field of the message isn't *null* and the
 destination app cannot be the same as the 'ack_uuid' app, then it **must** split the message and forward

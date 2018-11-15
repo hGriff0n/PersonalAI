@@ -2,12 +2,8 @@
 
 Short Term:
   Add in "device-querying" capabilities to the cli interface
-    Modify the manager to consider the role/action combo when forwarding messages
-      Modify the "must_send_ack" check to operate off of SocketAddr (instead of uuid)
-        Extract the destination `SocketAddr` from the connection and sender objects
-        NOTE: We can still consider the uuid as part of the check, however the actual decision must be based on reachability
-      Figure out how to add in automatic role specifying for the cli app
-        Either implement the event system or enable "handle"-based routing
+    Figure out how to add in automatic role specifying for the cli app
+      Either implement the event system or enable "handle"-based routing
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
     Instrument the device-manager to collect data about manager/plugin running
@@ -63,6 +59,7 @@ Medium Term:
       TODO: (for #1 and #2)
         How to register and specify the argparsers on the client end
         How to adapt the current system to work when the new system is used
+    Change the routing ack-mechanism to be "opt-in" on the sender side (as opposed to the responder side)
   TODO:Manager Improvements
     Augment routing system with the ability to recognize (and stop) loops
       Enable device-manager to handle a `quit-all` message

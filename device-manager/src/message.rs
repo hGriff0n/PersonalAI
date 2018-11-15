@@ -13,7 +13,7 @@ pub struct Message {
     // routing
     pub message_id: String,
     pub parent_id: Option<String>,
-    pub ack_uuid: Option<String>,
+    pub send_ack: bool,
     pub route: Vec<IpAddr>,
     pub forward: Option<bool>,
     pub sender: MessageSender,
@@ -51,7 +51,7 @@ impl Message {
         Self{
             message_id: "".to_string(),
             parent_id: None,
-            ack_uuid: None,
+            send_ack: false,
             route: Vec::new(),
             forward: None,
             sender: MessageSender{
