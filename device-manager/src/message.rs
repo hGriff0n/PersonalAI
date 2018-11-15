@@ -46,6 +46,7 @@ pub struct MessageDest {
 }
 
 impl Message {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self{
             message_id: "".to_string(),

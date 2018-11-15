@@ -5,10 +5,10 @@ Short Term:
     Modify the manager to consider the role/action combo when forwarding messages
       Add in handle sanity checks to destination routing (make sure it supports it)
       Fix "ack" messages being sent prematurely (as soon as the device-manager receives it from the sender)
+        The problem actually seems to be the second message (from the audio app)???
+        Improve the ack logging messages to remove confusion about what is heading where
       Figure out how to add in automatic role specifying for the cli app
         Either implement the event system or enable "handle"-based routing
-      Look at being able to modify the routing system with networking-style "forwarding tables"
-        This is to reach apps held under a second device-manager
     Come up with a data-collection framework both in python and rust
       https://github.com/performancecopilot/hornet
     Instrument the device-manager to collect data about manager/plugin running
@@ -113,6 +113,10 @@ Medium Term:
         NOTE: This would be more of a generalization of the existing message system is some aspects
           The actual implementation should be similar to multicast subscriptions
     Improve handling of apps entering and leaving the system
+    Add in ability to "gate" apps behind a second device-manager
+      NOTE: This means that I should be able to forward messages on to a connection, even though the connection will just forward them to another connection
+      I need to modify the routing system to work on "reachability" instead of "direct access"
+        TODO: Research whether there's more effective methods for my use case
   TODO: System Build Improvements
     Disconnect the framework from the build directory structure
       I should be able to create a plugin anywhere and still spawn it in the system

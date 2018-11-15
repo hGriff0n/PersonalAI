@@ -22,7 +22,7 @@ use message;
     // We can fill it in by checking the route field (if it's empty, I'm the first to see it)
 #[derive(Clone)]
 pub struct DeviceManager {
-    connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
+    connections: Arc<Mutex<HashMap<SocketAddr, Box<AppConnection>>>>,
     registered_handles: Arc<Mutex<HashMap<String, DeviceCallback>>>,
 
     cancel: Closer,
@@ -58,8 +58,8 @@ impl DeviceManager {
 
         // Add the manager into the "connections" list
         let mut connections = HashMap::new();
-        let manager_proxy = Connection::manager(cancel.clone());
-        connections.insert(manager_proxy.addr, manager_proxy);
+        let manager_proxy = AppConnection::manager(cancel.clone());
+        connections.insert(*manager_proxy.get_addr(), Box::new(manager_proxy));
 
         // Finalize the device manager
         Self{
@@ -140,11 +140,11 @@ impl DeviceManager {
         Ok(json!(null))
     }
 
-    fn on_connection_close(&self, conns: &HashMap<SocketAddr, Connection>, addr: SocketAddr) -> Result<(), DeviceErrors>{
+    fn on_connection_close(&self, conns: &HashMap<SocketAddr, Box<AppConnection>>, addr: SocketAddr) -> Result<(), DeviceErrors>{
         if let Some(ref conn) = conns.get(&addr) {
-            if !conn.is_manager {
+            if !conn.is_manager() {
                 // TODO: Convert this to an internal error
-                conn.close.send(())
+                conn.get_closer().send(())
                     .map_err(|_err| DeviceErrors::Internal(format!("Failed to send closing signal to connection on socket address {:?}", addr)))?
             }
         }
@@ -153,30 +153,30 @@ impl DeviceManager {
     }
 
     fn resolve_destination_targets(&self, dest: &message::MessageDest) -> Result<Vec<(bool, SocketAddr)>, DeviceErrors> {
-        // TODO: We still have some work integrating the manager into the same `Connection` type
+        // TODO: We still have some work integrating the manager into the same `AppConnection` type
         let connections = self.connections.lock().unwrap();
-        let mut conns: Box<Iterator<Item=&Connection>> = Box::new(connections.values());
+        let mut conns: Box<Iterator<Item=&Box<AppConnection>>> = Box::new(connections.values());
 
         if !dest.broadcast.unwrap_or(false) {
             if let Some(role) = dest.role.clone() {
                 debug!("Filtering connections by role: {}", role);
-                conns = Box::new(conns.filter(move |conn| conn.role == *role));
+                conns = Box::new(conns.filter(move |conn| conn.get_role() == role));
             }
 
             // TODO: These types don't match yet
             // if let Some(addr) = dest.addr.clone() {
             //     debug!("Filtering connections by address: {}", addr);
-            //     conns = Box::new(conns.filter(move |conn| conn.addr == addr));
+            //     conns = Box::new(conns.filter(move |conn| conn.get_addr() == addr));
             // }
 
             if let Some(uuid) = dest.uuid.clone() {
                 debug!("Filtering connections by uuid: {}", uuid);
-                conns = Box::new(conns.filter(move |conn| conn.uuid == *uuid));
+                conns = Box::new(conns.filter(move |conn| conn.get_uuid() == uuid));
             }
         }
 
         let conns: Vec<(bool, SocketAddr)> = conns
-            .map(|conn| (conn.is_manager, conn.addr.clone()))
+            .map(|conn| (conn.is_manager(), conn.get_addr().clone()))
             .collect();
         if conns.len() == 0 {
             let error_msg = format!("No connections found for specified desination target {:?}", dest);
@@ -191,7 +191,7 @@ impl DeviceManager {
     fn return_to_sender(&self, mut msg: message::Message, addr: &SocketAddr) -> Result<(), DeviceErrors> {
         msg.dest = msg.sender.clone().into();
         if let Some(ref conn) = self.connections.lock().unwrap().get(&addr) {
-            if let Some(ref queue) = conn.queue {
+            if let Some(ref queue) = conn.get_queue() {
                 let msg = serde_json::to_value(msg)
                     .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
                 queue.unbounded_send(msg)
@@ -241,7 +241,7 @@ impl DeviceManager {
         let conns = self.connections.lock().unwrap();
         for (_, conn_addr) in conn_opts {
             if let Some(ref conn) = conns.get(conn_addr) {
-                if let Some(ref queue) = conn.queue {
+                if let Some(ref queue) = conn.get_queue() {
                     queue.unbounded_send(msg.clone())
                         .map_err(|_err| DeviceErrors::Recoverable(
                             io::Error::new(io::ErrorKind::Other, "Failed to send message to connections communication queue")))?;
@@ -269,7 +269,7 @@ impl DeviceManager {
         let conns = self.connections.lock().unwrap();
         if let Some(ref conn) = conns.get(&selected_connection) {
             debug!("Sending message to {:?}", selected_connection);
-            if let Some(ref queue) = conn.queue {
+            if let Some(ref queue) = conn.get_queue() {
                 let sending_msg = serde_json::to_value(msg.clone())
                     .map_err(|err| DeviceErrors::Sendable(err.to_string()))?;
                 queue.unbounded_send(sending_msg)
@@ -286,7 +286,7 @@ impl DeviceManager {
                     // Find the connection to the sender_uuid app and send the ack message over it's queue
                     if let Some(queue) = conns.values()
                         .find(|conn| conn.uuid == sender_uuid)
-                        .and_then(|conn| conn.queue.clone())
+                        .and_then(|conn| conn.get_queue().clone())
                     {
                         let mut msg = msg.clone();
                         msg.action = Some("ack".to_string());
@@ -354,7 +354,7 @@ impl networking::BasicServer for DeviceManager {
         trace!("Adding connection to {:?}", addr);
 
         let mut conns = self.connections.lock().unwrap();
-        conns.insert(addr, Connection::new(addr.clone(), close_signal, write_signal));
+        conns.insert(addr, Box::new(AppConnection::new(addr.clone(), close_signal, write_signal)));
 
         info!("Added connection to {:?}", addr);
         Ok(())
@@ -374,17 +374,28 @@ impl networking::BasicServer for DeviceManager {
 }
 
 
+// TODO: This is the first interface to attempting to unify the handling of app, manager, and forwarding connections
+trait RoutingConnection: Send{
+    fn get_addr(&self) -> &SocketAddr;
+    fn get_closer(&self) -> &Closer;
+    fn get_queue(&self) -> &Option<Communicator>;
+    fn get_role(&self) -> &str;
+    fn get_uuid(&self) -> &str;
+    fn is_manager(&self) -> bool;
+}
+
 // Structure to encapsulate connection state for storage
-struct Connection {
+// TODO: We currently also use this to "hold" the manager self connection reference
+struct AppConnection {
     pub addr: SocketAddr,
     pub close: Closer,
     pub queue: Option<Communicator>,
     pub role: String,
     pub uuid: String,
-    pub is_manager: bool,
+    manager_self_connection: bool,
 }
 
-impl Connection {
+impl AppConnection {
     pub fn new(addr: SocketAddr, close: Closer, queue: Communicator) -> Self {
         Self{
             addr: addr,
@@ -392,7 +403,7 @@ impl Connection {
             queue: Some(queue),
             role: "".to_string(),
             uuid: "".to_string(),
-            is_manager: false
+            manager_self_connection: false
         }
     }
 
@@ -403,8 +414,29 @@ impl Connection {
             queue: None,
             role: "manager".to_string(),
             uuid: "".to_string(),
-            is_manager: true
+            manager_self_connection: true
         }
+    }
+}
+
+impl RoutingConnection for AppConnection {
+    fn get_addr(&self) -> &SocketAddr {
+        &self.addr
+    }
+    fn get_closer(&self) -> &Closer {
+        &self.close
+    }
+    fn get_queue(&self) -> &Option<Communicator> {
+        &self.queue
+    }
+    fn get_role(&self) -> &str {
+        &self.role
+    }
+    fn get_uuid(&self) -> &str {
+        &self.uuid
+    }
+    fn is_manager(&self) -> bool {
+        self.manager_self_connection
     }
 }
 
