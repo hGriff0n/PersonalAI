@@ -3,10 +3,9 @@
 Short Term:
   Add in "device-querying" capabilities to the cli interface
     Modify the manager to consider the role/action combo when forwarding messages
-      Add in handle sanity checks to destination routing (make sure it supports it)
-      Fix "ack" messages being sent prematurely (as soon as the device-manager receives it from the sender)
-        The problem actually seems to be the second message (from the audio app)???
-        Improve the ack logging messages to remove confusion about what is heading where
+      Modify the "must_send_ack" check to operate off of SocketAddr (instead of uuid)
+        Extract the destination `SocketAddr` from the connection and sender objects
+        NOTE: We can still consider the uuid as part of the check, however the actual decision must be based on reachability
       Figure out how to add in automatic role specifying for the cli app
         Either implement the event system or enable "handle"-based routing
     Come up with a data-collection framework both in python and rust
@@ -41,6 +40,7 @@ Medium Term:
       Add new "play next" and "add to playback" options
     Remove the hardcoded path for the system sound files
       Or find a way to "install" the data directory
+    Enable deregistering handles (in case plugin init/etc fails)
   TODO: Cli Improvements
     Decide on which approach to take for enabling apps to handle cli "command" messages
       Approach #1: Command parsing on the app-client
@@ -72,6 +72,8 @@ Medium Term:
         I think we'll have to rethink alot of the design/architecture of this system then anyways
     Figure out how to communicate a 'stop' "recognition" from the dispatch plugin
     Enable the manager to spawn up python plugins as needed
+    Improve error and log messages
+    Prevent duplicate handles being stored in registration
   TODO: New capabilities
     Add separate ai-manager node project
       Create ai-manager project to handle the administration of multiple devices

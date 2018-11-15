@@ -88,6 +88,13 @@ impl DeviceManager {
             conn.role = role;
         }
 
+        if let Some(ref args) = msg.args {
+            if let serde_json::Value::Array(ref handles) = args[0]["registered_handles"] {
+                conn.exported_handles.extend(handles.iter().filter(|handle| handle.is_string()).map(|handle| handle.as_str().unwrap().to_string()));
+                info!("Set handles for {:?} {:?}", addr, conn.exported_handles);
+            }
+        }
+
         Ok(json!(null))
     }
 
@@ -268,6 +275,20 @@ impl DeviceManager {
         // Now that we've resolved the destination, send the messages
         let conns = self.connections.lock().unwrap();
         if let Some(ref conn) = conns.get(&selected_connection) {
+            // Test that the handle is "callable" using the selected app
+            // TODO: See if I could instead move this outside (to where we are selecting the app)
+            match msg.action.clone() {
+                Some(action) => if !conn.can_respond_to_handle(action.as_str()) {
+                    error!("Could not unify role:handle to point to same app for msg {:?}", msg);
+                    return Err(DeviceErrors::Sendable(format!("Action handle `{:?}` is not satisfiable under a known app with role `{:?}`", action, conn.get_role())));
+                },
+                None => {
+                    error!("Message did not specify an action handle: {:?}", msg);
+                    return Err(DeviceErrors::Sendable(format!("No action specified in received message: {:?}", msg)));
+                }
+            };
+
+            // The message-app pairing is valid, send the message
             debug!("Sending message to {:?}", selected_connection);
             if let Some(ref queue) = conn.get_queue() {
                 let sending_msg = serde_json::to_value(msg.clone())
@@ -381,6 +402,7 @@ trait RoutingConnection: Send{
     fn get_queue(&self) -> &Option<Communicator>;
     fn get_role(&self) -> &str;
     fn get_uuid(&self) -> &str;
+    fn can_respond_to_handle(&self, handle: &str) -> bool;
     fn is_manager(&self) -> bool;
 }
 
@@ -392,6 +414,7 @@ struct AppConnection {
     pub queue: Option<Communicator>,
     pub role: String,
     pub uuid: String,
+    pub exported_handles: Vec<String>,
     manager_self_connection: bool,
 }
 
@@ -403,6 +426,7 @@ impl AppConnection {
             queue: Some(queue),
             role: "".to_string(),
             uuid: "".to_string(),
+            exported_handles: Vec::new(),
             manager_self_connection: false
         }
     }
@@ -414,6 +438,7 @@ impl AppConnection {
             queue: None,
             role: "manager".to_string(),
             uuid: "".to_string(),
+            exported_handles: Vec::new(),
             manager_self_connection: true
         }
     }
@@ -437,6 +462,10 @@ impl RoutingConnection for AppConnection {
     }
     fn is_manager(&self) -> bool {
         self.manager_self_connection
+    }
+
+    fn can_respond_to_handle(&self, handle: &str) -> bool {
+        self.exported_handles.iter().find(|&s| s == handle).is_some()
     }
 }
 
