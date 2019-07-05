@@ -1,0 +1,10 @@
+{
+    "device_manager_service": {
+        "register_server": {  // A server is a logical object, you cannot request to run services on a specific server
+                              // Most apps that handle callbacks should be implemented as servers
+        },
+        "register_device": {  // A device is a physical object, an app can request to run services on a specific device
+                              // This allows for saying "play on the living room speaker", etc.
+        },
+    }
+}
