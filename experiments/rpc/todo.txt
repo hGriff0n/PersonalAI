@@ -1,0 +1,54 @@
+
+Server:
+  Implement RPC handling
+    split everything into files
+  Implement routing of messages
+    implement register_server
+    <- client that registers a server
+    <- client that calls registered client
+  Read through old code to see what's now missing
+    -> seshat/indexer
+      the current codebase doesn't really fit that too well
+  Clean up the codebase and ensure everything is well architected
+  Integrate with monitoring
+    find monitoring framework
+      -> https://crates.io/crates/metered
+  Implement device routing
+    implement register_device
+    <- client that registers a device server (use two for testing)
+    <- client that uses device server
+    implement various "read_state" rpcs
+      implement `get_registered_devices` rpc
+    determine rpc options to request device routing
+    modify routing to use devices if provided
+  Think about network/device monitoring situation
+  ...
+  Setup project (replace old version)
+    introduce logger calls into the new version
+      -> logging.rs can stay as-is
+    integrate new version with clap
+      add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
+      -> basically can just take server.rs (+ others?)
+  Implement security module
+
+Modalities:
+  Wrap communication code in functions
+  Create RPC handling code module
+  Enable app/server split in client code
+    decide on python architecture for split
+    make a "FortuneTeller" client
+    make an app that calls into the "FortuneTeller" client
+  Read through old code to see what's now missing
+  ...
+  Setup project (replace old version)
+
+Communication:
+  would be nice to "chain" calls
+    ie. find file > streamto device > play_music
+      the response for `find file` triggers `streamto device` on the server, not the client
+      not sure how necessary this would actually be
+    we could implement a `setup_direct_connection` call to enable this?
+
+Weird Errors:
+  Hitting ctrl-c on the server sometimes produces a STATUS_CONTROL_C_EXIT error
+    this is random and occurs regardless of rpc implementation
