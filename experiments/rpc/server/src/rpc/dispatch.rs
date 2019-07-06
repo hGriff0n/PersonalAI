@@ -28,13 +28,6 @@ impl Dispatcher {
         }
     }
 
-    pub fn add_service<S: service::Service<protocol::JsonProtocol>>(&self, service: S) -> &Self {
-        for (endpoint, callback) in service.endpoints() {
-            service::Registry::register(self, endpoint.as_str(), callback);
-        }
-        self
-    }
-
     // TODO: Integrate this with tokio/futures better
     pub fn dispatch(&self, mut rpc_call: types::Message) -> Option<types::Message> {
         match self.handles
@@ -72,10 +65,14 @@ impl Dispatcher {
 }
 
 impl service::Registry<protocol::JsonProtocol> for Dispatcher {
-    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>) {
-        self.handles
+    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>) -> bool {
+        match self.handles
             .write()
             .unwrap()
-            .insert(fn_name.to_string(), callback);
+            .entry(fn_name.to_string())
+        {
+            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(callback); true },
+            _ => false
+        }
     }
 }

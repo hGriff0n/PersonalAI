@@ -23,7 +23,7 @@ macro_rules! rpc_schema {
         rpc_schema!($name, $($arg: $type),+);
     };
     ($name:ident, $($arg:ident: $type:ty),+) => {
-        #[derive(Clone, Serialize, Deserialize)]
+        #[derive(Clone, Debug, Serialize, Deserialize)]
         pub struct $name {
             $(pub $arg: $type,)+
         }

@@ -19,7 +19,7 @@ use std::net;
 use tokio::prelude::*;
 
 // local imports
-
+use crate::rpc::Service;
 
 //
 // Implementation
@@ -38,12 +38,23 @@ fn main() {
 
     // let device_manager = DeviceManager::new();
     let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
-    rpc_dispatcher
-        .add_service(experimental_service::ExperimentalService::new())
-        .add_service(fortune_service::FortuneService::new())
-        .add_service(registration_service::RegistrationService::new())
-        ;
 
+    // Create and register services in the dispatcher
+    experimental_service::ExperimentalService::new()
+        .register_endpoints(&rpc_dispatcher)
+        .unwrap_or_else(|err| panic!(err));
+
+    // NOTE: Can wrap this in a macro, not sure if good => ($dispatcher:ident $service:expr)
+    fortune_service::FortuneService::new()
+        .register_endpoints(&rpc_dispatcher)
+        .unwrap_or_else(|err| panic!(err));
+
+    registration_service::RegistrationService::new()
+        .register_endpoints(&rpc_dispatcher)
+        .unwrap_or_else(|err| panic!(err));
+
+    // We've constructed our rpc server
+    // Now let the user break it
     serve(rpc_dispatcher, addr);
 }
 

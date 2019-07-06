@@ -91,31 +91,23 @@ macro_rules! rpc_service {
 
         // Setup the registration for the rpc calls
         impl $crate::rpc::Service<$proto> for $service {
-            fn endpoints(self) -> Vec<(String, Box<$crate::rpc::Function<$proto>>)> {
+            fn register_endpoints<R: $crate::rpc::Registry<$proto>>(self, register: &R) -> Result<(), String> {
                 let service = std::sync::Arc::new(self);
 
-                let mut endpoints: Vec<(String, Box<$crate::rpc::Function<$proto>>)> = Vec::new();
-                $(
-                    {
-                        let endpoint_server = service.clone();
-                        endpoints.push((
-                            __stringify!($name).to_string(),
-                            Box::new(move |msg: $crate::rpc::Message| endpoint_server.$name(msg))));
-                    }
-                )*
-                endpoints
-            }
-
-            // Alternate method of registering rpc endpoints
-            // This relies on passing in a registration object and then calling `register` for each endpoint
-            fn register_endpoints<R: $crate::rpc::Registry<$proto>>(self, register: &R) {
-                let service = std::sync::Arc::new(self);
                 $({
                     let endpoint_server = service.clone();
-                    register.register_fn(
+                    if !register.register_fn(
                         __stringify!($name),
-                        move |msg: $crate::rpc::Message| endpoint_server.$name(msg));
+                        move |msg: $crate::rpc::Message| endpoint_server.$name(msg))
+                    {
+                        return Err(
+                            std::format!(
+                                "Error when registering handle {}::{} - handle already exists",
+                                __stringify!($service), __stringify!($name)));
+                    }
                 })*
+
+                Ok(())
             }
         }
     };
