@@ -6,6 +6,7 @@ mod rpc;
 
 // services
 mod fortune_service;
+mod registration_service;
 
 // macro imports
 // use serde_json::json;
@@ -38,6 +39,7 @@ fn main() {
     let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
     rpc_dispatcher
         .add_service(fortune_service::FortuneService::new())
+        .add_service(registration_service::RegistrationService::new())
         ;
 
     serve(rpc_dispatcher, addr);
