@@ -18,9 +18,12 @@ sock.connect((addr[0], int(addr[1])))
 # Construct rpc call
 # TODO: Wrap these in a client object (auto-generate?)
 msg = {
-    "call": "tell_fortune",
+    "call": "register_app",
     "args": {
-        "sign": "leo"
+        "handles": [
+            "tell_story",
+            "list_books"
+        ]
     },
     # "resp": None,
     "msg_id": "foo",
@@ -42,3 +45,7 @@ msg_len = struct.unpack('>I', len_buf)[0]
 msg_buf = sock.recv(msg_len)
 msg = json.loads(msg_buf.decode('utf-8'))
 print("Received {}".format(msg))
+
+print("Keeping the client open to test whether the connection gets closed")
+while True:
+        pass

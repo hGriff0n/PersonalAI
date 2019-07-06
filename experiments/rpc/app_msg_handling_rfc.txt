@@ -1,0 +1,73 @@
+NOTE: The app will be responsible for sending a deregister request to the server
+  the server only sends messages to servers/devices
+NOTE: All apps should also support some basic monitoring/discovery calls by default
+  these allow the server to request information about app health/etc.
+  TODO: How will these be "registered" - only the server should be able to call these apps
+    Should the server just assume that these handles exist?
+
+app sends register_app request (TODO:)
+  TODO: How does the app server started in order to send the request?
+    Is a stub client run to get the server information before starting the app
+    Or does the app start and does the registration itself
+  -> server receives request (NOTE: Automatic)
+  -> server dispatches on request (NOTE: Automatic)
+    <- finds RegistrationService (NOTE: Done)
+  -> server sends request to RegistrationService::register_server (NOTE: Automatic)
+    -> register_server extracts list of handles (NOTE: Automatic)
+    -> register_server sets up communication channel (TODO:)
+      TODO: Can we reuse the communication channel that was setup when the client connected?
+        This will require adding an explicit "disconnect" action workflow to `serve`
+        NOTE: Pushing things on the write channel will currently cause infinite loops with the response
+          Would need to change handling of read workflow slightly (see later)
+    -> register_server registers callback for each handles (TODO:)
+      TODO: How will RegistrationService get access to the Dispatcher to register the callbacks?
+      TODO: The registration methods currently assume success (ie. handle not-taken)
+        they actually force success, we can't represent `insert_if_not_present`
+        this means we can't tell if a handle was registered or not
+          <- current behavior should be to not register if this happens
+          <- if the app requires that handle, they should immediately deregister/shutdown
+      TODO: Come up with a better way of tracking handle registration
+        Current architecture assumes we never remove handles from the map
+          We could fix this by maintaining a `app -> [handles]` map too
+        Look if there's a better way to remove registrations and additions
+      TODO: Most messages the server recieves from an app will be responses
+        The current read workflow assumes requests only, which will cause infinite loops
+        Change that to recognize when a message is an app response
+          <- could segment the app handling into an entirely separate tcpstream workflow?
+    <- register_server sends back registered handles (TODO:)
+  -> server checks response for messages (NOTE: Automatic)
+    <- response has message (NOTE: Automatic)
+  <- server sends response back to app (NOTE: Automatic)
+app handles response (TODO:)
+
+client sends app request (TODO:)
+  -> server receives request (NOTE: Automatic)
+  -> server dispatches on request (NOTE: Automatic)
+    <- finds app server (TODO:)
+  -> server forwards request to app server (TODO:)
+    -> app receives request (TODO:)
+    -> app dispatches on request (TODO:)
+      <- finds local method (TODO:)
+      <- local method produces response (TODO:)
+    <- app sends response back to server (TODO:)
+  -> server checks response for message (NOTE: Automatic)
+    <- response has message (NOTE: Automatic)
+      TODO: How should we handle app requests that have no response
+        Server rpcs just don't send anything back, should app rpcs do the same
+  <- server sends response back to client
+    TODO: How to translate the response back into the original communication thread
+      Currently, the response will come through the *app's* channel, but needs to get to the client's channel
+        this process is currently distinct and there's no way to "backtrack" or "continuation"
+client handles response (TODO:)
+
+app sends deregister request (TODO:)
+  TODO: Scope out
+
+      -- incorporate in the above workflow somewhere when the workflow's finished
+      TODO: Need a way to automatically send a `deregister` command on app server close
+        I think connections stay open until the client exits
+        If the app server does this, then the connection will end with the handles still registered
+
+notes:
+  this will require more work on making the serving+rpc code asynchronous
+    server can't wait for a long running app request

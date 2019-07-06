@@ -25,20 +25,31 @@ impl RegistrationService {
 //
 
 // TODO: Look into possibility of adding extra schema information/etc.
-rpc_schema!(RegisterServerArgs {
+rpc_schema!(RegisterAppArgs {
     handles: Vec<String>
 });
 
-rpc_schema!(RegisterServerResponse {
+rpc_schema!(RegisterAppResponse {
     registered: Vec<String>
 });
 
 rpc_service! {
     RegistrationService<protocol::JsonProtocol>
 
-    rpc register_server(self, args: RegisterServerArgs) -> RegisterServerResponse {
-        RegisterServerResponse{
-            registered: args.handles
+    rpc register_app(self, args: RegisterAppArgs) -> RegisterAppResponse {
+        let mut registered = Vec::new();
+        for handle in args.handles {
+            // TODO: Register the handle in the Dispatcher
+            registered.push(handle);
+        }
+        RegisterAppResponse{
+            registered: registered
         }
     }
+
+    // rpc list_books(self, _args) -> RegisterAppResponse {
+    //     RegisterAppResponse{
+    //         registered: vec![ "Dune" ]
+    //     }
+    // }
 }
