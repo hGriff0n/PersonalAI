@@ -6,9 +6,6 @@ mod service;
 pub use service::*;
 pub use types::*;
 
-// #[allow(unused_import)]
-// use crate::protocol;
-
 // Helper macro to generate return codes for rpc endpoints
 // This is necessary to handle cases where no return type was specified (ie. no response)
 #[doc(hidden)]
@@ -111,13 +108,15 @@ macro_rules! rpc_service {
 
             // Alternate method of registering rpc endpoints
             // This relies on passing in a registration object and then calling `register` for each endpoint
-            // fn register_endpoints<R: Registry>(self, register: &R) {
-            //     let service = std::sync::Arc::new(self);
-            //     $({
-            //         let endpoint_server = service.clone();
-            //         register.register(stringify!($name), move |msg: RpcMessage| endpoint_server.$name(msg));
-            //     })*
-            // }
+            fn register_endpoints<R: $crate::rpc::Registry<$proto>>(self, register: &R) {
+                let service = std::sync::Arc::new(self);
+                $({
+                    let endpoint_server = service.clone();
+                    register.register_fn(
+                        __stringify!($name),
+                        move |msg: $crate::rpc::Message| endpoint_server.$name(msg));
+                })*
+            }
         }
     };
 }

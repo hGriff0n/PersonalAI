@@ -30,10 +30,7 @@ impl Dispatcher {
 
     pub fn add_service<S: service::Service<protocol::JsonProtocol>>(&self, service: S) -> &Self {
         for (endpoint, callback) in service.endpoints() {
-            self.handles
-                .write()
-                .unwrap()
-                .insert(endpoint, callback);
+            service::Registry::register(self, endpoint.as_str(), callback);
         }
         self
     }
@@ -71,5 +68,14 @@ impl Dispatcher {
                 Some(rpc_call)
             }
         }
+    }
+}
+
+impl service::Registry<protocol::JsonProtocol> for Dispatcher {
+    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>) {
+        self.handles
+            .write()
+            .unwrap()
+            .insert(fn_name.to_string(), callback);
     }
 }
