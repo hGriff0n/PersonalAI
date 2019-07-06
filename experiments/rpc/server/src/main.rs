@@ -1,7 +1,11 @@
 
 // #[macro_use] extern crate log;
 mod protocol;
+#[macro_use]
 mod rpc;
+
+// services
+mod fortune_service;
 
 // macro imports
 // use serde_json::json;
@@ -10,66 +14,17 @@ mod rpc;
 use std::net;
 
 // third-party imports
-use serde::{Serialize, Deserialize};
 use tokio::prelude::*;
 
 // local imports
-use crate::protocol::*;
+use crate::protocol;
 
 
 //
 // Implementation
 //
 
-//
-// RPC Services Definitions
-//
 
-rpc_schema!(TellFortuneArgs {
-    sign: String
-});
-rpc_schema!(TellFortuneResponse, fortune: String);
-
-// TODO: Figure out a good way to construct services with arguments
-// NOTE: Services should use interior mutability (passing everything as &self)
-struct HelloServiceAlt;
-
-impl HelloServiceAlt {
-    pub fn new() -> Self {
-        Self{}
-    }
-
-    fn generate_fortune(&self, sign: &str) -> String {
-        match &sign {
-            &"leo" => "latin for lion".to_string(),
-            sign => format!("Horoscope unimplemented for sign '{}'", sign)
-        }
-    }
-}
-
-rpc_service! {
-    HelloServiceAlt<protocol::JsonProtocol>
-
-    rpc tell_fortune(self, args: TellFortuneArgs) -> TellFortuneResponse {
-        let fortune = self.generate_fortune(args.sign.as_str());
-        TellFortuneResponse{fortune: fortune}
-    }
-
-    rpc fake_fortune(self, args: TellFortuneArgs) -> TellFortuneResponse {
-        let _args = args;
-        TellFortuneResponse{fortune: "Bah".to_string()}
-    }
-
-    // No returns are handled by not sending a response back
-    // rpc no_fortune(self, args: TellFortuneArgs) {
-    //     let _args = args;
-    // }
-
-    // You don't even need to accept any arguments
-    // rpc request_services(self, args) {
-    //     println!("Hello");
-    // }
-}
 
 
 //
@@ -82,7 +37,7 @@ fn main() {
 
     // let device_manager = DeviceManager::new();
     let rpc_dispatcher = rpc::dispatch::Dispatcher::new()
-        .add_service(HelloServiceAlt::new())
+        .add_service(fortune_service::FortuneService::new())
         ;
 
     serve(rpc_dispatcher, addr);
@@ -92,7 +47,7 @@ fn main() {
 fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
     // Current protocols don't require state, so we currently access it statically
     // TODO: Need a way to ensure we're all using the same protocol
-    type P = JsonProtocol;
+    type P = protocol::JsonProtocol;
 
     let server = tokio::net::TcpListener::bind(&addr)
         .expect("Failed to bind server to specified sock address")
