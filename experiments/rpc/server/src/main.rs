@@ -5,6 +5,7 @@ mod protocol;
 mod rpc;
 
 // services
+mod experimental_service;
 mod fortune_service;
 mod registration_service;
 
@@ -38,6 +39,7 @@ fn main() {
     // let device_manager = DeviceManager::new();
     let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
     rpc_dispatcher
+        .add_service(experimental_service::ExperimentalService::new())
         .add_service(fortune_service::FortuneService::new())
         .add_service(registration_service::RegistrationService::new())
         ;
