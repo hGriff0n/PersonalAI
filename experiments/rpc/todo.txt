@@ -52,3 +52,9 @@ Communication:
 Weird Errors:
   Hitting ctrl-c on the server sometimes produces a STATUS_CONTROL_C_EXIT error
     this is random and occurs regardless of rpc implementation
+
+Tech Debt:
+  rpc::Message requires JsonProtocol
+    -> rpc::Message has a `serde_json::Value` field
+    -> ideally there'd be a way to configure the used protocol globally
+      Don't know how to do this in rust

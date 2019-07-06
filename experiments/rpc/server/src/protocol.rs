@@ -37,7 +37,7 @@ pub(crate) fn frame_with_protocol<P, Conn, Codec>(conn: Conn, codec_producer: &F
 // Helper trait to wrap the code to frame a tcp communication in a generic fashion
 // TODO: Improve dependency injection?
 // TODO: The type parameters are a bit unfortunate
-pub(crate) trait RpcProtocol<Conn, Codec>
+pub trait RpcProtocol<Conn, Codec>
     where Conn: AsyncRead + AsyncWrite,
           Codec: tokio::codec::Decoder + tokio::codec::Encoder,
 {
@@ -49,7 +49,7 @@ pub(crate) trait RpcProtocol<Conn, Codec>
 }
 
 // Helper trait to wrap serialization of messages
-pub(crate) trait RpcSerializer: Clone+Copy {
+pub trait RpcSerializer: Clone+Copy {
     type Message;
 
     // TODO: Convert these to static methods
@@ -65,7 +65,7 @@ pub(crate) trait RpcSerializer: Clone+Copy {
 
 // Protocol to handle and serialize json messages
 #[derive(Clone, Copy)]
-pub(crate) struct JsonProtocol;
+pub struct JsonProtocol;
 impl RpcSerializer for JsonProtocol {
     type Message = serde_json::Value;
 

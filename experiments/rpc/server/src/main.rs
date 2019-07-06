@@ -1,7 +1,7 @@
 
 // #[macro_use] extern crate log;
 mod protocol;
-mod rpc_macros;
+mod rpc;
 
 // macro imports
 // use serde_json::json;
@@ -20,49 +20,6 @@ use crate::protocol::*;
 //
 // Implementation
 //
-
-//
-// Global rpc communication types
-//
-
-// Entrypoint schema for all rpc messages through network channels (we only send and receive this type)
-// TODO: Make the `args` and `resp` generalized on the protocol message type
-// They still bring in a little dependency on the specific protocol being used (may be a good thing)
-rpc_schema!(RpcMessage {
-    // Call communication
-    // The individual handles will be responsible for implementing serialization of args+resp
-    call: String,
-    args: serde_json::Value,
-    resp: Option<serde_json::Value>,
-
-    // Call metadata
-    msg_id: String,
-    app_id: String
-});
-
-// TODO: Improve typing usage and genericity
-// TODO: Utilize an "RpcError" type
-type RpcResult<T> = Result<Option<T>, std::io::Error>;
-type RpcFunction<P> = Fn(RpcMessage) -> RpcResult<<P as protocol::RpcSerializer>::Message> + Send + Sync;
-
-// Overloads for the current json protocol
-// NOTE: These are fine to use directly as we only currently support json anyways (type schemes a bit hard to disentangle)
-#[allow(dead_code)]
-type JsonRpcResult = RpcResult<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>;
-#[allow(dead_code)]
-type JsonRpcFunction = RpcFunction<protocol::JsonProtocol>;
-
-
-// Define an entry point for services to register there methods
-// trait Registry {
-//     fn register<F>(&self, fn_name: &str, callback: F)
-//         where F: Fn(RpcMessage) -> JsonRpcResult + Send + Sync + 'static;
-// }
-trait RegistratableService {
-    fn endpoints(self) -> Vec<(String, Box<JsonRpcFunction>)>;
-    // fn register_endpoints<R: Registry>(self, register: &R);
-}
-
 
 //
 // RPC Services Definitions
@@ -118,7 +75,7 @@ rpc_service! {
 struct RpcDispatcher {
     handles: std::sync::Arc<
         std::sync::RwLock<
-            std::collections::HashMap<String, Box<Fn(RpcMessage) -> JsonRpcResult + Send + Sync>>>>,
+            std::collections::HashMap<String, Box<Fn(rpc::Message) -> rpc::json::Result + Send + Sync>>>>,
 }
 
 impl RpcDispatcher {
@@ -128,7 +85,7 @@ impl RpcDispatcher {
         }
     }
 
-    pub fn add_service<S: RegistratableService>(self, service: S) -> Self {
+    pub fn add_service<S: rpc::Service<protocol::JsonProtocol>>(self, service: S) -> Self {
         // service.register_endpoints(&self);
         for (endpoint, callback) in service.endpoints() {
             self.handles
@@ -140,7 +97,7 @@ impl RpcDispatcher {
     }
 
     // TODO: Integrate this with tokio/futures a little bit better
-    fn dispatch(&self, mut rpc_call: RpcMessage) -> Option<RpcMessage> {
+    fn dispatch(&self, mut rpc_call: rpc::Message) -> Option<rpc::Message> {
         match self.handles
             .read()
             .unwrap()
