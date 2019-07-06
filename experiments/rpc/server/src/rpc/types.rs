@@ -20,10 +20,7 @@ use crate::protocol;
 #[macro_export]
 macro_rules! rpc_schema {
     ($name:ident { $($arg:ident: $type:ty),+ }) => {
-        #[derive(Clone, Serialize, Deserialize)]
-        pub struct $name {
-            $(pub $arg: $type,)+
-        }
+        rpc_schema!($name, $($arg: $type),+);
     };
     ($name:ident, $($arg:ident: $type:ty),+) => {
         #[derive(Clone, Serialize, Deserialize)]
@@ -53,3 +50,9 @@ rpc_schema!(Message {
 // TODO: Utilize an "RpcError" type
 pub type Result<T> = std::result::Result<Option<T>, std::io::Error>;
 pub type Function<P> = Fn(Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
+
+// TODO: trait aliases are experimental (https://github.com/rust-lang/rust/issues/41517)
+// NOTE: Currently we can't use `F: impl Function<P>` or `where F: Function<P>` in some definitions that accept closures
+// We're instead forced to "reimplement" the definition, ie. `where F: Fn(Message) -> ...`
+// This is apparently because `Function` isn't a trait, it's a type - and Rust requires traits in those situations
+// pub trait FnType<P: protocol::RpcSerializer> = Fn(Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;

@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 
 // local imports
 use crate::protocol;
+#[allow(unused_imports)] use crate::rpc;
 
 //
 // Implementation

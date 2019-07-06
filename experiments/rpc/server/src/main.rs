@@ -17,7 +17,6 @@ use std::net;
 use tokio::prelude::*;
 
 // local imports
-use crate::protocol;
 
 
 //
@@ -36,7 +35,8 @@ fn main() {
         .expect("Failed to parse hardcoded socket address");
 
     // let device_manager = DeviceManager::new();
-    let rpc_dispatcher = rpc::dispatch::Dispatcher::new()
+    let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
+    rpc_dispatcher
         .add_service(fortune_service::FortuneService::new())
         ;
 
@@ -54,11 +54,15 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
         .incoming()
         .map_err(|err| eprintln!("Failed to accept incoming connection: {:?}", err))
         .for_each(move |conn| {
-            let _peer = conn.peer_addr().expect("Failed to extract peer address from TcpStream");
+            let _peer = conn
+                .peer_addr()
+                .expect("Failed to extract peer address from TcpStream");
 
             // Construct the communication frames
-            let (reader, writer) = frame_with_protocol::<P, _, _>(conn, &|| tokio::codec::LengthDelimitedCodec::new());
-            let writer = writer.sink_map_err(|err| eprintln!("error in json serialization: {:?}", err));
+            let (reader, writer) = protocol::frame_with_protocol::<P, _, _>(
+                conn, &|| tokio::codec::LengthDelimitedCodec::new());
+            let writer = writer
+                .sink_map_err(|err| eprintln!("error in json serialization: {:?}", err));
 
             // Construct communication channels between the read and write ends
             // This segments the control flow on the two ends, making the stream processing a little nicer
@@ -71,9 +75,10 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
                 .for_each(move |msg| {
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
-                    if let Some(msg) = rpc_dispatcher.dispatch(P::from_value(msg)?) {
+                    if let Some(msg) = rpc_dispatcher.dispatch(<P as protocol::RpcSerializer>::from_value(msg)?) {
                         // If a response was produced send it back to the caller
-                        sender.unbounded_send(msg)
+                        sender
+                            .unbounded_send(msg)
                             .map_err(|_err|
                                 std::io::Error::new(std::io::ErrorKind::Other, "Failed to send message through pipe"))
 
@@ -86,7 +91,7 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
 
             // Reformat rpc responses and send them back on the line
             let write_action = receiver
-                .map(move |msg| P::to_value(msg).unwrap())
+                .map(move |msg| <P as protocol::RpcSerializer>::to_value(msg).unwrap())
                 .forward(writer)
                 .map(|_| ())
             .map_err(|err| eprintln!("socket write error: {:?}", err));

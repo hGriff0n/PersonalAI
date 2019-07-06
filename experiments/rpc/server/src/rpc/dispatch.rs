@@ -15,7 +15,10 @@ use crate::protocol;
 
 #[derive(Clone)]
 pub struct Dispatcher {
-    handles: sync::Arc<sync::RwLock<collections::HashMap<String, Box<types::Function<protocol::JsonProtocol>>>>>,
+    handles: sync::Arc<
+        sync::RwLock<
+            collections::HashMap<
+                String, Box<types::Function<protocol::JsonProtocol>>>>>,
 }
 
 impl Dispatcher {
@@ -25,7 +28,7 @@ impl Dispatcher {
         }
     }
 
-    pub fn add_service<S: service::Service<protocol::JsonProtocol>>(self, service: S) -> Self {
+    pub fn add_service<S: service::Service<protocol::JsonProtocol>>(&self, service: S) -> &Self {
         for (endpoint, callback) in service.endpoints() {
             self.handles
                 .write()

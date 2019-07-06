@@ -19,14 +19,17 @@ use tokio::prelude::*;
 //  1) Split the connection into read/write ends
 //  2) Wrap the connection in a codec to handle packet framing
 //  3) Wrap the connection in a protocol so interaction is in the message layer
-pub(crate) fn frame_with_protocol<P, Conn, Codec>(conn: Conn, codec_producer: &Fn() -> Codec)
+pub fn frame_with_protocol<P, Conn, Codec>(conn: Conn, codec_producer: &Fn() -> Codec)
     -> (P::Reader, P::Writer)
     where Conn: AsyncRead + AsyncWrite,
           Codec: tokio::codec::Decoder + tokio::codec::Encoder,
           P: RpcProtocol<Conn, Codec>
 {
     let (reader, writer) = conn.split();
-    (P::make_reader(reader, codec_producer), P::make_writer(writer, codec_producer))
+    (
+        P::make_reader(reader, codec_producer),
+        P::make_writer(writer, codec_producer),
+    )
 }
 
 
@@ -52,10 +55,11 @@ pub trait RpcProtocol<Conn, Codec>
 pub trait RpcSerializer: Clone+Copy {
     type Message;
 
-    // TODO: Convert these to static methods
-    fn from_value<T>(msg: Self::Message) -> Result<T, std::io::Error>
+    fn from_value<T>(msg: Self::Message)
+        -> Result<T, std::io::Error>
         where for<'d> T: Deserialize<'d>;
-    fn to_value<T>(msg: T) -> Result<Self::Message, std::io::Error>
+    fn to_value<T>(msg: T)
+        -> Result<Self::Message, std::io::Error>
         where T: Serialize;
 }
 
@@ -69,16 +73,21 @@ pub struct JsonProtocol;
 impl RpcSerializer for JsonProtocol {
     type Message = serde_json::Value;
 
-    fn from_value<T>(msg: Self::Message) -> Result<T, std::io::Error>
+    fn from_value<T>(msg: Self::Message)
+        -> Result<T, std::io::Error>
         where for<'d> T: Deserialize<'d>
     {
         serde_json::from_value(msg)
-            .map_err(|_err| std::io::Error::new(std::io::ErrorKind::InvalidInput, "failed to deserialize message"))
+            .map_err(|_err|
+                std::io::Error::new(std::io::ErrorKind::InvalidInput, "failed to deserialize message"))
     }
 
-    fn to_value<T: Serialize>(msg: T) -> Result<Self::Message, std::io::Error> {
+    fn to_value<T: Serialize>(msg: T)
+        -> Result<Self::Message, std::io::Error>
+    {
         serde_json::to_value(msg)
-            .map_err(|_err| std::io::Error::new(std::io::ErrorKind::InvalidData, "failed to serialize message"))
+            .map_err(|_err|
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "failed to serialize message"))
     }
 }
 impl<Conn, Codec> RpcProtocol<Conn, Codec> for JsonProtocol

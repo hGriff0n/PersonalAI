@@ -1,7 +1,7 @@
 
 pub mod dispatch;
 mod service;
-#[macro_use] mod types;
+#[macro_use] mod types;  // NOTE: The `[macro_use]` is required to get access to `rpc_schema!`
 
 pub use service::*;
 pub use types::*;
@@ -19,8 +19,8 @@ macro_rules! __wrap_rpc_return {
         let _resp = $resp;      // Silence any warnings about "unused variables"
         Ok(None)
     }};
-    ($protocol:ty | $resp:ident $arg_resp:ty) => {
-        Ok(Some(<$protocol as $crate::protocol::RpcSerializer>::to_value::<$arg_resp>($resp)?))
+    ($protocol:ty | $resp_arg:ident $resp_type:ty) => {
+        Ok(Some(<$protocol as $crate::protocol::RpcSerializer>::to_value::<$resp_type>($resp_arg)?))
     }
 }
 
@@ -73,15 +73,21 @@ macro_rules! __stringify {
 macro_rules! rpc_service {
     // generate_args, ignore_args_if_none, and generate_return only operate on 0 or 1 "arguments"
     // This prevents any '*' usage in the macro from allowing 2 matches so we use it to mimic a regex `?`
-    ($service:ident<$proto:ty> $(rpc $name:ident($this:ident, $args:ident $(: $arg_type:ty)*) $(-> $arg_resp:ty)* $fn_body:block)*)
-    => {
+    (
+        $service:ident<$proto:ty>
+        $(
+            rpc $name:ident($this:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp:ty)* $fn_body:block
+        )*
+    ) => {
         impl $service {
             $(
-                fn $name(&$this, $args: $crate::rpc::Message) -> $crate::rpc::Result<<$proto as $crate::protocol::RpcSerializer>::Message> {
+                fn $name(&$this, $args: $crate::rpc::Message)
+                    -> $crate::rpc::Result<<$proto as $crate::protocol::RpcSerializer>::Message>
+                {
                     let $args = __typecheck_rpc_args!($proto | $args $($arg_type)*);
                     __silence_unused_args_warning!($args $($arg_type)*);
                     let resp = $fn_body;
-                    __wrap_rpc_return!($proto | resp $($arg_resp)*)
+                    __wrap_rpc_return!($proto | resp $($resp)*)
                 }
             )*
         }
