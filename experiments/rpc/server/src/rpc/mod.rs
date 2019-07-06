@@ -1,9 +1,13 @@
 
-pub mod json;
-mod types;
+pub mod dispatch;
+mod service;
+#[macro_use] mod types;
 
+pub use service::*;
 pub use types::*;
-use crate::protocol;
+
+// #[allow(unused_import)]
+// use crate::protocol;
 
 // Helper macro to generate return codes for rpc endpoints
 // This is necessary to handle cases where no return type was specified (ie. no response)
@@ -16,7 +20,7 @@ macro_rules! __wrap_rpc_return {
         Ok(None)
     }};
     ($protocol:ty | $resp:ident $arg_resp:ty) => {
-        Ok(Some(<$protocol>::to_value::<$arg_resp>($resp)?))
+        Ok(Some(<$protocol as $crate::protocol::RpcSerializer>::to_value::<$arg_resp>($resp)?))
     }
 }
 
@@ -36,7 +40,7 @@ macro_rules! __typecheck_rpc_args {
         $args
     }};
     ($protocol:ty | $args:ident $arg_type:ty) => {
-        <$protocol>::from_value::<$arg_type>($args.args)?
+        <$protocol as $crate::protocol::RpcSerializer>::from_value::<$arg_type>($args.args)?
     }
 }
 
@@ -111,18 +115,3 @@ macro_rules! rpc_service {
         }
     };
 }
-
-
-
-// TODO: Move these into a separate file?
-// Trait that defines the way rpc services export rpc endpoint handles
-pub trait Service<P: protocol::RpcSerializer> {
-    fn endpoints(self) -> Vec<(String, Box<Function<P>>)>;
-    // fn register_endpoints<R: Registry>(self, register: &R);
-}
-
-// Alternative trait for allowing registration of rpc services
-// trait Registry {
-//     fn register<F>(&self, fn_name: &str, callback: F)
-//         where F: Fn(Message) -> json::Result + Send + Sync + 'static;
-// }

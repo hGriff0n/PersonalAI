@@ -71,63 +71,6 @@ rpc_service! {
     // }
 }
 
-#[derive(Clone)]
-struct RpcDispatcher {
-    handles: std::sync::Arc<
-        std::sync::RwLock<
-            std::collections::HashMap<String, Box<Fn(rpc::Message) -> rpc::json::Result + Send + Sync>>>>,
-}
-
-impl RpcDispatcher {
-    pub fn new() -> Self {
-        Self{
-            handles: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
-        }
-    }
-
-    pub fn add_service<S: rpc::Service<protocol::JsonProtocol>>(self, service: S) -> Self {
-        // service.register_endpoints(&self);
-        for (endpoint, callback) in service.endpoints() {
-            self.handles
-                .write()
-                .unwrap()
-                .insert(endpoint.to_string(), callback);
-        }
-        self
-    }
-
-    // TODO: Integrate this with tokio/futures a little bit better
-    fn dispatch(&self, mut rpc_call: rpc::Message) -> Option<rpc::Message> {
-        match self.handles
-            .read()
-            .unwrap()
-            .get(&rpc_call.call)
-            .and_then(|handle|
-                Some(handle(rpc_call.clone())))
-        {
-            // Call succeded, no response
-            Some(Ok(None)) => None,
-
-            // Call succeded, repsonse
-            Some(Ok(Some(resp))) => {
-                rpc_call.resp = Some(resp);
-                Some(rpc_call)
-            },
-
-            // Call failed
-            Some(Err(_err)) => {
-                rpc_call.resp = Some(JsonProtocol::to_value("Error: Error in rpc handler").unwrap());
-                Some(rpc_call)
-            },
-
-            // Handle not registered
-            None => {
-                rpc_call.resp = Some(JsonProtocol::to_value("Error: Invalid rpc call").unwrap());
-                Some(rpc_call)
-            }
-        }
-    }
-}
 
 //
 // Server running code
@@ -138,7 +81,7 @@ fn main() {
         .expect("Failed to parse hardcoded socket address");
 
     // let device_manager = DeviceManager::new();
-    let rpc_dispatcher = RpcDispatcher::new()
+    let rpc_dispatcher = rpc::dispatch::Dispatcher::new()
         .add_service(HelloServiceAlt::new())
         ;
 
@@ -146,7 +89,7 @@ fn main() {
 }
 
 // TODO: Improve error handling?
-fn serve(dispatcher: RpcDispatcher, addr: std::net::SocketAddr) {
+fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
     // Current protocols don't require state, so we currently access it statically
     // TODO: Need a way to ensure we're all using the same protocol
     type P = JsonProtocol;
