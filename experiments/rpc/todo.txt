@@ -6,8 +6,6 @@ Server:
         current arch assumes that we only register new handles, never remove old ones
         there may be an efficient way to do both
           <- otherwise it's just a `app -> [handles]` map
-      create a way for rpc endpoints to determine the "calling" app
-        <- to register an app service, we need to send the messages to the app
       generate callback that I can register to send app traffic to the correct app
       implement tracking of registered apps
         <- do i also want to track all registered connections? may help with close signal handling

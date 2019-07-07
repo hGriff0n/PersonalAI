@@ -41,12 +41,12 @@ rpc_schema!(TellFortuneResponse {
 rpc_service! {
     FortuneService<protocol::JsonProtocol>
 
-    rpc tell_fortune(self, args: TellFortuneArgs) -> TellFortuneResponse {
+    rpc tell_fortune(self, _caller, args: TellFortuneArgs) -> TellFortuneResponse {
         let fortune = self.generate_fortune(args.sign.as_str());
         TellFortuneResponse{fortune: fortune}
     }
 
-    rpc fake_fortune(self, _args: TellFortuneArgs) -> TellFortuneResponse {
+    rpc fake_fortune(self, _caller, _args: TellFortuneArgs) -> TellFortuneResponse {
         TellFortuneResponse{fortune: "Bah".to_string()}
     }
 }

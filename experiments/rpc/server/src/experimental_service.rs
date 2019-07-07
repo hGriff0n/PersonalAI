@@ -39,7 +39,7 @@ rpc_schema!(ActiveConnsResponse {
 rpc_service! {
     ExperimentalService<protocol::JsonProtocol>
 
-    rpc num_active_connections(self, _args) -> ActiveConnsResponse {
+    rpc num_active_connections(self, _caller, _args) -> ActiveConnsResponse {
         ActiveConnsResponse{
             registered: 0,
         }

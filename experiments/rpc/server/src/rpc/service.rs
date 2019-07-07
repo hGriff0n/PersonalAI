@@ -1,5 +1,6 @@
 
 // standard imports
+use std::net;
 
 // third-party imports
 
@@ -26,7 +27,7 @@ pub trait Registry<P: protocol::RpcSerializer> {
     fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> bool;
     // TODO(r/41517): Improve once trait aliases are in stable
     fn register_fn<F>(&self, fn_name: &str, callback: F) -> bool
-        where F: Fn(types::Message) -> types::Result<P::Message> + Send + Sync + 'static
+        where F: Fn(net::SocketAddr, types::Message) -> types::Result<P::Message> + Send + Sync + 'static
     {
         self.register(fn_name, Box::new(callback))
     }

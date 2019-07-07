@@ -59,7 +59,7 @@ mod registration_service {
     rpc_service! {
         RegistrationService<protocol::JsonProtocol>
 
-        rpc register_app(self, args: RegisterAppArgs) -> RegisterAppResponse {
+        rpc register_app(self, caller, args: RegisterAppArgs) -> RegisterAppResponse {
             let mut registered = Vec::new();
             for handle in args.handles {
                 // TODO: Actually register the handle in the Dispatcher
@@ -72,7 +72,7 @@ mod registration_service {
                 registered: registered
             }
         }
-
+    }
 }
 
 
@@ -118,7 +118,9 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
         .incoming()
         .map_err(|err| eprintln!("Failed to accept incoming connection: {:?}", err))
         .for_each(move |conn| {
-            let _peer = conn
+            // Extract information about the specific connection
+            // `peer_addr` is especially important because we'll use that as the "primary" identifier this client
+            let peer_addr = conn
                 .peer_addr()
                 .expect("Failed to extract peer address from TcpStream");
 
@@ -131,9 +133,7 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
             // Construct channels between the read, write, and close "segments"
             // This separates the control flow into several ends, making the stream processing a little nicer
             let (sender, receiver) = futures::sync::mpsc::unbounded();
-            // TODO: This is not how the original code handles this. Might want to change
-                // We can also keep the code in the read handler if chosen
-            let (signal, close_channel) = tokio::sync::oneshot::channel::<()>();
+            let (signal, close_channel) = tokio::sync::oneshot::channel();
 
             // NOTE: This is required in order to allow for sending the signal to the read action in the current impl
             let mut signal = Some(signal);
@@ -153,7 +153,9 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
 
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
-                    if let Some(msg) = rpc_dispatcher.dispatch(<P as protocol::RpcSerializer>::from_value(msg)?) {
+                    if let Some(msg) = rpc_dispatcher
+                        .dispatch(<P as protocol::RpcSerializer>::from_value(msg)?, peer_addr)
+                    {
                         // If a response was produced send it back to the caller
                         sender
                             .unbounded_send(msg)

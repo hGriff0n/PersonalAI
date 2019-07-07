@@ -1,6 +1,6 @@
 
 // standard imports
-use std::{collections, sync};
+use std::{collections, net, sync};
 
 // third-party imports
 
@@ -29,12 +29,12 @@ impl Dispatcher {
     }
 
     // TODO: Integrate this with tokio/futures better
-    pub fn dispatch(&self, mut rpc_call: types::Message) -> Option<types::Message> {
+    pub fn dispatch(&self, mut rpc_call: types::Message, caller: net::SocketAddr) -> Option<types::Message> {
         match self.handles
             .read()
             .unwrap()
             .get(&rpc_call.call)
-            .and_then(|handle| Some(handle(rpc_call.clone())))
+            .and_then(|handle| Some(handle(caller, rpc_call.clone())))
         {
             // Call succeded, no response
             Some(Ok(None)) => None,

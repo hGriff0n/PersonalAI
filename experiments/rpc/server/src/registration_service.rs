@@ -36,7 +36,7 @@ rpc_schema!(RegisterAppResponse {
 rpc_service! {
     RegistrationService<protocol::JsonProtocol>
 
-    rpc register_app(self, args: RegisterAppArgs) -> RegisterAppResponse {
+    rpc register_app(self, _caller, args: RegisterAppArgs) -> RegisterAppResponse {
         let mut registered = Vec::new();
         for handle in args.handles {
             // TODO: Register the handle in the Dispatcher

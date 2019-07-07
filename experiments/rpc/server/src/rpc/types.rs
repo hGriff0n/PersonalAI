@@ -41,15 +41,14 @@ rpc_schema!(Message {
     resp: Option<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>,
 
     // Call metadata
-    msg_id: String,
-    app_id: String
+    msg_id: String
 });
 
 
 // TODO: Improve typing usage and genericity
 // TODO: Utilize an "RpcError" type
 pub type Result<T> = std::result::Result<Option<T>, std::io::Error>;
-pub type Function<P> = Fn(Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
+pub type Function<P> = Fn(std::net::SocketAddr, Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
 
 // TODO: trait aliases are experimental (https://github.com/rust-lang/rust/issues/41517)
 // NOTE: Currently we can't use `F: impl Function<P>` or `where F: Function<P>` in some definitions that accept closures

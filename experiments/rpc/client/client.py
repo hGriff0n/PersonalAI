@@ -27,7 +27,6 @@ msg = {
     },
     # "resp": None,
     "msg_id": "foo",
-    "app_id": "me",
     # TODO: Decide on other information to send as metadata
         # How to identify specific locations (such as with speakers?)
 }

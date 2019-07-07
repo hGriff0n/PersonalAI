@@ -74,17 +74,18 @@ macro_rules! rpc_service {
     (
         $service:ident<$proto:ty>
         $(
-            rpc $name:ident($this:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp:ty)* $fn_body:block
+            rpc $name:ident($this:ident, $caller:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp:ty)* $fn_body:block
         )*
     ) => {
         impl $service {
             $(
-                fn $name(&$this, $args: $crate::rpc::Message)
+                fn $name(&$this, $caller: std::net::SocketAddr, $args: $crate::rpc::Message)
                     -> $crate::rpc::Result<<$proto as $crate::protocol::RpcSerializer>::Message>
                 {
                     let $args = __typecheck_rpc_args!($proto | $args $($arg_type)*);
                     __silence_unused_args_warning!($args $($arg_type)*);
                     let resp = $fn_body;
+                    let _caller = $caller;
                     __wrap_rpc_return!($proto | resp $($resp)*)
                 }
             )*
@@ -99,7 +100,7 @@ macro_rules! rpc_service {
                     let endpoint_server = service.clone();
                     if !register.register_fn(
                         __stringify!($name),
-                        move |msg: $crate::rpc::Message| endpoint_server.$name(msg))
+                        move |caller: std::net::SocketAddr, msg: $crate::rpc::Message| endpoint_server.$name(caller, msg))
                     {
                         return Err(
                             std::format!(
