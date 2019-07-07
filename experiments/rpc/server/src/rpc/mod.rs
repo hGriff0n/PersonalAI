@@ -57,6 +57,7 @@ macro_rules! __silence_unused_args_warning {
 #[macro_export]
 macro_rules! __stringify {
     ($name:ident) => { stringify!($name) };
+    ($type:ty) => { stringify!($type) };
 }
 
 // TODO: Figure out a way to allow for renaming handles (attributes?)

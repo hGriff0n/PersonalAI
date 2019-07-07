@@ -75,4 +75,9 @@ impl service::Registry<protocol::JsonProtocol> for Dispatcher {
             _ => false
         }
     }
+
+    // Temp method for initial testing of registry service integration
+    fn can_register_handle(&self, fn_name: &str) -> bool {
+        !self.handles.read().unwrap().contains_key(fn_name)
+    }
 }

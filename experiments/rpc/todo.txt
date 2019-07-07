@@ -1,16 +1,18 @@
 
 Server:
   Implement routing of messages
-    collect requirements
     implement register_app
-      come up with method for passing device/rpc state to Services and allowing for modifications there
-        <- then use that method to give the RegistrationService access to rpc registration
       come up with a better way of tracking handle registration
         current arch assumes that we only register new handles, never remove old ones
         there may be an efficient way to do both
           <- otherwise it's just a `app -> [handles]` map
+      create a way for rpc endpoints to determine the "calling" app
+        <- to register an app service, we need to send the messages to the app
+      generate callback that I can register to send app traffic to the correct app
       implement tracking of registered apps
         <- do i also want to track all registered connections? may help with close signal handling
+        store the close signal somewhere in here so that we can persist it in read
+          <- probably also need to add `and_then` calls so that read/write exiting closes the signal properly
     think about what a client app will need to work
       <- testing at this stage can be done by just sending a message
       asynchronous request and response handling
@@ -20,6 +22,9 @@ Server:
           <- can that be used to then automatically register app services in the app dispatcher?
         <- is there a way to automatically parse the json message to a specific type
         `dispatcher.register("endpoint", self.endpoint)`
+    review requirements
+      walkthrough client call to app service workflow
+      walkthrough deregister workflow
     implement app forwarding in server
       setup communication channel to enable sending requests to the app
         <- could we reuse the "sink/source" from `serve`]
@@ -29,7 +34,7 @@ Server:
       <- client that calls an rpc exported by the previously registered app
     implement deregister
       add handle to automatically deregister apps on client shutdown
-    move services into service folder
+    move services into `server/src/services`
   Read through old code to see what's now missing
     -> seshat/indexer
       the current codebase doesn't really fit that too well

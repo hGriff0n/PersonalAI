@@ -7,7 +7,7 @@ mod rpc;
 // services
 mod experimental_service;
 mod fortune_service;
-mod registration_service;
+// mod registration_service;
 
 // macro imports
 // use serde_json::json;
@@ -25,7 +25,55 @@ use crate::rpc::Service;
 // Implementation
 //
 
+mod registration_service {
+    use serde::{Serialize, Deserialize};
+    use crate::protocol;
+    use crate::rpc;
+    use crate::rpc::Registry;
 
+    pub struct RegistrationService {
+        registry: std::sync::Arc<rpc::dispatch::Dispatcher>,
+    }
+
+    impl RegistrationService {
+        pub fn new(registry: std::sync::Arc<rpc::dispatch::Dispatcher>) -> Self {
+            Self{
+                registry: registry,
+            }
+        }
+    }
+
+    //
+    // RpcService Definition
+    //
+
+    // TODO: Look into possibility of adding extra schema information/etc.
+    rpc_schema!(RegisterAppArgs {
+        handles: Vec<String>
+    });
+
+    rpc_schema!(RegisterAppResponse {
+        registered: Vec<String>
+    });
+
+    rpc_service! {
+        RegistrationService<protocol::JsonProtocol>
+
+        rpc register_app(self, args: RegisterAppArgs) -> RegisterAppResponse {
+            let mut registered = Vec::new();
+            for handle in args.handles {
+                // TODO: Actually register the handle in the Dispatcher
+                    // Waiting on method to determine "who" is calling this
+                if self.registry.can_register_handle(handle.as_str()) {
+                    registered.push(handle);
+                }
+            }
+            RegisterAppResponse{
+                registered: registered
+            }
+        }
+
+}
 
 
 //
@@ -38,19 +86,20 @@ fn main() {
 
     // let device_manager = DeviceManager::new();
     let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
+    let rpc_dispatcher = std::sync::Arc::new(rpc_dispatcher);
 
     // Create and register services in the dispatcher
     experimental_service::ExperimentalService::new()
-        .register_endpoints(&rpc_dispatcher)
+        .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
-    // NOTE: Can wrap this in a macro, not sure if good => ($dispatcher:ident $service:expr)
+    // NOTE: Can wrap this in a macro, not sure if good => add_service!($dispatcher:ident $service:expr);
     fortune_service::FortuneService::new()
-        .register_endpoints(&rpc_dispatcher)
+        .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
-    registration_service::RegistrationService::new()
-        .register_endpoints(&rpc_dispatcher)
+    registration_service::RegistrationService::new(rpc_dispatcher.clone())
+        .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
     // We've constructed our rpc server
@@ -59,7 +108,7 @@ fn main() {
 }
 
 // TODO: Improve error handling?
-fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
+fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::SocketAddr) {
     // Current protocols don't require state, so we currently access it statically
     // TODO: Need a way to ensure we're all using the same protocol
     type P = protocol::JsonProtocol;
@@ -95,11 +144,12 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
             let rpc_dispatcher = dispatcher.clone();
             let read_action = reader
                 .for_each(move |msg| {
+                    // TODO: We can currently only accept one response per client (since we don't persist the signal)
                     // TODO: This is called for every request/response -> bad for app handling
                         // The old code handled this by registering the 'connection' outside of this scope
-                        // Handler code would then access the "state" object to get the cancel signal
+                        // Handler code would then access the "state" object to get the cancel signal (when desired)
                     // NOTE: This code is required in order to send the signal into the closure
-                    let close_signal = signal.take();
+                    let close_signal = signal.take().unwrap();
 
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
@@ -115,7 +165,7 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
                     }
 
                     // TODO: We can currently only accept one response per client (since we don't persist the signal)
-                    close_signal.unwrap().send(());
+                    let _ = close_signal.send(());
                     Ok(())
                 })
                 .map(|_| ())

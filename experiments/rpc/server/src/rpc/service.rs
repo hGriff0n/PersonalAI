@@ -30,4 +30,7 @@ pub trait Registry<P: protocol::RpcSerializer> {
     {
         self.register(fn_name, Box::new(callback))
     }
+
+    // Temp method
+    fn can_register_handle(&self, fn_name: &str) -> bool;
 }
