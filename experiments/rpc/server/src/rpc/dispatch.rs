@@ -18,7 +18,7 @@ pub struct Dispatcher {
     handles: sync::Arc<
         sync::RwLock<
             collections::HashMap<
-                String, Box<types::Function<protocol::JsonProtocol>>>>>,
+                String, sync::Arc<Box<types::Function<protocol::JsonProtocol>>>>>>,
 }
 
 impl Dispatcher {
@@ -30,12 +30,16 @@ impl Dispatcher {
 
     // TODO: Integrate this with tokio/futures better
     pub fn dispatch(&self, mut rpc_call: types::Message, caller: net::SocketAddr) -> Option<types::Message> {
-        match self.handles
+        // Extract the handle from the handles map, making sure we release the RWLock before calling it
+        // This is necessary for `register_app`, etc. as they require write access to the handles map
+        let handle = self.handles
             .read()
-            .unwrap()
+            .unwrap()  // NOTE: This only fails if the RWLock is poisoned. Should we just panic then?
             .get(&rpc_call.call)
-            .and_then(|handle| Some(handle(caller, rpc_call.clone())))
-        {
+            .and_then(|handle| Some(handle.clone()));
+
+        // Now that we don't hold the RWLock, call the handle
+        match handle.and_then(|handle| Some(handle(caller, rpc_call.clone()))) {
             // Call succeded, no response
             Some(Ok(None)) => None,
 
@@ -71,13 +75,8 @@ impl service::Registry<protocol::JsonProtocol> for Dispatcher {
             .unwrap()
             .entry(fn_name.to_string())
         {
-            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(callback); true },
+            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(sync::Arc::new(callback)); true },
             _ => false
         }
-    }
-
-    // Temp method for initial testing of registry service integration
-    fn can_register_handle(&self, fn_name: &str) -> bool {
-        !self.handles.read().unwrap().contains_key(fn_name)
     }
 }

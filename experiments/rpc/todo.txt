@@ -6,7 +6,6 @@ Server:
         current arch assumes that we only register new handles, never remove old ones
         there may be an efficient way to do both
           <- otherwise it's just a `app -> [handles]` map
-      generate callback that I can register to send app traffic to the correct app
       implement tracking of registered apps
         <- do i also want to track all registered connections? may help with close signal handling
         store the close signal somewhere in here so that we can persist it in read
@@ -28,6 +27,7 @@ Server:
         <- could we reuse the "sink/source" from `serve`]
       implement way to detect app responses inside of read workflow
         for now just don't send responses into dispatch
+      figure out how to send back app responses to the original client
     implement client
       <- client that calls an rpc exported by the previously registered app
     implement deregister

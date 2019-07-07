@@ -60,11 +60,23 @@ mod registration_service {
         RegistrationService<protocol::JsonProtocol>
 
         rpc register_app(self, caller, args: RegisterAppArgs) -> RegisterAppResponse {
+            // let client = self.device_state.get_client(caller);
+
             let mut registered = Vec::new();
             for handle in args.handles {
-                // TODO: Actually register the handle in the Dispatcher
-                    // Waiting on method to determine "who" is calling this
-                if self.registry.can_register_handle(handle.as_str()) {
+                // TODO: How do we inform the read end to send this message back to the caller?
+                // let write_queue = client.write_queue();
+                let handle_fn = handle.clone();
+                let callback = move |_caller: std::net::SocketAddr, msg: rpc::Message| {
+                    // TODO: Should we add information about the original caller to the Message schema?
+                    // write_queue.send(msg);
+                    // TODO: What's the best way of returning the response from the client
+                        // None + Add signal to send message from read of handle to the caller
+                        // `wait_on_message` future that resolves once the app returns it's response
+                    Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
+                };
+
+                if self.registry.register_fn(handle.as_str(), callback) {
                     registered.push(handle);
                 }
             }
