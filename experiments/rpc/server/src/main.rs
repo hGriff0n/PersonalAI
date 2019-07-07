@@ -79,14 +79,15 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
             let writer = writer
                 .sink_map_err(|err| eprintln!("error in json serialization: {:?}", err));
 
-            // Construct communication channels between the read and write ends
-            // This segments the control flow on the two ends, making the stream processing a little nicer
+            // Construct channels between the read, write, and close "segments"
+            // This separates the control flow into several ends, making the stream processing a little nicer
             let (sender, receiver) = futures::sync::mpsc::unbounded();
-
             // TODO: This is not how the original code handles this. Might want to change
                 // We can also keep the code in the read handler if chosen
             let (signal, close_channel) = tokio::sync::oneshot::channel::<()>();
-            let mut signal = Some(signal);  // NOTE: This is required in order to allow for sending the signal into the read action
+
+            // NOTE: This is required in order to allow for sending the signal to the read action in the current impl
+            let mut signal = Some(signal);
 
             // TODO: Add in `register_new_connection` type callback?
 
@@ -98,7 +99,7 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
                         // The old code handled this by registering the 'connection' outside of this scope
                         // Handler code would then access the "state" object to get the cancel signal
                     // NOTE: This code is required in order to send the signal into the closure
-                    // signal.take().unwrap().send(()).unwrap();
+                    let close_signal = signal.take();
 
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
@@ -107,11 +108,15 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
                         sender
                             .unbounded_send(msg)
                             .map_err(|_err|
-                                std::io::Error::new(std::io::ErrorKind::Other, "Failed to send message through pipe"))
+                                std::io::Error::new(std::io::ErrorKind::Other, "Failed to send message through pipe"))?;
 
                     } else {
-                        Ok(())
+                        println!("No response");
                     }
+
+                    // TODO: We can currently only accept one response per client (since we don't persist the signal)
+                    close_signal.unwrap().send(());
+                    Ok(())
                 })
                 .map(|_| ())
                 .map_err(|err| eprintln!("Error: {:?}", err));
@@ -121,15 +126,22 @@ fn serve(dispatcher: rpc::dispatch::Dispatcher, addr: std::net::SocketAddr) {
                 .map(move |msg| <P as protocol::RpcSerializer>::to_value(msg).unwrap())
                 .forward(writer)
                 .map(|_| ())
-            .map_err(|err| eprintln!("socket write error: {:?}", err));
+                .map_err(|err| eprintln!("socket write error: {:?}", err));
+
+            // Catch any errors by close_channel so that we can actually print them
+            // NOTE: Some errors we catch will still be reported as an `unknown error` somehow
+                // This is likely due to the signal being dropped without having called `send`
+            let close_action = close_channel
+                .map(|_| ())
+                .map_err(|err| eprintln!("close connection error: {:?}", err));
 
             // Spawn the actions in tokio
             let action = read_action
                 .select(write_action)
-                .select2(close_channel)
+                .select2(close_action)
                 // TODO: Add in `register_close_connection` type callback?
                 .map(move |_| println!("Closed connection with {:?}", addr))
-                .map_err(|_| eprintln!("close connection error"));
+                .map_err(|_| eprintln!("unknown error occurred"));
 
             tokio::spawn(action)
         });
