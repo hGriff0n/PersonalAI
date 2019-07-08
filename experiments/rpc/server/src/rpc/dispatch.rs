@@ -79,4 +79,11 @@ impl service::Registry<protocol::JsonProtocol> for Dispatcher {
             _ => false
         }
     }
+
+    fn unregister(&self, fn_name: &str) -> Option<std::sync::Arc<Box<types::Function<protocol::JsonProtocol>>>> {
+        self.handles
+            .write()
+            .unwrap()
+            .remove(fn_name)
+    }
 }

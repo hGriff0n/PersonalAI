@@ -4,12 +4,16 @@ Server:
     implement register_app
       come up with a better way of tracking handle registration
         current arch assumes that we only register new handles, never remove old ones
+          <- this is likely true for ther server, but not for apps
         there may be an efficient way to do both
-          <- otherwise it's just a `app -> [handles]` map
+          <- register a callback for on-close inside of register_app
       implement tracking of registered apps
         <- do i also want to track all registered connections? may help with close signal handling
         store the close signal somewhere in here so that we can persist it in read
           <- probably also need to add `and_then` calls so that read/write exiting closes the signal properly
+      improve implementation of added code
+        the process for unregistering functions needs a lot of thought about error conditions
+        the struct defs for the DeviceState/etc. code are not clean
     think about what a client app will need to work
       <- testing at this stage can be done by just sending a message
       asynchronous request and response handling
@@ -23,6 +27,10 @@ Server:
       walkthrough client call to app service workflow
       walkthrough deregister workflow
     implement app forwarding in server
+      correctly setup the close signal so a client can run a conversation
+        add code to write action cleanup to send close signal
+        add code to read action cleanup to send close signal
+          NOTE: May be able to join these two sends
       setup communication channel to enable sending requests to the app
         <- could we reuse the "sink/source" from `serve`]
       implement way to detect app responses inside of read workflow

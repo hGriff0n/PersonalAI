@@ -1,6 +1,6 @@
 
 // standard imports
-use std::net;
+use std::{net, sync};
 
 // third-party imports
 
@@ -25,10 +25,14 @@ pub trait Service<P: protocol::RpcSerializer> {
 // Alternative trait for allowing registration of rpc services
 pub trait Registry<P: protocol::RpcSerializer> {
     fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> bool;
-    // TODO(r/41517): Improve once trait aliases are in stable
+    // TODO: (r/41517) - Improve once trait aliases are in stable
     fn register_fn<F>(&self, fn_name: &str, callback: F) -> bool
         where F: Fn(net::SocketAddr, types::Message) -> types::Result<P::Message> + Send + Sync + 'static
     {
         self.register(fn_name, Box::new(callback))
     }
+
+    // TODO: I don't like the implementation dependency on using `std::sync::Arc`
+        // However, I currently can't handle the case of the arc having multiple "handles" too well inside
+    fn unregister(&self, fn_name: &str) -> Option<sync::Arc<Box<types::Function<P>>>>;
 }

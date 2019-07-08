@@ -66,7 +66,7 @@ mod registration_service {
             for handle in args.handles {
                 // TODO: How do we inform the read end to send this message back to the caller?
                 // let write_queue = client.write_queue();
-                let handle_fn = handle.clone();
+                // let handle_fn = handle.clone();
                 let callback = move |_caller: std::net::SocketAddr, msg: rpc::Message| {
                     // TODO: Should we add information about the original caller to the Message schema?
                     // write_queue.send(msg);
@@ -80,6 +80,16 @@ mod registration_service {
                     registered.push(handle);
                 }
             }
+
+            // TODO: Not sure about error handling here
+            // client.on_exit(|| for handle in registered {
+            //     if let Some(callback) = self.registry.unregister(handle.as_str()) {
+            //         if std::sync::Arc::strong_count(&callback) > 1 {
+            //             panic!("Multiple strong references to dispatch callback for {} at exit", handle);
+            //         }
+            //     }
+            // });
+
             RegisterAppResponse{
                 registered: registered
             }
