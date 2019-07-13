@@ -44,7 +44,3 @@ msg_len = struct.unpack('>I', len_buf)[0]
 msg_buf = sock.recv(msg_len)
 msg = json.loads(msg_buf.decode('utf-8'))
 print("Received {}".format(msg))
-
-print("Keeping the client open to test whether the connection gets closed")
-while True:
-        pass

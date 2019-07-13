@@ -26,8 +26,11 @@ use crate::rpc::Service;
 //
 
 pub struct Client {
+    // TODO: Why do we need the mutex?
+    // We use `Option` to satisfy the borrow checker as `close_signal.send` moves the sender
     close_signal: std::sync::Arc<std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>,
+    exit_callbacks: std::sync::Arc<std::sync::RwLock<Vec<Box<Fn() -> () + Send + Sync>>>>,
 }
 
 impl Client {
@@ -39,6 +42,15 @@ impl Client {
         {
             let _ = signal.send(());
         }
+    }
+
+    pub fn on_exit<F>(&self, func: F)
+        where F: Fn() -> () + Send + Sync + 'static
+    {
+        self.exit_callbacks
+            .write()
+            .unwrap()
+            .push(Box::new(func))
     }
 }
 
@@ -56,10 +68,21 @@ impl ClientTracker {
         }
     }
 
-    pub fn new_client(&self, addr: net::SocketAddr, write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>, close_signal: tokio::sync::oneshot::Sender<()>)
+    // Client tracking interface (add/get/del)
+    pub fn connect_client(
+        &self,
+        addr: net::SocketAddr,
+        write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>,
+        close_signal: tokio::sync::oneshot::Sender<()>
+    )
         -> std::sync::Arc<Client>
     {
-        let client = std::sync::Arc::new(Client{write_queue: write_queue, close_signal: std::sync::Arc::new(std::sync::Mutex::new(Some(close_signal)))});
+        let client = std::sync::Arc::new(
+            Client{
+                write_queue: write_queue,
+                close_signal: std::sync::Arc::new(std::sync::Mutex::new(Some(close_signal))),
+                exit_callbacks: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
+            });
         self.active_clients
             .write()
             .unwrap()
@@ -67,11 +90,25 @@ impl ClientTracker {
         client
     }
 
-    pub fn drop_client(&self, addr: net::SocketAddr) -> Option<std::sync::Arc<Client>> {
+    pub fn get_client(&self, addr: net::SocketAddr) -> Option<std::sync::Arc<Client>> {
         self.active_clients
-            .write()
+            .read()
             .unwrap()
-            .remove(&addr)
+            .get(&addr)
+            .and_then(|client| Some(client.clone()))
+    }
+
+    pub fn drop_client(&self, addr: net::SocketAddr) {
+        if let Some(client) = self.active_clients
+                                  .write()
+                                  .unwrap()
+                                  .remove(&addr)
+        {
+            // Run any callbacks that were registered with `on_exit`
+            for callback in client.exit_callbacks.read().unwrap().iter() {
+                callback();
+            }
+        }
     }
 }
 
@@ -116,39 +153,52 @@ mod registration_service {
         RegistrationService<protocol::JsonProtocol>
 
         rpc register_app(self, caller, args: RegisterAppArgs) -> RegisterAppResponse {
-            // let mut client = self.server_state.client(caller);
+            let mut resp = RegisterAppResponse{ registered: Vec::new() };
 
-            let mut registered = Vec::new();
+            // Get the client tracker object
+            let server = self.clients.get_client(caller);
+            if server.is_none() {
+                return Err(std::io::Error::new(std::io::ErrorKind::ConnectionReset, format!("No registered client for {}", caller)));
+            }
+            let server = client.unwrap();
+
+            // Register a handler for the specified functions to forward the message to the app server
+            // TODO: How do I get responses from the app server back into this callback?
             for handle in args.handles {
-                // TODO: How do we inform the read end to send this message back to the caller?
-                // let write_queue = client.write_queue();
-                // let handle_fn = handle.clone();
-                let callback = move |_caller: std::net::SocketAddr, msg: rpc::Message| {
+                let _msg_forwarding = server.write_queue.clone();
+
+                // TODO: Is there a way I could make writing this callback simpler?
+                let callback = move |_app_caller: std::net::SocketAddr, msg: rpc::Message| {
                     // TODO: Should we add information about the original caller to the Message schema?
                     // write_queue.send(msg);
                     // TODO: What's the best way of returning the response from the client
                         // None + Add signal to send message from read of handle to the caller
                         // `wait_on_message` future that resolves once the app returns it's response
                     Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
+
+                    // msg_forwarding.send(msg)?;
+                    // TODO: Need to add "receiver callback" so that any response gets redirected here
+                    // Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
                 };
 
                 if self.registry.register_fn(handle.as_str(), callback) {
-                    registered.push(handle);
+                    resp.registered.push(handle);
                 }
             }
 
+            // Add a final callback to de-register all the handles we just added when the client exits
             // TODO: Not sure about error handling here
-            // client.on_exit(|| for handle in registered {
-            //     if let Some(callback) = self.registry.unregister(handle.as_str()) {
-            //         if std::sync::Arc::strong_count(&callback) > 1 {
-            //             panic!("Multiple strong references held to dispatch callback for {} at deregister", handle);
-            //         }
-            //     }
-            // });
+            let registered = resp.registered.clone();
+            let reg = self.registry.clone();
+            client.on_exit(move || for handle in &registered {
+                if let Some(callback) = reg.unregister(handle.as_str()) {
+                    if std::sync::Arc::strong_count(&callback) > 1 {
+                        panic!("Multiple strong references held to dispatch callback for {} at deregister", handle);
+                    }
+                }
+            });
 
-            RegisterAppResponse{
-                registered: registered
-            }
+            resp
         }
     }
 }
@@ -217,9 +267,8 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
             let (signal, close_channel) = tokio::sync::oneshot::channel();
 
             // Now that we've set all the channels up, start tracking the new client
-            let client = client_tracker.new_client(peer_addr, sender, signal);
-            let client_dropper = client_tracker.clone();
-            let client_double_dropper = client_tracker.clone();
+            let client = client_tracker.connect_client(peer_addr, sender, signal);
+            let drop_client = client.clone();
 
             // TODO: Add in `register_new_connection` type callback?
 
@@ -238,8 +287,6 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                             .map_err(|_err|
                                 std::io::Error::new(std::io::ErrorKind::Other, "Failed to send message through pipe"))?;
 
-                    } else {
-                        println!("No response");
                     }
 
                     Ok(())
@@ -262,18 +309,17 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                 .map_err(|err| eprintln!("close connection error: {:?}", err));
 
             // Spawn the actions in tokio
+            let client_dropper = client_tracker.clone();
             let action = read_action
                 .select(write_action)
-                .map(move |_| {
+                .map(move |_|
                     // Ensure the close signal gets sent so we don't have any errors in close_action
-                    if let Some(client) = client_dropper.drop_client(addr) {
-                        client.send_close_signal();
-                    }
-                })
+                    drop_client.send_close_signal()
+                )
                 .select2(close_action)
                 .map(move |_| {
-                    client_double_dropper.drop_client(addr);
-                    println!("Closed connection with {:?}", addr)
+                    client_dropper.drop_client(peer_addr);
+                    println!("Closed connection with {:?}", peer_addr)
                 })
                 .map_err(|_| eprintln!("unknown error occurred"));
 
