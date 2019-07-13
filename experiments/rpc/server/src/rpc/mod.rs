@@ -61,12 +61,12 @@ macro_rules! __stringify {
 }
 
 // TODO: Figure out a way to allow for renaming handles (attributes?)
-// TODO: Allow for specifying attributes on rpc?
 // Macro that defines and implements an rpc service
 // Defined rpcs are automatically wrapped with correct argument parsing and response handling code
 // NOTE: Rust allows for multiple `impl $service` blocks
     // These can be used to define constructors and other helper methods
 // NOTE: I don't quite like the implicit dependency on some type defs this has
+// NOTE: For reporting errors, use this recipe: "Err(...)?"
 #[macro_export(local_inner_macros)]
 macro_rules! rpc_service {
     // generate_args, ignore_args_if_none, and generate_return only operate on 0 or 1 "arguments"
@@ -74,7 +74,8 @@ macro_rules! rpc_service {
     (
         $service:ident<$proto:ty>
         $(
-            rpc $name:ident($this:ident, $caller:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp:ty)* $fn_body:block
+            $(#[$_:meta])*  // Match any "attribute" specified on the rpc (unused, alt syntax: `$(@$_:meta)*`)
+            rpc $name:ident($this:ident, $caller:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp_ty:ty)* $fn_body:block
         )*
     ) => {
         impl $service {
@@ -86,7 +87,7 @@ macro_rules! rpc_service {
                     __silence_unused_args_warning!($args $($arg_type)*);
                     let resp = $fn_body;
                     let _caller = $caller;
-                    __wrap_rpc_return!($proto | resp $($resp)*)
+                    __wrap_rpc_return!($proto | resp $($resp_ty)*)
                 }
             )*
         }

@@ -26,14 +26,27 @@ use crate::rpc::Service;
 //
 
 pub struct Client {
-    // TODO: Why do we need the mutex?
+    pub write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>,
+
+    // We need mutex in give interior mutability without sacrificing `Send + Sync`
     // We use `Option` to satisfy the borrow checker as `close_signal.send` moves the sender
     close_signal: std::sync::Arc<std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
-    write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>,
-    exit_callbacks: std::sync::Arc<std::sync::RwLock<Vec<Box<Fn() -> () + Send + Sync>>>>,
+
+    // TODO: Can't accept `FnOnce` because "cannot move out of borrowed content"?
+    exit_callbacks: std::sync::Arc<std::sync::RwLock<Vec<Box<Fn() -> Result<(), std::io::Error> + Send + Sync>>>>,
 }
 
 impl Client {
+    pub fn new(close_signal: tokio::sync::oneshot::Sender<()>, write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>)
+        -> Self
+    {
+        Self{
+            write_queue: write_queue,
+            close_signal: std::sync::Arc::new(std::sync::Mutex::new(Some(close_signal))),
+            exit_callbacks: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
+        }
+    }
+
     pub fn send_close_signal(&self) {
         if let Some(signal) = self.close_signal
             .lock()
@@ -44,18 +57,41 @@ impl Client {
         }
     }
 
+    // Exit callback interface
     pub fn on_exit<F>(&self, func: F)
-        where F: Fn() -> () + Send + Sync + 'static
+        where F: Fn() -> Result<(), std::io::Error> + Send + Sync + 'static
     {
         self.exit_callbacks
             .write()
             .unwrap()
             .push(Box::new(func))
     }
+
+    pub fn run_exit_callbacks(&self) -> Result<(), std::io::Error> {
+        let mut callbacks = self.exit_callbacks
+            .write()
+            .unwrap();
+
+        // Run all callbacks returning the first error we encounter
+        // NOTE: We don't immediately return on errors as:
+            // 1) Callbacks should not be depending on the ordering callbacks are run anyways
+            // 2) Not calling a callback may leave the system in an invalid state which'll produce future errors
+        // If we have errors in multiple callbacks, we always return the first error though
+        let ret = match callbacks.iter()
+                       .filter_map(|callback| callback().err())
+                       .next()
+        {
+            Some(err) => Err(err),
+            _ => Ok(())
+        };
+
+        // Clear the callbacks so we only run through them once (just in case)
+        callbacks.clear();
+        ret
+    }
 }
 
 pub struct ClientTracker {
-    #[allow(dead_code)]
     active_clients: std::sync::Arc<
         std::sync::RwLock<
             std::collections::HashMap<net::SocketAddr, std::sync::Arc<Client>>>>,
@@ -77,12 +113,7 @@ impl ClientTracker {
     )
         -> std::sync::Arc<Client>
     {
-        let client = std::sync::Arc::new(
-            Client{
-                write_queue: write_queue,
-                close_signal: std::sync::Arc::new(std::sync::Mutex::new(Some(close_signal))),
-                exit_callbacks: std::sync::Arc::new(std::sync::RwLock::new(Vec::new())),
-            });
+        let client = std::sync::Arc::new(Client::new(close_signal, write_queue));
         self.active_clients
             .write()
             .unwrap()
@@ -98,16 +129,18 @@ impl ClientTracker {
             .and_then(|client| Some(client.clone()))
     }
 
-    pub fn drop_client(&self, addr: net::SocketAddr) {
+    pub fn drop_client(&self, addr: net::SocketAddr) -> Result<(), std::io::Error> {
         if let Some(client) = self.active_clients
                                   .write()
                                   .unwrap()
                                   .remove(&addr)
         {
-            // Run any callbacks that were registered with `on_exit`
-            for callback in client.exit_callbacks.read().unwrap().iter() {
-                callback();
-            }
+            // Try to send the close signal, in case this is called outside of `serve`
+            client.send_close_signal();
+            client.run_exit_callbacks()
+
+        } else {
+            Ok(())
         }
     }
 }
@@ -156,11 +189,13 @@ mod registration_service {
             let mut resp = RegisterAppResponse{ registered: Vec::new() };
 
             // Get the client tracker object
-            let server = self.clients.get_client(caller);
-            if server.is_none() {
-                return Err(std::io::Error::new(std::io::ErrorKind::ConnectionReset, format!("No registered client for {}", caller)));
-            }
-            let server = client.unwrap();
+            let server = match self.clients.get_client(caller) {
+                Some(server) => server,
+                _ => Err(
+                    std::io::Error::new(
+                        std::io::ErrorKind::ConnectionReset,
+                        format!("No registered client for {}", caller)))?
+            };
 
             // Register a handler for the specified functions to forward the message to the app server
             // TODO: How do I get responses from the app server back into this callback?
@@ -170,13 +205,12 @@ mod registration_service {
                 // TODO: Is there a way I could make writing this callback simpler?
                 let callback = move |_app_caller: std::net::SocketAddr, msg: rpc::Message| {
                     // TODO: Should we add information about the original caller to the Message schema?
-                    // write_queue.send(msg);
+                    // msg_forwarding.send(msg)?;
                     // TODO: What's the best way of returning the response from the client
                         // None + Add signal to send message from read of handle to the caller
                         // `wait_on_message` future that resolves once the app returns it's response
                     Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
 
-                    // msg_forwarding.send(msg)?;
                     // TODO: Need to add "receiver callback" so that any response gets redirected here
                     // Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
                 };
@@ -190,13 +224,17 @@ mod registration_service {
             // TODO: Not sure about error handling here
             let registered = resp.registered.clone();
             let reg = self.registry.clone();
-            client.on_exit(move || for handle in &registered {
-                if let Some(callback) = reg.unregister(handle.as_str()) {
-                    if std::sync::Arc::strong_count(&callback) > 1 {
-                        panic!("Multiple strong references held to dispatch callback for {} at deregister", handle);
+            server.on_exit(move ||
+                Ok(for handle in &registered {
+                    if let Some(callback) = reg.unregister(handle.as_str()) {
+                        if std::sync::Arc::strong_count(&callback) > 1 {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::Other,
+                                format!("Strong references held to dispatcher for app callback `{}` at deregistration", handle)
+                            ));
+                        }
                     }
-                }
-            });
+                }));
 
             resp
         }
@@ -294,35 +332,38 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                 .map(|_| ())
                 .map_err(|err| eprintln!("Error: {:?}", err));
 
-            // Reformat rpc responses and send them back on the line
+            // Reformat rpc responses and send them down the line to the client
             let write_action = receiver
                 .map(move |msg| <P as protocol::RpcSerializer>::to_value(msg).unwrap())
                 .forward(writer)
                 .map(|_| ())
                 .map_err(|err| eprintln!("socket write error: {:?}", err));
 
-            // Catch any errors by close_channel so that we can actually print them
-            // NOTE: Some errors we catch will still be reported as an `unknown error` somehow
-                // This is likely due to the signal being dropped without having called `send`
-            let close_action = close_channel
-                .map(|_| ())
-                .map_err(|err| eprintln!("close connection error: {:?}", err));
-
-            // Spawn the actions in tokio
-            let client_dropper = client_tracker.clone();
-            let action = read_action
+            // Ensure the close signal gets sent after read_action|write_action finishes
+            // This avoids some errors with close_action resulting from the signal not being sent
+            let communication_action = read_action
                 .select(write_action)
                 .map(move |_|
-                    // Ensure the close signal gets sent so we don't have any errors in close_action
                     drop_client.send_close_signal()
-                )
+                );
+
+            // Catch any errors by close_channel so that we can actually print them
+            let close_action = close_channel
+                .map_err(|err| eprintln!("close connection error: {:?}", err));
+
+            // Drop the connection from the client tracker
+            let client_dropper = client_tracker.clone();
+            let action = communication_action
                 .select2(close_action)
                 .map(move |_| {
-                    client_dropper.drop_client(peer_addr);
+                    client_dropper.drop_client(peer_addr)
+                        .err()
+                        .and_then(|err| Some(eprintln!("drop client error: {:?}", err)));
                     println!("Closed connection with {:?}", peer_addr)
                 })
                 .map_err(|_| eprintln!("unknown error occurred"));
 
+            // Spawn the actions in tokio
             tokio::spawn(action)
         });
 

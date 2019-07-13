@@ -1,13 +1,6 @@
 
 Server:
   Implement routing of messages
-    improve implementation of added code
-      the process for unregistering functions needs a lot of thought about error conditions
-      the struct defs for the DeviceState/etc. code are not clean
-      fix the client mess in the close action handling
-      the process of returning errors from rpcs is a bit obtuse (relies on knowing impl details)
-        doesn't correctly support early returns
-        early returns currently requiring knowing about Result
     think about what a client app will need to work
       <- testing at this stage can be done by just sending a message
       asynchronous request and response handling
@@ -31,6 +24,7 @@ Server:
     implement deregister
       add handle to automatically deregister apps on client shutdown
     move services into `server/src/services`
+      <- figure out a place to move the client tracking structs to (device?)
   Read through old code to see what's now missing
     -> seshat/indexer
       the current codebase doesn't really fit that too well
