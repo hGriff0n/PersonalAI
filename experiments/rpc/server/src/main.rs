@@ -25,6 +25,56 @@ use crate::rpc::Service;
 // Implementation
 //
 
+pub struct Client {
+    close_signal: std::sync::Arc<std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
+    write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>,
+}
+
+impl Client {
+    pub fn send_close_signal(&self) {
+        if let Some(signal) = self.close_signal
+            .lock()
+            .unwrap()
+            .take()
+        {
+            let _ = signal.send(());
+        }
+    }
+}
+
+pub struct ClientTracker {
+    #[allow(dead_code)]
+    active_clients: std::sync::Arc<
+        std::sync::RwLock<
+            std::collections::HashMap<net::SocketAddr, std::sync::Arc<Client>>>>,
+}
+
+impl ClientTracker {
+    pub fn new() -> Self {
+        Self{
+            active_clients: std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
+        }
+    }
+
+    pub fn new_client(&self, addr: net::SocketAddr, write_queue: futures::sync::mpsc::UnboundedSender<rpc::Message>, close_signal: tokio::sync::oneshot::Sender<()>)
+        -> std::sync::Arc<Client>
+    {
+        let client = std::sync::Arc::new(Client{write_queue: write_queue, close_signal: std::sync::Arc::new(std::sync::Mutex::new(Some(close_signal)))});
+        self.active_clients
+            .write()
+            .unwrap()
+            .insert(addr, client.clone());
+        client
+    }
+
+    pub fn drop_client(&self, addr: net::SocketAddr) -> Option<std::sync::Arc<Client>> {
+        self.active_clients
+            .write()
+            .unwrap()
+            .remove(&addr)
+    }
+}
+
 mod registration_service {
     use serde::{Serialize, Deserialize};
     use crate::protocol;
@@ -33,12 +83,18 @@ mod registration_service {
 
     pub struct RegistrationService {
         registry: std::sync::Arc<rpc::dispatch::Dispatcher>,
+
+        #[allow(dead_code)]
+        clients: std::sync::Arc<crate::ClientTracker>,
     }
 
     impl RegistrationService {
-        pub fn new(registry: std::sync::Arc<rpc::dispatch::Dispatcher>) -> Self {
+        pub fn new(registry: std::sync::Arc<rpc::dispatch::Dispatcher>, clients: std::sync::Arc<crate::ClientTracker>)
+            -> Self
+        {
             Self{
                 registry: registry,
+                clients: clients,
             }
         }
     }
@@ -60,7 +116,7 @@ mod registration_service {
         RegistrationService<protocol::JsonProtocol>
 
         rpc register_app(self, caller, args: RegisterAppArgs) -> RegisterAppResponse {
-            // let client = self.device_state.get_client(caller);
+            // let mut client = self.server_state.client(caller);
 
             let mut registered = Vec::new();
             for handle in args.handles {
@@ -85,7 +141,7 @@ mod registration_service {
             // client.on_exit(|| for handle in registered {
             //     if let Some(callback) = self.registry.unregister(handle.as_str()) {
             //         if std::sync::Arc::strong_count(&callback) > 1 {
-            //             panic!("Multiple strong references to dispatch callback for {} at exit", handle);
+            //             panic!("Multiple strong references held to dispatch callback for {} at deregister", handle);
             //         }
             //     }
             // });
@@ -107,8 +163,8 @@ fn main() {
         .expect("Failed to parse hardcoded socket address");
 
     // let device_manager = DeviceManager::new();
-    let rpc_dispatcher = rpc::dispatch::Dispatcher::new();
-    let rpc_dispatcher = std::sync::Arc::new(rpc_dispatcher);
+    let client_tracker = std::sync::Arc::new(ClientTracker::new());
+    let rpc_dispatcher = std::sync::Arc::new(rpc::dispatch::Dispatcher::new());
 
     // Create and register services in the dispatcher
     experimental_service::ExperimentalService::new()
@@ -120,17 +176,20 @@ fn main() {
         .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
-    registration_service::RegistrationService::new(rpc_dispatcher.clone())
+    registration_service::RegistrationService::new(rpc_dispatcher.clone(), client_tracker.clone())
         .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
     // We've constructed our rpc server
     // Now let the user break it
-    serve(rpc_dispatcher, addr);
+    serve(rpc_dispatcher, client_tracker, addr);
 }
 
 // TODO: Improve error handling?
-fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::SocketAddr) {
+fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
+         client_tracker: std::sync::Arc<ClientTracker>,
+         addr: std::net::SocketAddr)
+{
     // Current protocols don't require state, so we currently access it statically
     // TODO: Need a way to ensure we're all using the same protocol
     type P = protocol::JsonProtocol;
@@ -157,8 +216,10 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
             let (sender, receiver) = futures::sync::mpsc::unbounded();
             let (signal, close_channel) = tokio::sync::oneshot::channel();
 
-            // NOTE: This is required in order to allow for sending the signal to the read action in the current impl
-            let mut signal = Some(signal);
+            // Now that we've set all the channels up, start tracking the new client
+            let client = client_tracker.new_client(peer_addr, sender, signal);
+            let client_dropper = client_tracker.clone();
+            let client_double_dropper = client_tracker.clone();
 
             // TODO: Add in `register_new_connection` type callback?
 
@@ -166,20 +227,13 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
             let rpc_dispatcher = dispatcher.clone();
             let read_action = reader
                 .for_each(move |msg| {
-                    // TODO: We can currently only accept one response per client (since we don't persist the signal)
-                    // TODO: This is called for every request/response -> bad for app handling
-                        // The old code handled this by registering the 'connection' outside of this scope
-                        // Handler code would then access the "state" object to get the cancel signal (when desired)
-                    // NOTE: This code is required in order to send the signal into the closure
-                    let close_signal = signal.take().unwrap();
-
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
                     if let Some(msg) = rpc_dispatcher
                         .dispatch(<P as protocol::RpcSerializer>::from_value(msg)?, peer_addr)
                     {
                         // If a response was produced send it back to the caller
-                        sender
+                        client.write_queue
                             .unbounded_send(msg)
                             .map_err(|_err|
                                 std::io::Error::new(std::io::ErrorKind::Other, "Failed to send message through pipe"))?;
@@ -188,8 +242,6 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
                         println!("No response");
                     }
 
-                    // TODO: We can currently only accept one response per client (since we don't persist the signal)
-                    let _ = close_signal.send(());
                     Ok(())
                 })
                 .map(|_| ())
@@ -212,9 +264,17 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>, addr: std::net::
             // Spawn the actions in tokio
             let action = read_action
                 .select(write_action)
+                .map(move |_| {
+                    // Ensure the close signal gets sent so we don't have any errors in close_action
+                    if let Some(client) = client_dropper.drop_client(addr) {
+                        client.send_close_signal();
+                    }
+                })
                 .select2(close_action)
-                // TODO: Add in `register_close_connection` type callback?
-                .map(move |_| println!("Closed connection with {:?}", addr))
+                .map(move |_| {
+                    client_double_dropper.drop_client(addr);
+                    println!("Closed connection with {:?}", addr)
+                })
                 .map_err(|_| eprintln!("unknown error occurred"));
 
             tokio::spawn(action)
