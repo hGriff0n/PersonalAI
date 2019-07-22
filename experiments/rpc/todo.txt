@@ -1,26 +1,17 @@
 
 Server:
   Implement routing of messages
-    think about what a client app will need to work
-      <- testing at this stage can be done by just sending a message
-      asynchronous request and response handling
-      wrapping of communication code in a common module
-      dispatcher that receives messages and forwards them to method calls
-        <- can I use decorators to mark out which functions are rpc endpoints?
-          <- can that be used to then automatically register app services in the app dispatcher?
-        <- is there a way to automatically parse the json message to a specific type
-        `dispatcher.register("endpoint", self.endpoint)`
-    review requirements
-      walkthrough client call to app service workflow
-      walkthrough deregister workflow
     implement app forwarding in server
-      implement forwarding of messages on to the app server
-        <- using the client write channel
       implement way to detect app responses inside of read workflow
         for now just don't send responses into dispatch
       figure out how to send back app responses to the original client
     implement client
       <- client that calls an rpc exported by the previously registered app
+      asynchronous request and response handling
+      wrapping of communication code in a common module
+      dispatcher that receives messages and forwards them to method calls
+        <- is there a way to automatically parse the json message to a specific type
+        `dispatcher.register("endpoint", self.endpoint)`
     implement deregister
       add handle to automatically deregister apps on client shutdown
     move services into `server/src/services`

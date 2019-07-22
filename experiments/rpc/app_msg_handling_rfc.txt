@@ -5,31 +5,16 @@ NOTE: All apps should also support some basic monitoring/discovery calls by defa
   TODO: How will these be "registered" - only the server should be able to call these apps
     Should the server just assume that these handles exist?
 
-app sends register_app request (TODO:)
-  TODO: How does the app server started in order to send the request?
-    Is a stub client run to get the server information before starting the app
-    Or does the app start and does the registration itself
+app sends register_app request (NOTE: Finished server)
   -> server receives request (NOTE: Automatic)
   -> server dispatches on request (NOTE: Automatic)
     <- finds RegistrationService (NOTE: Done)
   -> server sends request to RegistrationService::register_server (NOTE: Automatic)
     -> register_server extracts list of handles (NOTE: Automatic)
-    -> register_server sets up communication channel (TODO:)
-      TODO: Can we reuse the communication channel that was setup when the client connected?
-        This will require adding an explicit "disconnect" action workflow to `serve`
+    -> register_server sets up communication channel (NOTE: Done)
         NOTE: Pushing things on the write channel will currently cause infinite loops with the response
           Would need to change handling of read workflow slightly (see later)
-    -> register_server registers callback for each handles (TODO:)
-      TODO: How will RegistrationService get access to the Dispatcher to register the callbacks?
-      TODO: The registration methods currently assume success (ie. handle not-taken)
-        they actually force success, we can't represent `insert_if_not_present`
-        this means we can't tell if a handle was registered or not
-          <- current behavior should be to not register if this happens
-          <- if the app requires that handle, they should immediately deregister/shutdown
-      TODO: Come up with a better way of tracking handle registration
-        Current architecture assumes we never remove handles from the map
-          We could fix this by maintaining a `app -> [handles]` map too
-        Look if there's a better way to remove registrations and additions
+    -> register_server registers callback for each handles (NOTE: Done)
       TODO: Most messages the server recieves from an app will be responses
         The current read workflow assumes requests only, which will cause infinite loops
         Change that to recognize when a message is an app response
@@ -38,35 +23,49 @@ app sends register_app request (TODO:)
   -> server checks response for messages (NOTE: Automatic)
     <- response has message (NOTE: Automatic)
   <- server sends response back to app (NOTE: Automatic)
-app handles response (TODO:)
+-> app handles response (NOTE: Implementation detail)
+  TODO: Apps may require "calling" their own methods through the rpc system
+    May want to provide a system for apps to register local handlers for some functionality
 
-client sends app request (TODO:)
+client sends app request (TODO: App server, App response forwarding)
   -> server receives request (NOTE: Automatic)
   -> server dispatches on request (NOTE: Automatic)
-    <- finds app server (TODO:)
-  -> server forwards request to app server (TODO:)
+    <- dispatch points to an app server (NOTE: Done)
+    <- server installs system to reroute responses to the original message (TODO: What systems)
+      ISSUE: Some apps may not return anything. How to handle?
+    <- server sends message to app write queue (NOTE: Done)
+  -> app handles message (TODO: App is unimplemented)
     -> app receives request (TODO:)
-    -> app dispatches on request (TODO:)
-      <- finds local method (TODO:)
-      <- local method produces response (TODO:)
-    <- app sends response back to server (TODO:)
-  -> server checks response for message (NOTE: Automatic)
-    <- response has message (NOTE: Automatic)
-      TODO: How should we handle app requests that have no response
-        Server rpcs just don't send anything back, should app rpcs do the same
-  <- server sends response back to client
-    TODO: How to translate the response back into the original communication thread
-      Currently, the response will come through the *app's* channel, but needs to get to the client's channel
-        this process is currently distinct and there's no way to "backtrack" or "continuation"
+    -> app dispatches on request to endpoint (TODO:)
+      <- find registered endpoint method (TODO:)
+      <- run endpoint method (TODO:)
+      <- parse back response into message (TODO:)
+    <- app writes response to server (TODO:)
+  -> server receives response (NOTE: Automatic)
+  -> server dispatches on response (TODO: Current dispatch only considers method)
+    <- dispatch points to a "forwarding table" (TODO:)
+    <- response is sent to requestor's write queue (TODO:)
+    <- server sends response to requestor (NOTE: Automatic)
+  -> app handles response (TODO:)
 client handles response (TODO:)
 
 app sends deregister request (TODO:)
-  TODO: Scope out
+  -> server receives `deregister` request (NOTE: Automatic)
+  -> server dispatches on request (NOTE: Automatic)
+    <- finds RegistrationService (NOTE: Done)
+  -> server sends request to RegistrationService::deregister (TODO: Is this the best way to approach it?)
+    <- server handles are removed from dispatcher (NOTE: Automatic)
+    <- in flight server messages are dropped (TODO: How to track these messages?)
+    <- close signal is sent (TODO: Timing)
+  -> server sends no response (TODO: Wanted?)
 
-      -- incorporate in the above workflow somewhere when the workflow's finished
-      TODO: Need a way to automatically send a `deregister` command on app server close
-        I think connections stay open until the client exits
-        If the app server does this, then the connection will end with the handles still registered
+app gets dropped (TODO:)
+  -> server recognizes dropped client (NOTE: Automatic)
+  -> server dispatches on `deregister` request (TODO: Recognize and send)
+    TODO: How to construct this request in the expected way?
+    TODO: How to determine which request to send
+    <- find RegistrationService (NOTE: Done)
+  -> server sends request to RegistrationService::deregister (TODO:)
 
 notes:
   this will require more work on making the serving+rpc code asynchronous
