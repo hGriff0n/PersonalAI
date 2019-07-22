@@ -200,16 +200,23 @@ mod registration_service {
             // Register a handler for the specified functions to forward the message to the app server
             // TODO: How do I get responses from the app server back into this callback?
             for handle in args.handles {
-                let _msg_forwarding = server.write_queue.clone();
+                let msg_forwarding = server.write_queue.clone();
 
                 // TODO: Is there a way I could make writing this callback simpler?
                 let callback = move |_app_caller: std::net::SocketAddr, msg: rpc::Message| {
+                    // TODO: This will be gotten from a future/callback after the send below
+                    let response = msg.clone();
+
                     // TODO: Should we add information about the original caller to the Message schema?
-                    // msg_forwarding.send(msg)?;
+                    msg_forwarding.unbounded_send(msg.clone())
+                        .map_err(|_err| std::io::Error::new(
+                            std::io::ErrorKind::ConnectionAborted,
+                            format!("Receiving end for client {} dropped", caller)))?;
+
                     // TODO: What's the best way of returning the response from the client
                         // None + Add signal to send message from read of handle to the caller
                         // `wait_on_message` future that resolves once the app returns it's response
-                    Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
+                    Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(response)?))
 
                     // TODO: Need to add "receiver callback" so that any response gets redirected here
                     // Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
