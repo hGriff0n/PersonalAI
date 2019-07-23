@@ -145,6 +145,41 @@ impl ClientTracker {
     }
 }
 
+pub struct MessageRouter {
+    waiting_messages: std::sync::Arc<
+        std::sync::Mutex<
+            std::collections::HashMap<String, tokio::sync::oneshot::Sender<rpc::Message>>>>,
+}
+
+impl MessageRouter {
+    pub fn new() -> Self {
+        Self{
+            waiting_messages: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        }
+    }
+
+    // TODO: Drop by waiting app/sending app
+    pub fn forward_message(&self, msg_id: String, _from: net::SocketAddr, _to: net::SocketAddr)
+        -> tokio::sync::oneshot::Receiver<rpc::Message>
+    {
+        let (send, rec) = tokio::sync::oneshot::channel();
+
+        self.waiting_messages
+            .lock()
+            .unwrap()
+            .insert(msg_id, send);
+
+        rec
+    }
+
+    pub fn take_sender(&self, msg_id: String) -> Option<tokio::sync::oneshot::Sender<rpc::Message>> {
+        self.waiting_messages
+            .lock()
+            .unwrap()
+            .remove(&msg_id)
+    }
+}
+
 mod registration_service {
     use serde::{Serialize, Deserialize};
     use crate::protocol;
@@ -153,18 +188,20 @@ mod registration_service {
 
     pub struct RegistrationService {
         registry: std::sync::Arc<rpc::dispatch::Dispatcher>,
-
-        #[allow(dead_code)]
         clients: std::sync::Arc<crate::ClientTracker>,
+        router: std::sync::Arc<crate::MessageRouter>,
     }
 
     impl RegistrationService {
-        pub fn new(registry: std::sync::Arc<rpc::dispatch::Dispatcher>, clients: std::sync::Arc<crate::ClientTracker>)
+        pub fn new(registry: std::sync::Arc<rpc::dispatch::Dispatcher>,
+                   clients: std::sync::Arc<crate::ClientTracker>,
+                   router: std::sync::Arc<crate::MessageRouter>)
             -> Self
         {
             Self{
                 registry: registry,
                 clients: clients,
+                router: router
             }
         }
     }
@@ -201,11 +238,14 @@ mod registration_service {
             // TODO: How do I get responses from the app server back into this callback?
             for handle in args.handles {
                 let msg_forwarding = server.write_queue.clone();
+                let router = self.router.clone();
 
                 // TODO: Is there a way I could make writing this callback simpler?
-                let callback = move |_app_caller: std::net::SocketAddr, msg: rpc::Message| {
+                let callback = move |app_caller: std::net::SocketAddr, msg: rpc::Message|
+                    -> Result<Option<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>, std::io::Error>
+                {
                     // TODO: This will be gotten from a future/callback after the send below
-                    let response = msg.clone();
+                    let msg_id = msg.msg_id.clone();
 
                     // TODO: Should we add information about the original caller to the Message schema?
                     msg_forwarding.unbounded_send(msg.clone())
@@ -213,13 +253,15 @@ mod registration_service {
                             std::io::ErrorKind::ConnectionAborted,
                             format!("Receiving end for client {} dropped", caller)))?;
 
-                    // TODO: What's the best way of returning the response from the client
-                        // None + Add signal to send message from read of handle to the caller
-                        // `wait_on_message` future that resolves once the app returns it's response
-                    Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(response)?))
-
-                    // TODO: Need to add "receiver callback" so that any response gets redirected here
-                    // Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(msg)?))
+                    // TODO: Move this into the 'futures' framework
+                    // The `try_recv` is necessary to type it currently, but doesn't give the behavior we want
+                    let resp = router.forward_message(msg_id.clone(), caller, app_caller)
+                        .try_recv()
+                        .map_err(|_err| std::io::Error::new(
+                            std::io::ErrorKind::ConnectionAborted,
+                            format!("Client disconnected while waiting for response to {}", msg_id)
+                        ))?;
+                    Ok(Some(<protocol::JsonProtocol as protocol::RpcSerializer>::to_value(resp)?))
                 };
 
                 if self.registry.register_fn(handle.as_str(), callback) {
@@ -259,6 +301,7 @@ fn main() {
 
     // let device_manager = DeviceManager::new();
     let client_tracker = std::sync::Arc::new(ClientTracker::new());
+    let msg_router = std::sync::Arc::new(MessageRouter::new());
     let rpc_dispatcher = std::sync::Arc::new(rpc::dispatch::Dispatcher::new());
 
     // Create and register services in the dispatcher
@@ -271,18 +314,19 @@ fn main() {
         .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
-    registration_service::RegistrationService::new(rpc_dispatcher.clone(), client_tracker.clone())
+    registration_service::RegistrationService::new(rpc_dispatcher.clone(), client_tracker.clone(), msg_router.clone())
         .register_endpoints(&*rpc_dispatcher)
         .unwrap_or_else(|err| panic!(err));
 
     // We've constructed our rpc server
     // Now let the user break it
-    serve(rpc_dispatcher, client_tracker, addr);
+    serve(rpc_dispatcher, client_tracker, msg_router, addr);
 }
 
 // TODO: Improve error handling?
 fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
          client_tracker: std::sync::Arc<ClientTracker>,
+         msg_router: std::sync::Arc<MessageRouter>,
          addr: std::net::SocketAddr)
 {
     // Current protocols don't require state, so we currently access it statically
@@ -317,15 +361,28 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
 
             // TODO: Add in `register_new_connection` type callback?
 
+            // TODO: Figure out how to make this asynchronous
             // Receive a message from the connection and dispatch it to the rpc service
             let rpc_dispatcher = dispatcher.clone();
+            let router = msg_router.clone();
             let read_action = reader
                 .for_each(move |msg| {
+                    let rpc_msg: rpc::Message = <P as protocol::RpcSerializer>::from_value(msg)?;
+
+                    // Check if there is any forwarding setup for the message we just received
+                    // NOTE: This part doesn't tehcnically need to be asynchronous
+                    // Depends on how the dispatch asynchony is implemented
+                    if let Some(sender) = router.take_sender(rpc_msg.msg_id.clone()) {
+                        return sender.send(rpc_msg.clone())
+                            .map_err(|_err| std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                format!("Failed to forward message: {:?}", rpc_msg)
+                            ))
+                    }
+
                     // TODO: Figure out how to make this asynchronous?
                     // Marshal the call off to the rpc dispatcher
-                    if let Some(msg) = rpc_dispatcher
-                        .dispatch(<P as protocol::RpcSerializer>::from_value(msg)?, peer_addr)
-                    {
+                    if let Some(msg) = rpc_dispatcher.dispatch(rpc_msg, peer_addr) {
                         // If a response was produced send it back to the caller
                         client.write_queue
                             .unbounded_send(msg)

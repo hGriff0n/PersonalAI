@@ -2,9 +2,14 @@
 Server:
   Implement routing of messages
     implement app forwarding in server
-      implement way to detect app responses inside of read workflow
-        for now just don't send responses into dispatch
-      figure out how to send back app responses to the original client
+      figure out how to make the rpc system asynchronous
+        figure out what this means from a functional/implementation standpoint
+          <- how do I integrate with tokio in the way I want/need to?
+        disptach handling needs to be asynchronous (to handle forwarding workflows)
+          <- dispatch needs to immediately spawn the handler with `tokio::spawn`
+        can the rpc calls themselves become asynchronous?
+      figure out how to recognize which "messages" are being handled by a specific app
+        <- This is necessary for deregistration, but the forwarding implementation should be setup to support it
     implement client
       <- client that calls an rpc exported by the previously registered app
       asynchronous request and response handling
@@ -13,7 +18,9 @@ Server:
         <- is there a way to automatically parse the json message to a specific type
         `dispatcher.register("endpoint", self.endpoint)`
     implement deregister
-      add handle to automatically deregister apps on client shutdown
+      add handle for `deregister` request
+        drop all messages in flight to that app
+      automatically `deregister` on client shutdown
     move services into `server/src/services`
       <- figure out a place to move the client tracking structs to (device?)
   Read through old code to see what's now missing
@@ -46,7 +53,6 @@ Server:
     implement message timeouts (for server and forwarding requests)
       if a message takes too long, a timeout error is sent back instead
       if a message is being processed by an app, and the app is taken offline to upgrade it
-  ...
   Setup project (replace old version)
     introduce logger calls into the new version
       -> logging.rs can stay as-is
