@@ -40,8 +40,8 @@ rpc_service! {
     ExperimentalService<protocol::JsonProtocol>
 
     rpc num_active_connections(self, _caller, _args) -> ActiveConnsResponse {
-        ActiveConnsResponse{
+        futures::future::ok(ActiveConnsResponse{
             registered: 0,
-        }
+        })
     }
 }

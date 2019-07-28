@@ -38,15 +38,26 @@ rpc_schema!(TellFortuneResponse {
     fortune: String
 });
 
+// NOTE: This service exists more to check the macro generation code works
+// This has rpcs that test all 4 combinations of arg and return types
 rpc_service! {
     FortuneService<protocol::JsonProtocol>
 
     rpc tell_fortune(self, _caller, args: TellFortuneArgs) -> TellFortuneResponse {
         let fortune = self.generate_fortune(args.sign.as_str());
-        TellFortuneResponse{fortune: fortune}
+        futures::future::ok(TellFortuneResponse{fortune: fortune})
     }
 
-    rpc fake_fortune(self, _caller, _args: TellFortuneArgs) -> TellFortuneResponse {
-        TellFortuneResponse{fortune: "Bah".to_string()}
+    rpc fake_fortune(self, _caller, _args) -> TellFortuneResponse {
+        futures::future::ok(TellFortuneResponse{fortune: "Bah".to_string()})
+    }
+
+    rpc deaf_fortune(self, _caller, args: TellFortuneArgs) {
+        let _args = args;
+        futures::future::ok(())
+    }
+
+    rpc ask_for_more_wishes(self, _caller, _args) {
+        futures::future::ok(())
     }
 }

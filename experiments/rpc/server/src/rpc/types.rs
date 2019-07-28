@@ -47,10 +47,8 @@ rpc_schema!(Message {
 
 // TODO: Improve typing usage and genericity
 // TODO: Utilize an "RpcError" type
-pub type Result<T> = std::result::Result<Option<T>, std::io::Error>;
+pub type Result<T> = Box<dyn futures::Future<Item=Option<T>, Error=std::io::Error> + Send>;
 pub type Function<P> = Fn(std::net::SocketAddr, Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
-pub type AsyncResult<T> = Box<dyn futures::Future<Item=Option<T>, Error=std::io::Error> + Send>;
-pub type AsyncFunction<P> = Fn(std::net::SocketAddr, Message) -> self::AsyncResult<<P as protocol::RpcSerializer>::Message> + Send + Sync;
 
 // TODO: trait aliases are experimental (https://github.com/rust-lang/rust/issues/41517)
 // NOTE: Currently we can't use `F: impl Function<P>` or `where F: Function<P>` in some definitions that accept closures

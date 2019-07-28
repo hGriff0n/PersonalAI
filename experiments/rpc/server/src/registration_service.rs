@@ -42,9 +42,9 @@ rpc_service! {
             // TODO: Register the handle in the Dispatcher
             registered.push(handle);
         }
-        RegisterAppResponse{
+        futures::future::ok(RegisterAppResponse{
             registered: registered
-        }
+        })
     }
 
     // rpc list_books(self, _args) -> RegisterAppResponse {

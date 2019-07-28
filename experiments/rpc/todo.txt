@@ -2,16 +2,6 @@
 Server:
   Implement routing of messages
     implement app forwarding in server
-      figure out how to make the rpc system asynchronous
-        change rpcs to be asynchronous
-          convert typings to expect the asynchronous variants
-          change the macro to produce the async variant by default
-            change the service impls to satisfy cargo check
-          convert Dispatcher to asynchronous default
-          <- check that everything works
-      change the forwarding system to make use of the asynchronous handles
-        change the forwarding "send" code to be correctly asynchonous
-        <- required typings of the macro may be too particular
       figure out how to recognize which "messages" are being handled by a specific app
         <- This is necessary for deregistration, but the forwarding implementation should be setup to support it
       figure out if there's any issues with spawning a handle and then closing the connection
