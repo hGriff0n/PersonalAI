@@ -115,3 +115,88 @@ macro_rules! rpc_service {
         }
     };
 }
+
+
+// TODO: Replace __typecheck_rpc_args with this definition (when switching over)
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __typecast_rpc_args {
+    ($proto:ty | $call_msg:ident) => {{
+        let _msg = $call_msg;
+    }};
+    ($proto:ty | $call_msg:ident $arg_type:ty) => {{
+        let args = <$proto as $crate::protocol::RpcSerializer>::from_value::<$arg_type>($call_msg.args);
+        if let Err(err) = args {
+            return Box::new(futures::future::err(err));
+        }
+        args.unwrap()
+    }};
+}
+
+// TODO: Replace __wrap_rpc_return when switching over
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __wrap_rpc_return_async {
+    // NOTE: The `|` is required because $protocol is a type
+    ($protocol:ty | $rpc_resp:ident) => {
+        $rpc_resp.and_then(|_resp| futures::future::ok(None))
+    };
+    ($protocol:ty | $rpc_resp:ident $resp_type:ty) => {
+        $rpc_resp.and_then(|resp| futures::future::ok(
+            Some(<$protocol as $crate::protocol::RpcSerializer>::to_value::<$resp_type>(resp).unwrap())
+        ))
+    };
+}
+
+// Helper macro to add in the correct code to type check the rpc definition the way the user defined it
+// No response handles should return a future of `()`
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __wrap_user_body {
+    ($fn_body:block) => {{
+        let tmp: futures::future::FutureResult<(), std::io::Error> = $fn_body;
+        tmp
+    }};
+    ($fn_body:block $resp_ty:ty) => {{
+        let tmp: futures::future::FutureResult<$resp_ty, std::io::Error> = $fn_body;
+        tmp
+    }};
+}
+
+// TODO: Replace __silence_unused_args_warning when switching over
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __silence_unused_args_warning_async {
+    ($args:ident) => {{ let _args = $args; }};
+    ($args:ident $arg_type:ty) => {}
+}
+
+#[macro_export(local_inner_macros)]
+macro_rules! async_service {
+    // generate_args, ignore_args_if_none, and generate_return only operate on 0 or 1 "arguments"
+    // This prevents any '*' usage in the macro from allowing 2 matches so we use it to mimic a regex `?`
+    (
+        $service:ident<$proto:ty>
+        $(
+            $(#[$_:meta])*  // Match any "attribute" specified on the rpc (unused, alt syntax: `$(@$_:meta)*`)
+            rpc $name:ident($this:ident, $caller:ident, $args:ident $(: $arg_type:ty)*) $(-> $resp_ty:ty)* $fn_body:block
+        )*
+    ) => {
+        impl $service {
+            $(
+                fn $name(&$this, $caller: std::net::SocketAddr, call_msg: $crate::rpc::Message)
+                    -> Box<futures::Future<Item=Option<<$proto as $crate::protocol::RpcSerializer>::Message>, Error=std::io::Error>>
+                    // -> $crate::rpc::AsyncResult<<$proto as $crate::protocol::RpcSerializer>::Message>
+                {
+                    let $args = __typecast_rpc_args!($proto | call_msg $($arg_type)*);
+                    use futures::Future;
+                    let rpc_resp = __wrap_user_body!($fn_body $($resp_ty)*);
+
+                    let _caller = $caller;
+                    __silence_unused_args_warning_async!($args $($arg_type)*);
+                    Box::new(__wrap_rpc_return_async!($proto | rpc_resp $($resp_ty)*))
+                }
+            )*
+        }
+    }
+}

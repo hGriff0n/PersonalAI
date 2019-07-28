@@ -3,13 +3,20 @@ Server:
   Implement routing of messages
     implement app forwarding in server
       figure out how to make the rpc system asynchronous
-        figure out what this means from a functional/implementation standpoint
-          <- how do I integrate with tokio in the way I want/need to?
-        disptach handling needs to be asynchronous (to handle forwarding workflows)
-          <- dispatch needs to immediately spawn the handler with `tokio::spawn`
-        can the rpc calls themselves become asynchronous?
+        change rpcs to be asynchronous
+          convert typings to expect the asynchronous variants
+          change the macro to produce the async variant by default
+            change the service impls to satisfy cargo check
+          convert Dispatcher to asynchronous default
+          <- check that everything works
+      change the forwarding system to make use of the asynchronous handles
+        change the forwarding "send" code to be correctly asynchonous
+        <- required typings of the macro may be too particular
       figure out how to recognize which "messages" are being handled by a specific app
         <- This is necessary for deregistration, but the forwarding implementation should be setup to support it
+      figure out if there's any issues with spawning a handle and then closing the connection
+        <- I think yes, is there anyway to force a handle to close if it's connection closes
+          probably through join on the futures/etc. (would be added in the dispatch code)
     implement client
       <- client that calls an rpc exported by the previously registered app
       asynchronous request and response handling

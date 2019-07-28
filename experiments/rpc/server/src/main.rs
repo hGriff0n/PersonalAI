@@ -370,7 +370,7 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                     let rpc_msg: rpc::Message = <P as protocol::RpcSerializer>::from_value(msg)?;
 
                     // Check if there is any forwarding setup for the message we just received
-                    // NOTE: This part doesn't tehcnically need to be asynchronous
+                    // NOTE: This part doesn't technically need to be asynchronous
                     // Depends on how the dispatch asynchony is implemented
                     if let Some(sender) = router.take_sender(rpc_msg.msg_id.clone()) {
                         return sender.send(rpc_msg.clone())
@@ -381,6 +381,7 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                     }
 
                     // TODO: Figure out how to make this asynchronous?
+                    // NOTE: This needs to be asynchonous
                     // Marshal the call off to the rpc dispatcher
                     if let Some(msg) = rpc_dispatcher.dispatch(rpc_msg, peer_addr) {
                         // If a response was produced send it back to the caller
