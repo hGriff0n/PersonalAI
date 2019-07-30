@@ -5,23 +5,35 @@ Server:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      asynchronous request and response handling
-      wrapping of communication code in a common module
-      dispatcher that receives messages and forwards them to method calls
-        <- is there a way to automatically parse the json message to a specific type
-        `dispatcher.register("endpoint", self.endpoint)`
-      test that dropping behavior works
-        need a server that receives a request and immediately crashes
-          <- this'll test "server exit" error condition
-        need a server that receives a request and waits for a minute
-          need a client that sends a request, waits 10 seconds, and crashes
-          <- this'll test "client exit" error condition
+      produce module for wrapping request/response handling
+      produce module for asynchronous request/response handling
+        <- this is on top of the previous module
+        <- is having the distinction necessary? couldn't clients also use the asynchronous module?
+      produce module for registering rpc endpoints
+      produce dispatcher utilizing the rpc module
+      produce app using the dispatcher
+        produce a second app to test out any module inefficiencies
+      produce a client using the modules
+        produce a second client to test out any module inefficiencies
+        test out that both clients work with both apps
+          <- test out that I can register both apps and use them in a client
+      stress testing (all tests should work with multiple clients)
+        <- client can call app server
+        <- client can call multiple app servers
+        <- client can call app server which calls an app server
+        <- client can call a server that immediately crashes
+          this'll test the "server exit" control flow
+        <- client can call a server and immediately crashes
+          this'll test the "client exit" control flow
+          the server here should delay for a minute before responding
+      is there a way to setup these integration tests?
+        also look at setting up unit tests in the rust and python code
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
       automatically `deregister` on client shutdown
     move services into `server/src/services`
-      <- figure out a place to move the client tracking structs to (device?)
+      improve the organization of `server/src/state/`
   Read through old code to see what's now missing
     -> seshat/indexer
       the current codebase doesn't really fit that too well
@@ -32,6 +44,7 @@ Server:
     Produce rpc/protocol helper methods for python
     Produce python structure code
     How will I get server state data into the rpc service handlers?
+    Add comments to all of the classes and the functions
   Integrate with monitoring
     find monitoring framework
       -> https://crates.io/crates/metered
