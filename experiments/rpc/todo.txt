@@ -1,19 +1,21 @@
 
 Server:
   Implement routing of messages
-    implement app forwarding in server
-      figure out how to recognize which "messages" are being handled by a specific app
-        <- This is necessary for deregistration, but the forwarding implementation should be setup to support it
-      figure out if there's any issues with spawning a handle and then closing the connection
-        <- I think yes, is there anyway to force a handle to close if it's connection closes
-          probably through join on the futures/etc. (would be added in the dispatch code)
-    implement client
-      <- client that calls an rpc exported by the previously registered app
+    implement client+app
+      <- final products:
+        app the exports a few interfaces
+        client that calls an rpc exported by the previously registered app
       asynchronous request and response handling
       wrapping of communication code in a common module
       dispatcher that receives messages and forwards them to method calls
         <- is there a way to automatically parse the json message to a specific type
         `dispatcher.register("endpoint", self.endpoint)`
+      test that dropping behavior works
+        need a server that receives a request and immediately crashes
+          <- this'll test "server exit" error condition
+        need a server that receives a request and waits for a minute
+          need a client that sends a request, waits 10 seconds, and crashes
+          <- this'll test "client exit" error condition
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
@@ -41,6 +43,8 @@ Server:
       implement `get_registered_devices` rpc
     determine rpc options to request device routing
     modify routing to use devices if provided
+  Introduce rpc timeouts
+    NOTE: Any solution here will likely also work for when a client exits while waiting on in-flight messages
   Think about network/device monitoring situation
   Think about ways to allow for multiple handles to be registered to one rpc
     <- may not be desired
