@@ -5,6 +5,7 @@ import typing
 
 UntypedMessage = typing.Dict[str, typing.Any]
 
+
 class BaseMessage(object):
     @abc.abstractmethod
     def to_dict(self) -> UntypedMessage:
@@ -29,20 +30,25 @@ class BaseMessage(object):
 
 # TODO: Make the members private and have accessors
 class Message(BaseMessage):
-    def __init__(self) -> None:
-        self.msg_id: str = ""
-        self._call: str = ""
-        self.args: UntypedMessage = {}
-        self.resp: typing.Optional[UntypedMessage] = None
+
+    def __init__(self,
+                 msg_id: typing.Optional[str] = None,
+                 call: typing.Optional[str] = None,
+                 args: typing.Optional[UntypedMessage] = None,
+                 resp: typing.Optional[UntypedMessage] = None) -> None:
+        self._msg_id = msg_id or ""
+        self._call = call or ""
+        self._args = args or {}
+        self._resp: typing.Optional[UntypedMessage] = resp
 
     def to_dict(self) -> UntypedMessage:
         ret_dict = {
             'call': self._call,
-            'args': self.args,
-            'msg_id': self.msg_id,
+            'args': self._args,
+            'msg_id': self._msg_id,
         }
-        if self.resp is not None:
-            ret_dict['resp'] = self.resp
+        if self._resp is not None:
+            ret_dict['resp'] = self._resp
         return ret_dict
 
     def populate_from_dict(self, msg_dict: UntypedMessage) -> bool:
@@ -50,12 +56,12 @@ class Message(BaseMessage):
             return False
 
         msg_vals = msg_dict.copy()
-        self.msg_id = str(msg_vals.pop('msg_id'))
+        self._msg_id = str(msg_vals.pop('msg_id'))
         self._call = str(msg_vals.pop('call'))
-        self.args = dict(msg_vals.pop('args'))
+        self._args = dict(msg_vals.pop('args'))
 
         # `resp` is an optional value, so let's not throw on it
-        self.resp = msg_vals.pop('resp', None)
+        self._resp = msg_vals.pop('resp', None)
 
         # If the provided msg def provides more keys than we expect
         # This is an invalid object, so let's return false
@@ -68,3 +74,19 @@ class Message(BaseMessage):
     @call.setter
     def call(self, val: str) -> None:
         self._call = val
+
+    @property
+    def msg_id(self) -> str:
+        return self._msg_id
+
+    @property
+    def args(self) -> UntypedMessage:
+        return self._args
+
+    @property
+    def resp(self) -> typing.Optional[UntypedMessage]:
+        return self._resp
+
+    @resp.setter
+    def resp(self, val: UntypedMessage) -> None:
+        self._resp = val
