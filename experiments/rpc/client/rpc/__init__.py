@@ -47,10 +47,10 @@ class Message(BaseMessage):
 
     # TODO: How do you get from a dictionary in a typed manner?
     def populate_from_dict(self, msg_dict: UntypedMessage) -> None:
-        self.msg_id = msg_dict.get('msg_id', "")
-        self._call = str(msg_dict.get('call', ""))
-        self.args = msg_dict.get('args', {})
-        self.resp = msg_dict.get('resp')
+        self.msg_id = msg_dict.pop('msg_id', "")
+        self._call = str(msg_dict.pop('call', ""))
+        self.args = msg_dict.pop('args', {})
+        self.resp = msg_dict.pop('resp', None)
 
     @property
     def call(self) -> str:

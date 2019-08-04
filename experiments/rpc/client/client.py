@@ -25,21 +25,18 @@ class ConnectionHandler(object):
         self._logger = logger
         self._protocol = proto
 
-    def send_message(self, msg: rpc.BaseMessage) -> None:
-        data = self._protocol.encode(msg)
-        frame = struct.pack('>I', len(data))
-        self._sock.sendall(frame + data)
+    def send_message(self, msg: rpc.Message) -> None:
+        packet = self._protocol.make_packet(msg)
+        self._sock.sendall(packet)
 
         if self._logger:
             self._logger.info("Sent message {}".format(msg))
 
     def get_message(self) -> rpc.Message:
-        len_buf = self._sock.recv(4)
-        msg_len = struct.unpack('>I', len_buf)[0]
+        def _read(n: int) -> bytes:
+            return self._sock.recv(n)
 
-        msg_buf = self._sock.recv(msg_len)
-        msg = self._protocol.decode(msg_buf, rpc.Message)
-
+        msg = self._protocol.unwrap_packet(_read)
         if self._logger:
             self._logger.info("Received message {}".format(msg))
         return msg

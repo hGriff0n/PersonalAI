@@ -5,9 +5,8 @@ Server:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      improve protocol.Protocol to provide the same services as the server
-        add transmission packing
-        add serialization to/from message
+      improve serialization code to enable message checking
+        check that the untyped message is extractable into our message
       produce module for asynchronous request/response handling
         <- this is on top of the previous module
           NOTE: Even clients will use this for their communications
