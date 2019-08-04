@@ -5,10 +5,14 @@ Server:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      produce module for wrapping request/response handling
+      improve protocol.Protocol to provide the same services as the server
+        add transmission packing
+        add serialization to/from message
       produce module for asynchronous request/response handling
         <- this is on top of the previous module
-        <- is having the distinction necessary? couldn't clients also use the asynchronous module?
+          NOTE: Even clients will use this for their communications
+          This defines the underlying communication layer (ie. handling Messages)
+            <- only difference may be in the specific handler that gets used
       produce module for registering rpc endpoints
       produce dispatcher utilizing the rpc module
       produce app using the dispatcher
@@ -26,6 +30,8 @@ Server:
         <- client can call a server and immediately crashes
           this'll test the "client exit" control flow
           the server here should delay for a minute before responding
+      produce module setup and testing "framework"
+        run mypy on the entry script and check that it "types"
       is there a way to setup these integration tests?
         also look at setting up unit tests in the rust and python code
     implement deregister
@@ -39,7 +45,7 @@ Server:
       the current codebase doesn't really fit that too well
     -> logging
     -> cli args
-    -> custom error types?
+    -> custom error types (ie. not routing everything through std::io::Error)
   Clean up the codebase and ensure everything is well architected
     Produce rpc/protocol helper methods for python
     Produce python structure code
