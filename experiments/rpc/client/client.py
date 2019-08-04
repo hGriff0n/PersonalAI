@@ -32,13 +32,16 @@ class ConnectionHandler(object):
         if self._logger:
             self._logger.info("Sent message {}".format(msg))
 
-    def get_message(self) -> rpc.Message:
+    def get_message(self) -> typing.Optional[rpc.Message]:
         def _read(n: int) -> bytes:
             return self._sock.recv(n)
 
         msg = self._protocol.unwrap_packet(_read)
         if self._logger:
-            self._logger.info("Received message {}".format(msg))
+            if msg is not None:
+                self._logger.info("Received message {}".format(msg.msg_id))
+            else:
+                self._logger.error("Failed receiving message!!!")
         return msg
 
 
@@ -53,7 +56,7 @@ sock.connect((addr[0], int(addr[1])))
 conn = ConnectionHandler(sock, proto, None)
 
 # Construct rpc call
-rpc_message = rpc.Message.from_dict({
+rpc_msg_dict = {
     "call": "register_app",
     "args": {
         "handles": [
@@ -62,13 +65,18 @@ rpc_message = rpc.Message.from_dict({
         ]
     },
     "msg_id": "foo",
-})
+}
+rpc_message = rpc.Message.from_dict(rpc_msg_dict)
 
 # Send rpc to server
+if rpc_message is None:
+    print("Failed to parse {} into an rpc.Message", rpc_msg_dict)
+    exit(1)
+
 conn.send_message(rpc_message)
 print("Send {} to server.....".format(rpc_message.to_dict()))
 
 # Wait for response
-# TODO: Handle errors
 msg = conn.get_message()
-print("Received {}".format(msg.to_dict()))
+if msg is not None:
+    print("Received {}".format(msg.to_dict()))

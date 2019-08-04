@@ -33,6 +33,7 @@ Server:
         run mypy on the entry script and check that it "types"
       is there a way to setup these integration tests?
         also look at setting up unit tests in the rust and python code
+        can also use a library (ex pydantic) that enforces these hints at runtime
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app

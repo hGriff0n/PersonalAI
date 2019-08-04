@@ -16,7 +16,7 @@ class Protocol(object):
         """
 
     @abc.abstractmethod
-    def unwrap_packet(self, socket_reader: typing.Callable[[int], bytes]) -> rpc.Message:
+    def unwrap_packet(self, socket_reader: typing.Callable[[int], bytes]) -> typing.Optional[rpc.Message]:
         """
         Convert the byte string into a rpc.Message
 
@@ -30,7 +30,7 @@ class Protocol(object):
         """
 
     @abc.abstractmethod
-    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> Protocol.M:
+    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
         """
         Convert the rpc.UntypedMessage into the given rpc.Message class
         """
@@ -49,7 +49,7 @@ class JsonProtocol(Protocol):
         frame = struct.pack('>I', len(buf))
         return frame + buf
 
-    def unwrap_packet(self, socket_reader: typing.Callable[[int], bytes]) -> rpc.Message:
+    def unwrap_packet(self, socket_reader: typing.Callable[[int], bytes]) -> typing.Optional[rpc.Message]:
         len_buf = socket_reader(4)
         msg_len = struct.unpack('>I', len_buf)[0]
 
@@ -59,5 +59,8 @@ class JsonProtocol(Protocol):
     def encode(self, msg: Protocol.M) -> rpc.UntypedMessage:
         return msg.to_dict()
 
-    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> Protocol.M:
-        return msg_class.from_dict(msg)
+    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
+        decoded_msg = msg_class.from_dict(msg)
+        if decoded_msg is None and self._logger is not None:
+            self._logger.warning("Failed to decode message {} to rpc.Message type `{}`", msg, msg_class)
+        return decoded_msg
