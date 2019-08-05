@@ -8,101 +8,17 @@ import struct
 import threading
 import typing
 
+import communication
 import rpc
 import protocol
 
-# TODO: Handle errors
-# TODO: Make asynchronous?
-    # Apps should be able to "register_rpc" in the host somehow
-        # This would allow other apps to call those rpcs and those would be forwarded to the app
-        # The server handling code must be separate/asynchronous from the client code
 
-
-# NOTE: This class handles communication between the reader/writer threads and the network socket
-# To abstract away any protocol/network specific dependencies
-class ConnectionHandler(object):
-    """
-    Helper object to manage direct interactions with the rpc socket
-    """
-
-    def __init__(self, socket, proto: protocol.Protocol, logger) -> None:
-        self._sock = socket
-        self._logger = logger
-        self._protocol = proto
-
-    def send_message(self, msg: rpc.Message) -> None:
-        packet = self._protocol.make_packet(msg)
-        self._sock.sendall(packet)
-
-        if self._logger:
-            self._logger.info("Sent message {}".format(msg))
-
-    def get_message(self) -> typing.Optional[rpc.Message]:
-        def _read(n: int) -> bytes:
-            return self._sock.recv(n)
-
-        msg = self._protocol.unwrap_packet(_read)
-        if self._logger:
-            if msg is not None:
-                self._logger.info("Received message {}".format(msg.msg_id))
-            else:
-                self._logger.error("Failed receiving message!!!")
-        return msg
-
-
-class MessageEvent(asyncio.Event):
-    """
-    Custom event that allows us to introduce an asnc boundary when waiting for a response to come in
-    """
-    value: typing.Optional[rpc.Message] = None
-
-
-# NOTE: This class handles communication between the plugin and the reader/writer threads
-# To enable asynchronous communication across the network
-class CommunicationHandler(object):
-
-    def __init__(self, write_queue: 'queue.Queue[rpc.Message]', logger: typing.Optional[typing.Any] = None) -> None:
-        self._logger = logger
-        self._write_queue = write_queue
-        self._waiting_messages: typing.Dict[str, MessageEvent] = {}
-
-    @property
-    def write_queue(self) -> 'queue.Queue[rpc.Message]':
-        return self._write_queue
-
-    @property
-    def waiting_messages(self) -> typing.Dict[str, MessageEvent]:
-        return self._waiting_messages
-
-    # Send the message along the line and get a future response
-    def send(self, msg: rpc.Message) -> MessageEvent:
-        self._write_queue.put(msg)
-        self._waiting_messages[msg.msg_id] = MessageEvent()
-        return self._waiting_messages[msg.msg_id]
-
-    # Delete the future response as I don't care about it
-    # NOTE: This is for internal cleanup when dealing with no-return rpcs from the server
-    # TODO: Do I need code to explicitly drop it if it does come in?
-    def drop_message(self, msg: rpc.Message):
-        if msg.msg_id in self._waiting_messages:
-            del self._waiting_messages[msg.msg_id]
-
-    # Helper method to send a message and immediately wait for it's response
-    # This differs from send in that send allows for more freedom in choosing when results are needed
-    # TODO: Is the typing okay? Should we foist the error handling for this case onto the client
-    async def wait_response(self, msg: rpc.Message) -> typing.Optional[rpc.Message]:
-        continuation = self.send(msg)
-        await continuation.wait()
-
-        resp = continuation.value
-        del self._waiting_messages[msg.msg_id]
-        return resp
-
-
-# TODO: There's a lot of arguments to this method
-# TODO: Type `dispatcher` - run_coroutine_threadsafe has an expected type that `Callable` wasn't matching
-# TODO: Type `loop` - it's an asyncio Event Loop
-def reader(conn: ConnectionHandler, comm: CommunicationHandler, loop, dispatcher, logger: typing.Optional[typing.Any] = None) -> None:
+# NOTE: This is provided by the library/loader
+def reader(conn: communication.ConnectionHandler,
+           comm: communication.CommunicationHandler,
+           dispatcher: typing.Callable[[rpc.Message], typing.Awaitable[None]],
+           loop: asyncio.AbstractEventLoop,
+           logger: typing.Optional[typing.Any] = None) -> None:
     """
     Thread callback to handle messages as they are received by the plugin
     """
@@ -134,8 +50,9 @@ def reader(conn: ConnectionHandler, comm: CommunicationHandler, loop, dispatcher
             logger.error("Exception while waiting for messages: {}".format(e))
 
 
+# NOTE: This is provided by the library/loader
 WRITER_TIMEOUT = 5
-def writer(conn: ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> None:
+def writer(conn: communication.ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> None:
     """
     Thread callback responsible for sending messages out of the plugin
 
@@ -158,16 +75,19 @@ def writer(conn: ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> 
                 break
 
 
-# TODO: Figure out how to not cause the `ConnectionReset` error with the server
+# NOTE: This is provided by the library/loader
 # Runtime function that manages the threads and main communication loop
 # This is responsible for stopping when any thread exits
-async def run_plugin(comm: CommunicationHandler, runner, read_thread, write_thread):
+async def run_plugin(comm: communication.CommunicationHandler,
+                     plugin_main: typing.Callable[[communication.CommunicationHandler], typing.Awaitable[bool]],
+                     read_thread: threading.Thread,
+                     write_thread: threading.Thread):
     read_thread.start()
     write_thread.start()
 
     try:
         while True:
-            finish_run = await runner(comm)
+            finish_run = await plugin_main(comm)
 
             if not finish_run:
                 print("Stopping because plugin finished running")
@@ -185,17 +105,16 @@ async def run_plugin(comm: CommunicationHandler, runner, read_thread, write_thre
     except:
         print("EXCEPTION")
 
-    # TODO: Do we need the `sock.close`? Might contribute to the server error
-        # Yes as that is how we currently cause the read_thread to close
     # Close everything down
+    sock.shutdown(socket.SHUT_RDWR)        # So we don't produce 'ConnectionReset' errors in the host server
     sock.close()
     read_thread.join()
-    write_thread.join(WRITER_TIMEOUT + 1)
+    write_thread.join(WRITER_TIMEOUT + 1)  # Because of the write queue timeout delay
 
 
-# Client main
+# NOTE: This is defined by the Client class (user entrypoing)
 # Return false when client wants to exit
-async def client_main(comm: CommunicationHandler) -> bool:
+async def client_main(comm: communication.CommunicationHandler) -> bool:
     # Construct the rpc call
     rpc_msg_dict = {
         "call": "register_app",
@@ -222,27 +141,27 @@ async def client_main(comm: CommunicationHandler) -> bool:
     return False
 
 
+# NOTE: This is generated from the plugin class
 # Dispatcher function for routing messages with the plugin
 # NOTE: Unimplemented as this is not used for clients
-def dispatcher(msg: rpc.Message) -> None:
+async def dispatcher(msg: rpc.Message) -> None:
     print("Unimplemented: {}".format(msg))
+    return None
 
 
-
-# Construct protocol object
-proto = protocol.JsonProtocol(None)
 
 # Connect to server
 addr = "127.0.0.1:6142".split(':')
 sock = socket.socket()
 sock.connect((addr[0], int(addr[1])))
-conn = ConnectionHandler(sock, proto, None)
+proto = protocol.JsonProtocol(None)
+conn = communication.ConnectionHandler(sock, proto, None)
 
 # Construct the communication handles
 write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
-comm = CommunicationHandler(write_queue)
+comm = communication.CommunicationHandler(write_queue)
 loop = asyncio.get_event_loop()
-read_thread = threading.Thread(target=reader, args=(conn, comm, loop, dispatcher))
+read_thread = threading.Thread(target=reader, args=(conn, comm, dispatcher, loop))
 write_thread = threading.Thread(target=writer, args=(conn, write_queue))
 
 # Run the plugin

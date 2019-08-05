@@ -5,14 +5,9 @@ Server:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      produce module for asynchronous request/response handling
-        <- this is on top of the previous module
-          NOTE: Even clients will use this for their communications
-          This defines the underlying communication layer (ie. handling Messages)
-            <- only difference may be in the specific handler that gets used
       produce module for registering rpc endpoints
         produce a registration heirarchy that encapsulates clients, apps, and devices
-          this is important for specifying the `
+          this is important for specifying the current `client_main` function
       produce dispatcher utilizing the rpc module
       produce app using the dispatcher
         produce a second app to test out any module inefficiencies
