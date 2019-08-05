@@ -24,13 +24,13 @@ class Protocol(object):
         """
 
     @abc.abstractmethod
-    def encode(self, msg: Protocol.M) -> rpc.UntypedMessage:
+    def encode(self, msg: 'Protocol.M') -> rpc.UntypedMessage:
         """
         Convert the rpc.Message object into an rpc.UntypedMessage
         """
 
     @abc.abstractmethod
-    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
+    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type['Protocol.M']) -> typing.Optional['Protocol.M']:
         """
         Convert the rpc.UntypedMessage into the given rpc.Message class
         """

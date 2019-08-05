@@ -21,14 +21,13 @@ class BaseMessage(object):
 
     M = typing.TypeVar('M', bound="BaseMessage")
     @classmethod
-    def from_dict(kls: typing.Type[BaseMessage.M], msg_dict: UntypedMessage) -> typing.Optional[BaseMessage.M]:
+    def from_dict(kls: typing.Type['BaseMessage.M'], msg_dict: UntypedMessage) -> typing.Optional['BaseMessage.M']:
         obj = kls()
         if not obj.populate_from_dict(msg_dict):
             return None
         return obj
 
 
-# TODO: Make the members private and have accessors
 class Message(BaseMessage):
 
     def __init__(self,
@@ -52,7 +51,7 @@ class Message(BaseMessage):
         return ret_dict
 
     def populate_from_dict(self, msg_dict: UntypedMessage) -> bool:
-        if ('msg_vals' not in msg_dict) or ('call' not in msg_dict) or ('args' not in msg_dict):
+        if ('msg_id' not in msg_dict) or ('call' not in msg_dict) or ('args' not in msg_dict):
             return False
 
         msg_vals = msg_dict.copy()
