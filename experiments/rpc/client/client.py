@@ -5,6 +5,7 @@ import json
 import queue
 import socket
 import struct
+import threading
 import typing
 
 import rpc
@@ -98,6 +99,7 @@ class CommunicationHandler(object):
         return resp
 
 
+# TODO: There's a lot of arguments to this method
 # TODO: Type `dispatcher` - run_coroutine_threadsafe has an expected type that `Callable` wasn't matching
 # TODO: Type `loop` - it's an asyncio Event Loop
 def reader(conn: ConnectionHandler, comm: CommunicationHandler, loop, dispatcher, logger: typing.Optional[typing.Any] = None) -> None:
@@ -132,6 +134,7 @@ def reader(conn: ConnectionHandler, comm: CommunicationHandler, loop, dispatcher
             logger.error("Exception while waiting for messages: {}".format(e))
 
 
+WRITER_TIMEOUT = 5
 def writer(conn: ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> None:
     """
     Thread callback responsible for sending messages out of the plugin
@@ -139,13 +142,91 @@ def writer(conn: ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> 
     This enables us to avoid waiting on the write queue as it not an "async boundary"
     """
     while True:
-        msg = write_queue.get()
-        conn.send_message(msg)
+        try:
+            msg = write_queue.get(timeout=WRITER_TIMEOUT)
+            conn.send_message(msg)
+
+        # Queue.get throws an exception everyt `WRITER_TIMEOUT` seconds
+        # At that point, we check whether we're the only thread (aside from main) currently running
+        # And use that as a proxy for when we should return
+        except queue.Empty:
+            num_active_threads = 0
+            for t in threading.enumerate():
+                if not (t is threading.main_thread()):
+                    num_active_threads += 1
+            if num_active_threads == 1:
+                break
 
 
-# TODO: Move the communication into this entry function
-async def run() -> None:
-    pass
+# TODO: Figure out how to not cause the `ConnectionReset` error with the server
+# Runtime function that manages the threads and main communication loop
+# This is responsible for stopping when any thread exits
+async def run_plugin(comm: CommunicationHandler, runner, read_thread, write_thread):
+    read_thread.start()
+    write_thread.start()
+
+    try:
+        while True:
+            finish_run = await runner(comm)
+
+            if not finish_run:
+                print("Stopping because plugin finished running")
+                break
+
+            if not write_thread.is_alive():
+                print("Stopping because writer thread has stopped")
+                break
+
+            if not read_thread.is_alive():
+                print("Stopping because reader thread has stopped")
+                break
+
+            await asyncio.sleep(5)
+    except:
+        print("EXCEPTION")
+
+    # TODO: Do we need the `sock.close`? Might contribute to the server error
+        # Yes as that is how we currently cause the read_thread to close
+    # Close everything down
+    sock.close()
+    read_thread.join()
+    write_thread.join(WRITER_TIMEOUT + 1)
+
+
+# Client main
+# Return false when client wants to exit
+async def client_main(comm: CommunicationHandler) -> bool:
+    # Construct the rpc call
+    rpc_msg_dict = {
+        "call": "register_app",
+        "args": {
+            "handles": [
+                "tell_story",
+                "list_books"
+            ]
+        },
+        "msg_id": "foo",
+    }
+    rpc_message = rpc.Message.from_dict(rpc_msg_dict)
+
+    if rpc_message is None:
+        print("Failed to parse {} into an rpc.Message".format(rpc_msg_dict))
+        return False
+
+    # Send message and wait response
+    print("Send {} to server.....".format(rpc_message.to_dict()))
+    resp = await comm.wait_response(rpc_message)
+    if resp is not None:
+        print("Received {}".format(resp.to_dict()))
+
+    return False
+
+
+# Dispatcher function for routing messages with the plugin
+# NOTE: Unimplemented as this is not used for clients
+def dispatcher(msg: rpc.Message) -> None:
+    print("Unimplemented: {}".format(msg))
+
 
 
 # Construct protocol object
@@ -157,28 +238,13 @@ sock = socket.socket()
 sock.connect((addr[0], int(addr[1])))
 conn = ConnectionHandler(sock, proto, None)
 
-# Construct rpc call
-rpc_msg_dict = {
-    "call": "register_app",
-    "args": {
-        "handles": [
-            "tell_story",
-            "list_books"
-        ]
-    },
-    "msg_id": "foo",
-}
-rpc_message = rpc.Message.from_dict(rpc_msg_dict)
+# Construct the communication handles
+write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
+comm = CommunicationHandler(write_queue)
+loop = asyncio.get_event_loop()
+read_thread = threading.Thread(target=reader, args=(conn, comm, loop, dispatcher))
+write_thread = threading.Thread(target=writer, args=(conn, write_queue))
 
-# Send rpc to server
-if rpc_message is None:
-    print("Failed to parse {} into an rpc.Message", rpc_msg_dict)
-    exit(1)
-
-conn.send_message(rpc_message)
-print("Send {} to server.....".format(rpc_message.to_dict()))
-
-# Wait for response
-msg = conn.get_message()
-if msg is not None:
-    print("Received {}".format(msg.to_dict()))
+# Run the plugin
+loop.run_until_complete(run_plugin(comm, client_main, read_thread, write_thread))
+print("All threads closed")

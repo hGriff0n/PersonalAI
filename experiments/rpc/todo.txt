@@ -11,6 +11,8 @@ Server:
           This defines the underlying communication layer (ie. handling Messages)
             <- only difference may be in the specific handler that gets used
       produce module for registering rpc endpoints
+        produce a registration heirarchy that encapsulates clients, apps, and devices
+          this is important for specifying the `
       produce dispatcher utilizing the rpc module
       produce app using the dispatcher
         produce a second app to test out any module inefficiencies
