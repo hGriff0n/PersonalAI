@@ -73,11 +73,54 @@ def writer(conn: communication.NetworkQueue, write_queue: 'queue.Queue[rpc.Messa
                 break
 
 
+# TODO: Move to a "plugin" module?
+class Plugin(rpc.PluginBase):
+
+    # TODO: Is this the right place to put this or should I move it back to an arg of 'main'
+    # Basically is it useful by rpc endpoints?
+    def __init__(self, comm: communication.CommunicationHandler) -> None:
+        self._comm = comm
+
+    # This function is used by clients to perform actions and request information from the network
+    # NOTE: AppServers are implemented through a separate dispatch system
+    # NOTE: It's entirely possible for AppServers to define `main` and implement some processing there
+    async def main(self) -> bool:
+        await asyncio.sleep(5)
+        return True
+
+
+class Client(Plugin):
+
+    async def main(self) -> bool:
+        rpc_msg_dict = {
+            "call": "register_app",
+            "args": {
+                "handles": [
+                    "tell_story",
+                    "list_books"
+                ]
+            },
+            "msg_id": "foo",
+        }
+        rpc_message = rpc.Message.from_dict(rpc_msg_dict)
+
+        if rpc_message is None:
+            print("Failed to parse {} into an rpc.Message".format(rpc_msg_dict))
+            return False
+
+        # Send message and wait response
+        print("Send {} to server.....".format(rpc_message.to_dict()))
+        resp = await self._comm.wait_response(rpc_message)
+        if resp is not None:
+            print("Received {}".format(resp.to_dict()))
+
+        return False
+
 # NOTE: This is provided by the library/loader
 # Runtime function that manages the threads and main communication loop
 # This is responsible for stopping when any thread exits
-async def run_plugin(comm: communication.CommunicationHandler,
-                     plugin_main: typing.Callable[[communication.CommunicationHandler], typing.Awaitable[bool]],
+async def run_plugin(plugin: Plugin,
+                     sock,
                      read_thread: threading.Thread,
                      write_thread: threading.Thread):
     read_thread.start()
@@ -85,7 +128,7 @@ async def run_plugin(comm: communication.CommunicationHandler,
 
     try:
         while True:
-            finish_run = await plugin_main(comm)
+            finish_run = await plugin.main()
 
             if not finish_run:
                 print("Stopping because plugin finished running")
@@ -166,3 +209,4 @@ async def dispatcher(msg: rpc.Message) -> None:
 # # Run the plugin
 # plugin = Client(comm)
 # loop.run_until_complete(run_plugin(plugin, sock, read_thread, write_thread))
+# print("All threads closed")

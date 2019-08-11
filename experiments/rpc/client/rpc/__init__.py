@@ -89,3 +89,13 @@ class Message(BaseMessage):
     @resp.setter
     def resp(self, val: UntypedMessage) -> None:
         self._resp = val
+
+
+##
+## Service decorators
+##
+
+# This class enables typing restrictions on the endpoint decorators
+# We can't use the actual Plugin base class because of dependencies on communication (which depends on us)
+class PluginBase(object):
+    pass

@@ -9,6 +9,9 @@ Project:
         improve methods by which the dispatcher are produced
           implement dispatcher for the AppServer/DeviceServer cases
         put the plugin stuff in a module
+      fix issues where Plugin.main will never return
+        Current `runner` behavior is too wait for Plugin.main
+          <- if Plugin.main takes too long to complete (or gets deadlocked) we cannot shutdown
       produce app using the dispatcher
         produce a second app to test out any module inefficiencies
       produce a client using the modules
