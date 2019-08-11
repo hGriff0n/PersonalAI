@@ -116,6 +116,25 @@ class Client(Plugin):
 
         return False
 
+class NullMessage(rpc.BaseMessage):
+    def to_dict(self) -> rpc.UntypedMessage:
+        return {}
+
+    def populate_from_dict(self, msg_dict: rpc.UntypedMessage) -> bool:
+        return True
+
+@rpc.service
+class AppServer(Plugin):
+
+    @rpc.endpoint
+    async def test_rpc(self, *args, **kwargs):
+        print('test')
+
+    @rpc.endpoint
+    async def test_fn_type(self, msg: NullMessage) -> NullMessage:
+        return NullMessage()
+
+
 # NOTE: This is provided by the library/loader
 # Runtime function that manages the threads and main communication loop
 # This is responsible for stopping when any thread exits
@@ -153,41 +172,26 @@ async def run_plugin(plugin: Plugin,
     write_thread.join(WRITER_TIMEOUT + 1)  # Because of the write queue timeout delay
 
 
-# NOTE: This is defined by the Client class (user entrypoing)
-# Return false when client wants to exit
-async def client_main(comm: communication.CommunicationHandler) -> bool:
-    # Construct the rpc call
-    rpc_msg_dict = {
-        "call": "register_app",
-        "args": {
-            "handles": [
-                "tell_story",
-                "list_books"
-            ]
-        },
-        "msg_id": "foo",
-    }
-    rpc_message = rpc.Message.from_dict(rpc_msg_dict)
+# NOTE: This will be in the loader code
+# Produce the message dispatcher specific for this class of plugins
+# TODO: Should the dispatcher return `None`?
+def make_dispatcher_for_plugin(plugin_kls: typing.Type[rpc.PluginBase]) -> typing.Callable[[rpc.PluginBase, rpc.Message], typing.Awaitable[None]]:
+    endpoints_for_class = rpc.endpoints_for_class(plugin_kls)
 
-    if rpc_message is None:
-        print("Failed to parse {} into an rpc.Message".format(rpc_msg_dict))
-        return False
+    # TODO: I'd also need the plugin to call the methods on
+    async def __dispatcher(self: rpc.PluginBase, msg: rpc.Message) -> None:
+        # TODO: Find `msg.call` in `endpoints_for_class`
+        # TODO: Call the specified endpoint function
+        # TODO: Results?
+        return None
 
-    # Send message and wait response
-    print("Send {} to server.....".format(rpc_message.to_dict()))
-    resp = await comm.wait_response(rpc_message)
-    if resp is not None:
-        print("Received {}".format(resp.to_dict()))
+    async def _unimplemented(self: rpc.PluginBase, msg: rpc.Message) -> None:
+        print("Received unexpected message `{}`. Dispatch not implemented for plugin {}".format(msg, plugin_kls))
+        return None
 
-    return False
-
-
-# NOTE: This is generated from the plugin class
-# Dispatcher function for routing messages with the plugin
-# NOTE: Unimplemented as this is not used for clients
-async def dispatcher(msg: rpc.Message) -> None:
-    print("Unimplemented: {}".format(msg))
-    return None
+    if not endpoints_for_class:
+        return _unimplemented
+    return __dispatcher
 
 
 # dispatcher = make_dispatcher_for_plugin(Client)
