@@ -58,7 +58,7 @@ class CommunicationHandler(object):
 
 # NOTE: This class handles communication between the reader/writer threads and the network socket
 # To abstract away any protocol/network specific dependencies
-class ConnectionHandler(object):
+class NetworkQueue(object):
     """
     Helper object to manage direct interactions with the rpc socket
     """

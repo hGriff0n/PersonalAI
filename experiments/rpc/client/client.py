@@ -1,10 +1,8 @@
 
 import abc
 import asyncio
-import json
 import queue
 import socket
-import struct
 import threading
 import typing
 
@@ -14,7 +12,7 @@ import protocol
 
 
 # NOTE: This is provided by the library/loader
-def reader(conn: communication.ConnectionHandler,
+def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
            dispatcher: typing.Callable[[rpc.Message], typing.Awaitable[None]],
            loop: asyncio.AbstractEventLoop,
@@ -52,7 +50,7 @@ def reader(conn: communication.ConnectionHandler,
 
 # NOTE: This is provided by the library/loader
 WRITER_TIMEOUT = 5
-def writer(conn: communication.ConnectionHandler, write_queue: 'queue.Queue[rpc.Message]') -> None:
+def writer(conn: communication.NetworkQueue, write_queue: 'queue.Queue[rpc.Message]') -> None:
     """
     Thread callback responsible for sending messages out of the plugin
 
@@ -149,21 +147,22 @@ async def dispatcher(msg: rpc.Message) -> None:
     return None
 
 
+# dispatcher = make_dispatcher_for_plugin(Client)
+# proto = protocol.JsonProtocol(None)
 
-# Connect to server
-addr = "127.0.0.1:6142".split(':')
-sock = socket.socket()
-sock.connect((addr[0], int(addr[1])))
-proto = protocol.JsonProtocol(None)
-conn = communication.ConnectionHandler(sock, proto, None)
+# # Connect to server
+# addr = "127.0.0.1:6142".split(':')
+# sock = socket.socket()
+# sock.connect((addr[0], int(addr[1])))
+# sock_handler = communication.NetworkQueue(sock, proto, None)
 
-# Construct the communication handles
-write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
-comm = communication.CommunicationHandler(write_queue)
-loop = asyncio.get_event_loop()
-read_thread = threading.Thread(target=reader, args=(conn, comm, dispatcher, loop))
-write_thread = threading.Thread(target=writer, args=(conn, write_queue))
+# # Construct the communication handles
+# write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
+# comm = communication.CommunicationHandler(write_queue)
+# loop = asyncio.get_event_loop()
+# read_thread = threading.Thread(target=reader, args=(sock_handler, comm, dispatcher, loop))
+# write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue))
 
-# Run the plugin
-loop.run_until_complete(run_plugin(comm, client_main, read_thread, write_thread))
-print("All threads closed")
+# # Run the plugin
+# plugin = Client(comm)
+# loop.run_until_complete(run_plugin(plugin, sock, read_thread, write_thread))
