@@ -42,6 +42,10 @@ def service(kls: typing.Type[rpc_type.PluginBase]):
     return kls
 
 
+def get_registered_services() -> typing.KeysView[typing.Type[rpc_type.PluginBase]]:
+    return __REGISTERED_ENDPOINTS.keys()
+
+
 ##
 ## Endpoint Registration
 ##

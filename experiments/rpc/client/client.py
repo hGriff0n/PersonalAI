@@ -14,15 +14,24 @@ import rpc
 import protocol
 
 
+# TODO: Move this to a better position
+DispatcherMap = typing.Dict[str, typing.Callable[[rpc.Message], typing.Coroutine[typing.Any, typing.Any, rpc.Message]]]
+
+
 # NOTE: This is provided by the library/loader
 def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
-           dispatcher: typing.Callable[[rpc.Message], typing.Awaitable[None]],
+           dispatch_map: DispatcherMap,
            loop: asyncio.AbstractEventLoop,
            logger: typing.Optional[typing.Any] = None) -> None:
     """
     Thread callback to handle messages as they are received by the plugin
     """
+    async def _dipatch(msg: rpc.Message) -> None:
+        comm.send(await dispatch_map[msg.call](msg))
+        comm.drop_message(msg)
+        return None
+
     try:
         while True:
             msg = conn.get_message()
@@ -37,10 +46,14 @@ def reader(conn: communication.NetworkQueue,
                 comm.waiting_messages[msg.msg_id].value = msg
                 loop.call_soon_threadsafe(comm.waiting_messages[msg.msg_id].set)
 
+            else if msg.call not in dispatch:
+                if logger is not None:
+                    logger.warning("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
+
             else:
                 if logger is not None:
                     logger.info("Handling message id={} through plugin handle".format(msg.msg_id))
-                asyncio.run_coroutine_threadsafe(dispatcher(msg), loop=loop)
+                asyncio.run_coruotine_threadsafe(_dispatch(msg), loop=loop)
 
     except ConnectionResetError as e:
         if logger is not None:
@@ -171,45 +184,69 @@ async def run_plugin(plugin: Plugin,
     write_thread.join(WRITER_TIMEOUT + 1)  # Because of the write queue timeout delay
 
 
-# NOTE: This will be in the loader code
-# Produce the message dispatcher specific for this class of plugins
-# TODO: Should the dispatcher return `None`?
-def make_dispatcher_for_plugin(plugin_kls: typing.Type[rpc.PluginBase]) -> typing.Callable[[rpc.PluginBase, rpc.Message], typing.Awaitable[None]]:
-    endpoints_for_class = rpc.endpoints_for_class(plugin_kls)
-
-    # TODO: I'd also need the plugin to call the methods on
-    async def __dispatcher(self: rpc.PluginBase, msg: rpc.Message) -> None:
-        # TODO: Find `msg.call` in `endpoints_for_class`
-        # TODO: Call the specified endpoint function
-        # TODO: Results?
-        return None
-
-    async def _unimplemented(self: rpc.PluginBase, msg: rpc.Message) -> None:
-        print("Received unexpected message `{}`. Dispatch not implemented for plugin {}".format(msg, plugin_kls))
-        return None
-
-    if not endpoints_for_class:
-        return _unimplemented
-    return __dispatcher
+# TODO: Work on the loading procedure
+# TODO: Incorporate configuration into this
+# TODO: Handle cases where loading fails
+def load_all_services(comm: communication.NetworkQueue) -> typing.List[rpc.PluginBase]:
+    services: typing.List[rpc.PluginBase] = []
+    for plugin in rpc.registration.get_registered_services():
+        services.append(plugin(comm))
+    return services
 
 
-# dispatcher = make_dispatcher_for_plugin(Client)
-# proto = protocol.JsonProtocol(None)
+ServiceMap =  typing.Dict[typing.Type[rpc.PluginBase], typing.List[str]]
+def register_endpoints(services: typing.List[rpc.PluginBase]) -> typing.Tuple[DispatcherMap, ServiceMap]:
+    """
+    Iterates through all of the loaded services and registers all their endpoints
 
-# # Connect to server
-# addr = "127.0.0.1:6142".split(':')
-# sock = socket.socket()
-# sock.connect((addr[0], int(addr[1])))
-# sock_handler = communication.NetworkQueue(sock, proto, None)
+    Returns the dispatcher map for endpoint handling and a list of all registered endpoints for each service
+    """
+    dispatcher: DispatcherMap = {}
+    service_map: ServiceMap = {}
 
-# # Construct the communication handles
-# write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
-# comm = communication.CommunicationHandler(write_queue)
-# loop = asyncio.get_event_loop()
-# read_thread = threading.Thread(target=reader, args=(sock_handler, comm, dispatcher, loop))
-# write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue))
+    for plugin in services:
+        service_map[type(plugin)] = []
+        for rpc_name, endpoint in rpc.registration.endpoints_for_class(type(plugin)).items():
+            if rpc_name in dispatcher:
+                print("Skipping endpoint {}.{} as it's already registered by another service".format(
+                    type(plugin), rpc_name))
+                continue
 
-# # Run the plugin
-# plugin = Client(comm)
-# loop.run_until_complete(run_plugin(plugin, sock, read_thread, write_thread))
-# print("All threads closed")
+            dispatcher[rpc_name] = getattr(plugin, endpoint['func'])
+            service_map[plugin].append(rpc_name)
+
+    return dispatcher, service_map
+
+
+
+#
+# Loader/Runner Code
+#
+proto = protocol.JsonProtocol(None)
+
+# Connect to server
+addr = "127.0.0.1:6142".split(':')
+sock = socket.socket()
+sock.connect((addr[0], int(addr[1])))
+sock_handler = communication.NetworkQueue(sock, proto, None)
+
+# Construct the communication handles
+write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
+comm = communication.CommunicationHandler(write_queue)
+
+# Construct the dispatcher
+services = load_all_services(comm)
+dispatcher, _service_map = register_endpoints(services)
+# TODO: Construct 'register_app' calls
+    # NOTE: The registration process may need to check the returned endpoints (which requires the threads to be running)
+    # Or requires us to directly contact the server through the `sock_handler`
+
+# Construct the read/write threads
+loop = asyncio.get_event_loop()
+read_thread = threading.Thread(target=reader, args=(sock_handler, comm, dispatcher, loop))
+write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue))
+
+# Run the plugin
+plugin = Client(comm)
+loop.run_until_complete(run_plugin(plugin, sock, read_thread, write_thread))
+print("All threads closed")
