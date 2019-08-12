@@ -1,11 +1,14 @@
 
-import abc
+# standard imports
 import asyncio
 import queue
 import socket
 import threading
 import typing
 
+# third-part imports
+
+# local imports
 import communication
 import rpc
 import protocol
@@ -109,26 +112,22 @@ class Client(Plugin):
             return False
 
         # Send message and wait response
-        print("Send {} to server.....".format(rpc_message.to_dict()))
+        print("Send {} to server.....".format(rpc_message.serialize()))
         resp = await self._comm.wait_response(rpc_message)
         if resp is not None:
-            print("Received {}".format(resp.to_dict()))
+            print("Received {}".format(resp.serialize()))
 
         return False
 
 class NullMessage(rpc.BaseMessage):
-    def to_dict(self) -> rpc.UntypedMessage:
+    def serialize(self) -> rpc.SerializedMessage:
         return {}
 
-    def populate_from_dict(self, msg_dict: rpc.UntypedMessage) -> bool:
+    def deserialize(self, msg_dict: rpc.SerializedMessage) -> bool:
         return True
 
 @rpc.service
 class AppServer(Plugin):
-
-    @rpc.endpoint
-    async def test_rpc(self, *args, **kwargs):
-        print('test')
 
     @rpc.endpoint
     async def test_fn_type(self, msg: NullMessage) -> NullMessage:

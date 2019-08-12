@@ -1,8 +1,12 @@
 
+# standard imports
 import asyncio
 import queue
 import typing
 
+# third-part imports
+
+# local imports
 import rpc
 import protocol
 

@@ -8,16 +8,20 @@ Project:
       produce module for registering rpc endpoints
         improve methods by which the dispatcher are produced
           implement dispatcher for the AppServer/DeviceServer cases
-        put the plugin stuff in a module
+      put the plugin stuff in a module
       fix issues where Plugin.main will never return
-        Current `runner` behavior is too wait for Plugin.main
+        Current `runner` behavior is to wait for Plugin.main
           <- if Plugin.main takes too long to complete (or gets deadlocked) we cannot shutdown
+          <- make a coroutine that returns only when the thread is stopped and then select on that?
       produce app using the dispatcher
         produce a second app to test out any module inefficiencies
       produce a client using the modules
         produce a second client to test out any module inefficiencies
         test out that both clients work with both apps
           <- test out that I can register both apps and use them in a client
+      change server error handling
+        dispatch should not use raw `json!` when producing error messages
+          should instead produce from a `rpc::Error` class and the serialize it to the dictionary
       stress testing (all tests should work with multiple clients)
         <- client can call app server
         <- client can call multiple app servers

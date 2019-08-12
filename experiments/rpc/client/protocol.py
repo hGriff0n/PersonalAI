@@ -1,9 +1,13 @@
 
+# standard imports
 import abc
 import json
 import struct
 import typing
 
+# third-part imports
+
+# local imports
 import rpc
 
 class Protocol(object):
@@ -24,15 +28,15 @@ class Protocol(object):
         """
 
     @abc.abstractmethod
-    def encode(self, msg: 'Protocol.M') -> rpc.UntypedMessage:
+    def encode(self, msg: 'Protocol.M') -> rpc.SerializedMessage:
         """
-        Convert the rpc.Message object into an rpc.UntypedMessage
+        Convert the rpc.Message object into an rpc.SerializedMessage
         """
 
     @abc.abstractmethod
-    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type['Protocol.M']) -> typing.Optional['Protocol.M']:
+    def decode(self, msg: rpc.SerializedMessage, msg_class: typing.Type['Protocol.M']) -> typing.Optional['Protocol.M']:
         """
-        Convert the rpc.UntypedMessage into the given rpc.Message class
+        Convert the rpc.SerializedMessage into the given rpc.Message class
         """
 
 
@@ -56,10 +60,10 @@ class JsonProtocol(Protocol):
         msg_buf = socket_reader(msg_len).decode('utf-8')
         return self.decode(json.loads(msg_buf), rpc.Message)
 
-    def encode(self, msg: Protocol.M) -> rpc.UntypedMessage:
-        return msg.to_dict()
+    def encode(self, msg: Protocol.M) -> rpc.SerializedMessage:
+        return msg.serialize()
 
-    def decode(self, msg: rpc.UntypedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
+    def decode(self, msg: rpc.SerializedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
         decoded_msg = msg_class.from_dict(msg)
         if decoded_msg is None and self._logger is not None:
             self._logger.warning("Failed to decode message {} to rpc.Message type `{}`", msg, msg_class)
