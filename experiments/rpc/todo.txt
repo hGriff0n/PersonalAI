@@ -6,13 +6,20 @@ Project:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
       put the plugin stuff in a module
-        improve methods by which the dispatcher are produced
-          implement dispatcher for the AppServer/DeviceServer cases
-        create automatic `register_app` call for each service
-      fix issues where Plugin.main will never return
-        Current `runner` behavior is to wait for Plugin.main
-          <- if Plugin.main takes too long to complete (or gets deadlocked) we cannot shutdown
-          <- make a coroutine that returns only when the thread is stopped and then select on that?
+        move plugin code to separate modules
+      allow services to implement main
+        figure out how to run services in the face of varying execution times
+        figure out how to handle plugin closre in the face of multiple services
+          fix issues where Plugin.main will never return
+            Current `runner` behavior is to wait for Plugin.main
+              <- if Plugin.main takes too long to complete (or gets deadlocked) we cannot shutdown
+              <- make a coroutine that returns only when the thread is stopped and then select on that?
+        ensure implementation stops all services when the first one exits
+        figure out how to automatically add any "Client" into the same tracking
+      test that client code works
+      autogenerate message ids
+        server
+        client
       produce app using the dispatcher
         produce a second app to test out any module inefficiencies
       produce a client using the modules

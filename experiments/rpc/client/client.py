@@ -10,6 +10,7 @@ import typing
 
 # local imports
 import communication
+import dispatcher
 import rpc
 import protocol
 
@@ -21,17 +22,11 @@ DispatcherMap = typing.Dict[str, typing.Callable[[rpc.Message], typing.Coroutine
 # NOTE: This is provided by the library/loader
 def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
-           dispatch_map: DispatcherMap,
            loop: asyncio.AbstractEventLoop,
            logger: typing.Optional[typing.Any] = None) -> None:
     """
     Thread callback to handle messages as they are received by the plugin
     """
-    async def _dipatch(msg: rpc.Message) -> None:
-        comm.send(await dispatch_map[msg.call](msg))
-        comm.drop_message(msg)
-        return None
-
     try:
         while True:
             msg = conn.get_message()
@@ -46,14 +41,15 @@ def reader(conn: communication.NetworkQueue,
                 comm.waiting_messages[msg.msg_id].value = msg
                 loop.call_soon_threadsafe(comm.waiting_messages[msg.msg_id].set)
 
-            else if msg.call not in dispatch:
-                if logger is not None:
-                    logger.warning("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
-
             else:
-                if logger is not None:
-                    logger.info("Handling message id={} through plugin handle".format(msg.msg_id))
-                asyncio.run_coruotine_threadsafe(_dispatch(msg), loop=loop)
+                dispatch = dispatcher.get_dispatch_routine(msg.call)
+                if not dispatch:
+                    if logger is not None:
+                        logger.warning("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
+                else:
+                    if logger is not None:
+                        logger.info("Handling message id={} through plugin handle".format(msg.msg_id))
+                    asyncio.run_coroutine_threadsafe(dispatch(msg), loop=loop)
 
     except ConnectionResetError as e:
         if logger is not None:
@@ -90,10 +86,9 @@ def writer(conn: communication.NetworkQueue, write_queue: 'queue.Queue[rpc.Messa
 
 
 # TODO: Move to a "plugin" module?
+# TODO: Might be a better way to provide the communication handler
 class Plugin(rpc.PluginBase):
 
-    # TODO: Is this the right place to put this or should I move it back to an arg of 'main'
-    # Basically is it useful by rpc endpoints?
     def __init__(self, comm: communication.CommunicationHandler) -> None:
         self._comm = comm
 
@@ -103,7 +98,6 @@ class Plugin(rpc.PluginBase):
     async def main(self) -> bool:
         await asyncio.sleep(5)
         return True
-
 
 class Client(Plugin):
 
@@ -132,6 +126,53 @@ class Client(Plugin):
 
         return False
 
+class AppServer(Plugin):
+
+    REQUIRED_HANDLES: typing.ClassVar[typing.List[str]] = []
+
+    def __init__(self, comm: communication.CommunicationHandler):
+        super().__init__(comm)
+        self._registered = False
+
+    async def main(self) -> bool:
+        if not self._registered:
+            self._registered = await self._register()
+            return self._registered
+
+        return await self.run()
+
+    async def run(self):
+        await asyncio.sleep(5)
+        return True
+
+    # TODO: Generate the message ids
+    async def _register(self):
+        endpoints = [endpoint for _, endpoint in rpc.registration.endpoints_for_class(type(self)).items()]
+        resp = await self._comm.await_Response(rpc.Message(call="register_app", args={ 'handles': endpoints }, msg_id="foo"))
+
+        registered_handles = []
+        if resp.resp and 'registered' in resp.resp:
+            registered_handles.extend(resp.resp['registered'])
+
+        # Check that all required handles are registered (if any)
+        # If some handle is required but fails to register, then deregister the whole app
+        unregistered_endpoints = [
+            endpoint for endpoint in self.REQUIRED_HANDLES if endpoint not in registered_handles
+        ]
+        if len(unregistered_endpoints) > 0:
+            print("Failure to register handles for service {}: {}".format(type(self), unregistered_endpoints))
+
+            deregister_id = "foo"
+            self._comm.send(rpc.Message(call="deregister_app", args={'handles': registered_handles}, msg_id="foo"))
+            self._comm.drop_message(deregister_id)
+            return False
+
+        # Add any "registered" endpoints to the dispatcher
+        for endpoint in registered_handles:
+            dispatcher.register_endpoint(endpoint, self)
+        return True
+
+
 class NullMessage(rpc.BaseMessage):
     def serialize(self) -> rpc.SerializedMessage:
         return {}
@@ -139,8 +180,8 @@ class NullMessage(rpc.BaseMessage):
     def deserialize(self, msg_dict: rpc.SerializedMessage) -> bool:
         return True
 
-@rpc.service
-class AppServer(Plugin):
+
+class AppService(Plugin):
 
     @rpc.endpoint
     async def test_fn_type(self, msg: NullMessage) -> NullMessage:
@@ -150,12 +191,15 @@ class AppServer(Plugin):
 # NOTE: This is provided by the library/loader
 # Runtime function that manages the threads and main communication loop
 # This is responsible for stopping when any thread exits
-async def run_plugin(plugin: Plugin,
+async def run_plugin(plugins: typing.List[Plugin],
                      sock,
                      read_thread: threading.Thread,
                      write_thread: threading.Thread):
     read_thread.start()
     write_thread.start()
+
+    # TODO: Fix to allow for all plugins to be run
+    plugin = plugins[-1]
 
     try:
         while True:
@@ -186,37 +230,14 @@ async def run_plugin(plugin: Plugin,
 
 # TODO: Work on the loading procedure
 # TODO: Incorporate configuration into this
-# TODO: Handle cases where loading fails
-def load_all_services(comm: communication.NetworkQueue) -> typing.List[rpc.PluginBase]:
-    services: typing.List[rpc.PluginBase] = []
-    for plugin in rpc.registration.get_registered_services():
-        services.append(plugin(comm))
+# TODO: Handle cases where loading fails (What do I mean by this?)
+def load_all_services(comm: communication.CommunicationHandler, client: typing.Optional[typing.Type[Client]] = None) -> typing.List[Plugin]:
+    services: typing.List[Plugin] = [  # The `issubclass` is required for typing
+        plugin(comm) for plugin in rpc.registration.get_registered_services() if issubclass(plugin, Plugin)
+    ]
+    if client is not None:
+        services.append(client(comm))
     return services
-
-
-ServiceMap =  typing.Dict[typing.Type[rpc.PluginBase], typing.List[str]]
-def register_endpoints(services: typing.List[rpc.PluginBase]) -> typing.Tuple[DispatcherMap, ServiceMap]:
-    """
-    Iterates through all of the loaded services and registers all their endpoints
-
-    Returns the dispatcher map for endpoint handling and a list of all registered endpoints for each service
-    """
-    dispatcher: DispatcherMap = {}
-    service_map: ServiceMap = {}
-
-    for plugin in services:
-        service_map[type(plugin)] = []
-        for rpc_name, endpoint in rpc.registration.endpoints_for_class(type(plugin)).items():
-            if rpc_name in dispatcher:
-                print("Skipping endpoint {}.{} as it's already registered by another service".format(
-                    type(plugin), rpc_name))
-                continue
-
-            dispatcher[rpc_name] = getattr(plugin, endpoint['func'])
-            service_map[plugin].append(rpc_name)
-
-    return dispatcher, service_map
-
 
 
 #
@@ -234,19 +255,12 @@ sock_handler = communication.NetworkQueue(sock, proto, None)
 write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
 comm = communication.CommunicationHandler(write_queue)
 
-# Construct the dispatcher
-services = load_all_services(comm)
-dispatcher, _service_map = register_endpoints(services)
-# TODO: Construct 'register_app' calls
-    # NOTE: The registration process may need to check the returned endpoints (which requires the threads to be running)
-    # Or requires us to directly contact the server through the `sock_handler`
-
 # Construct the read/write threads
 loop = asyncio.get_event_loop()
-read_thread = threading.Thread(target=reader, args=(sock_handler, comm, dispatcher, loop))
+read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop))
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue))
 
 # Run the plugin
-plugin = Client(comm)
-loop.run_until_complete(run_plugin(plugin, sock, read_thread, write_thread))
+plugins = load_all_services(comm, client=Client)
+loop.run_until_complete(run_plugin(plugins, sock, read_thread, write_thread))
 print("All threads closed")
