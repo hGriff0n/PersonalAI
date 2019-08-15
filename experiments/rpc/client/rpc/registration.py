@@ -10,7 +10,7 @@ from rpc import typing as rpc_type
 
 
 # Endpoint registration structures
-RpcEndpoint = typing.Dict[str, str]
+RpcEndpoint = typing.Dict[str, typing.Any]
 __ACTIVE_ENDPOINT_REGISTRATIONS: typing.Dict[str, RpcEndpoint]
 __REGISTERED_ENDPOINTS: typing.Dict[typing.Type[rpc_type.PluginBase], typing.Dict[str, RpcEndpoint]] = {}
 
@@ -50,7 +50,7 @@ def get_registered_services() -> typing.KeysView[typing.Type[rpc_type.PluginBase
 ## Endpoint Registration
 ##
 
-def _register_endpoint(func: rpc_type.AllEndpointTypes, rpc_name: typing.Optional[str]) -> None:
+def _register_endpoint(func: rpc_type.AllEndpointTypes, rpc_name: typing.Optional[str], required: bool) -> None:
     """
     Adds the function to active endpoint registration tracker, with an ability to rename the exported endpoint
     """
@@ -62,7 +62,8 @@ def _register_endpoint(func: rpc_type.AllEndpointTypes, rpc_name: typing.Optiona
         raise Exception("Name clash on endpoint `{}`: Two endpoints found with the same rpc name".format(name))
 
     __ACTIVE_ENDPOINT_REGISTRATIONS[name] = {
-        'func': func.__name__
+        'func': func.__name__,
+        'required': required
     }
 
 
@@ -87,7 +88,9 @@ def _extract_endpoint_types(func):
     return arg_ty, ret_ty
 
 
-def endpoint(_func: typing.Optional[rpc_type.AllEndpointTypes] = None, name: typing.Optional[str] = None):
+def endpoint(_func: typing.Optional[rpc_type.AllEndpointTypes] = None,
+             name: typing.Optional[str] = None,
+             required: bool = False):
     """
     Function decorator to take a service endpoint definition, wrap it in the required disptach type, and register it
 
@@ -152,7 +155,7 @@ def endpoint(_func: typing.Optional[rpc_type.AllEndpointTypes] = None, name: typ
     # Decorator implementation
     # This handles registration and type checking of arguments
     def _decorator(func: rpc_type.AllEndpointTypes) -> rpc_type.DispatcherEndpointType:
-        _register_endpoint(func, name)
+        _register_endpoint(func, name, required)
         return _decorator_no_type_checks(func)
 
     if _func is None:
