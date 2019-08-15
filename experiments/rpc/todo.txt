@@ -5,17 +5,7 @@ Project:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      put the plugin stuff in a module
-        move plugin code to separate modules
-      allow services to implement main
-        figure out how to run services in the face of varying execution times
-        figure out how to handle plugin closre in the face of multiple services
-          fix issues where Plugin.main will never return
-            Current `runner` behavior is to wait for Plugin.main
-              <- if Plugin.main takes too long to complete (or gets deadlocked) we cannot shutdown
-              <- make a coroutine that returns only when the thread is stopped and then select on that?
-        ensure implementation stops all services when the first one exits
-        figure out how to automatically add any "Client" into the same tracking
+      try to integrate `@service` and `@endpoint` with the `plugins.AppServer` class (ie. required=True)
       test that client code works
       autogenerate message ids
         server
@@ -40,7 +30,7 @@ Project:
           this'll test the "client exit" control flow
           the server here should delay for a minute before responding
       produce module setup and testing "framework"
-        run mypy on the entry script and check that it "types"
+        <- how to utilize mypy
       is there a way to setup these integration tests?
         also look at setting up unit tests in the rust and python code
         can also use a library (ex pydantic) that enforces these hints at runtime
@@ -54,9 +44,8 @@ Project:
     -> seshat/indexer
       the current codebase doesn't really fit that too well
     -> custom error types (ie. not routing everything through std::io::Error)
+      automatic generation of the correct error json
   Clean up the codebase and ensure everything is well architected
-    Produce rpc/protocol helper methods for python
-    Produce python structure code
     How will I get server state data into the rpc service handlers?
     Add comments to all of the classes and the functions
   Integrate with CLI args
@@ -64,6 +53,7 @@ Project:
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
       -> basically can just take server.rs (+ others?)
     add whatever python cli thing I used
+      get python code to the level of completeness as in the old codebase
     <- maybe have config files instead
       -> isn't this supported already
   Integrate with logging

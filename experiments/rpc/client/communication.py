@@ -2,6 +2,7 @@
 # standard imports
 import asyncio
 import queue
+import socket
 import typing
 
 # third-part imports
@@ -76,10 +77,14 @@ class NetworkQueue(object):
     Abstracts away any dependencies on a specific netowrk or protocol
     """
 
+    SOCKET_TIMEOUT: typing.ClassVar[int] = 5
+
     def __init__(self, socket, proto: protocol.Protocol, logger) -> None:
         self._sock = socket
         self._logger = logger
         self._protocol = proto
+
+        self._sock.settimeout(NetworkQueue.SOCKET_TIMEOUT)
 
     def send_message(self, msg: rpc.Message) -> None:
         """
@@ -98,7 +103,12 @@ class NetworkQueue(object):
         def _read(n: int) -> bytes:
             return self._sock.recv(n)
 
-        msg = self._protocol.unwrap_packet(_read)
+        try:
+            msg = self._protocol.unwrap_packet(_read)
+
+        except socket.timeout:
+            return None
+
         if self._logger:
             if msg is not None:
                 self._logger.info("Received message {}".format(msg.msg_id))

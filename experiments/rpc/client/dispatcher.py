@@ -4,6 +4,7 @@ import typing
 # third-part imports
 
 # local imports
+import rpc
 from rpc import registration
 
 

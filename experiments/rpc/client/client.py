@@ -4,6 +4,7 @@ import asyncio
 import queue
 import socket
 import threading
+import time
 import typing
 
 # third-part imports
@@ -18,11 +19,16 @@ import protocol
 # TODO: Move this to a better position
 DispatcherMap = typing.Dict[str, typing.Callable[[rpc.Message], typing.Coroutine[typing.Any, typing.Any, rpc.Message]]]
 
+# Number of seconds to wait in the threads for the done signal to be set
+SIGNAL_TIMEOUT = 0.3
+
 
 # NOTE: This is provided by the library/loader
+READER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
            loop: asyncio.AbstractEventLoop,
+           done_signal: threading.Event,
            logger: typing.Optional[typing.Any] = None) -> None:
     """
     Thread callback to handle messages as they are received by the plugin
@@ -33,6 +39,8 @@ def reader(conn: communication.NetworkQueue,
 
             # This error is already handled
             if msg is None:
+                if done_signal.wait(SIGNAL_TIMEOUT):
+                    return None
                 continue
 
             if msg.msg_id in comm.waiting_messages:
@@ -57,12 +65,17 @@ def reader(conn: communication.NetworkQueue,
 
     except Exception as e:
         if logger is not None:
-            logger.error("Exception while waiting for messages: {}".format(e))
+            logger.error("Unexpected exception while waiting for messages: {}".format(e))
+
+    done_signal.set()
 
 
 # NOTE: This is provided by the library/loader
-WRITER_TIMEOUT = 5
-def writer(conn: communication.NetworkQueue, write_queue: 'queue.Queue[rpc.Message]') -> None:
+WRITER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
+def writer(conn: communication.NetworkQueue,
+           write_queue: 'queue.Queue[rpc.Message]',
+           done_signal: threading.Event,
+           logger: typing.Optional[typing.Any] = None) -> None:
     """
     Thread callback responsible for sending messages out of the plugin
 
@@ -77,13 +90,14 @@ def writer(conn: communication.NetworkQueue, write_queue: 'queue.Queue[rpc.Messa
         # At that point, we check whether we're the only thread (aside from main) currently running
         # And use that as a proxy for when we should return
         except queue.Empty:
-            num_active_threads = 0
-            for t in threading.enumerate():
-                if not (t is threading.main_thread()):
-                    num_active_threads += 1
-            if num_active_threads == 1:
-                break
+            if done_signal.wait(SIGNAL_TIMEOUT):
+                return None
 
+        except Exception as e:
+            if logger is not None:
+                logger.error("Unexpected exception in writer thread: {}".format(e))
+            done_signal.set()
+            return None
 
 # TODO: Move to a "plugin" module?
 # TODO: Might be a better way to provide the communication handler
@@ -240,6 +254,25 @@ def load_all_services(comm: communication.CommunicationHandler, client: typing.O
     return services
 
 
+# NOTE: As soon as one plugin "completes", all plugins in the modality will "exit" (reader+writer will shut down)
+# Modalities should be split up into chunks that follow this behavior
+# ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
+PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
+def run_plugins(plugins: typing.List[plugins.Plugin], loop, done_signal: threading.Event) -> None:
+    for plugin in plugins:
+        async def _runner():
+            while await plugin.main():
+                await asyncio.sleep(1)
+
+            done_signal.set()
+
+        asyncio.run_coroutine_threadsafe(_runner(), loop=loop)
+
+
+    while not done_signal.wait(SIGNAL_TIMEOUT):
+        time.sleep(PLUGIN_SLEEP)
+
+
 #
 # Loader/Runner Code
 #
@@ -257,10 +290,32 @@ comm = communication.CommunicationHandler(write_queue)
 
 # Construct the read/write threads
 loop = asyncio.get_event_loop()
-read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop))
-write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue))
+done_signal = threading.Event()
+read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, done_signal))
+write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
-# Run the plugin
+# Construct the plugin threads
 plugins = load_all_services(comm, client=Client)
-loop.run_until_complete(run_plugin(plugins, sock, read_thread, write_thread))
-print("All threads closed")
+plugin_thread = threading.Thread(target=run_plugins, args=(plugins, loop, done_signal))
+
+# Run the launcher
+read_thread.start()
+write_thread.start()
+plugin_thread.start()
+
+# Wait for one of the threads to exit (and then close everything done)
+done_signal.wait()
+
+print("Closing the socket connection....")
+sock.shutdown(socket.SHUT_RDWR)        # So we don't produce 'ConnectionReset' errors in the host server
+sock.close()
+
+print("Waiting for the reading thread to finish...")
+read_thread.join(READER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)
+
+print("Waiting for the reading thread to finish...")
+write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
+
+print("Waiting for the plugins thread to finish...")
+plugin_thread.join(PLUGIN_SLEEP + 2 * SIGNAL_TIMEOUT + 1)
+print("All threads have exited successfully")
