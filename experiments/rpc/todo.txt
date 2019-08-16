@@ -5,12 +5,12 @@ Project:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      try to integrate `@service` and `@endpoint` with the `plugins.AppServer` class (ie. required=True)
-      test that client code works
       autogenerate message ids
         server
         client
       produce app using the dispatcher
+        add print logging to the python and rust code
+        <- uncomment the app server
         produce a second app to test out any module inefficiencies
       produce a client using the modules
         figure out how users will control what gets run

@@ -20,4 +20,4 @@ def get_dispatch_routine(call: str) -> typing.Optional[DispatcherFunction]:
 def register_endpoint(endpoint: str, plugin: rpc.PluginBase):
     registered = registration.endpoints_for_class(type(plugin)).get(endpoint)
     if registered is not None:
-        __DISPATCHER[endpoint] = getattr(plugin, registered)
+        __DISPATCHER[endpoint] = getattr(plugin, registered['func'])

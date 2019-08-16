@@ -104,20 +104,18 @@ def writer(conn: communication.NetworkQueue,
 class Client(plugins.Client):
 
     async def main(self) -> bool:
-        rpc_msg_dict = {
-            "call": "register_app",
+        fortune_request = {
+            "call": "tell_fortune",
             "args": {
-                "handles": [
-                    "tell_story",
-                    "list_books"
-                ]
+                "sign": "leo"
             },
-            "msg_id": "foo",
+            "msg_id": "fdfjdjd"
         }
-        rpc_message = rpc.Message.from_dict(rpc_msg_dict)
+        rpc_message = rpc.Message.from_dict(fortune_request)
+        print(fortune_request)
 
         if rpc_message is None:
-            print("Failed to parse {} into an rpc.Message".format(rpc_msg_dict))
+            print("Failed to parse {} into an rpc.Message".format(fortune_request))
             return False
 
         # Send message and wait response
@@ -130,24 +128,33 @@ class Client(plugins.Client):
 
 
 class NullMessage(rpc.BaseMessage):
+
+    def __init__(self):
+        self.message: str = ""
+
     def serialize(self) -> rpc.SerializedMessage:
-        return {}
+        return {
+            'message': self.message
+        }
 
     def deserialize(self, msg_dict: rpc.SerializedMessage) -> bool:
+        self.message = msg_dict.get('message', '')
         return True
 
 
 # @rpc.service
-class AppService(plugins.AppServer):
+# class AppService(plugins.AppServer):
 
-    @rpc.endpoint
-    async def test_fn_type(self, msg: NullMessage) -> NullMessage:
-        return NullMessage()
+#     @rpc.endpoint
+#     async def test_fn_type(self, msg: NullMessage) -> NullMessage:
+#         msg.message = "This is a special message"
+#         return msg
 
 
 # TODO: Work on the loading procedure
 # TODO: Incorporate configuration into this
 # TODO: Handle cases where loading fails (What do I mean by this?)
+@typing.no_type_check
 def load_all_services(comm: communication.CommunicationHandler, client: typing.Optional[typing.Type[Client]] = None) -> typing.List[plugins.Plugin]:
     services: typing.List[plugins.Plugin] = [  # The `issubclass` is required for typing
         plugin(comm) for plugin in rpc.registration.get_registered_services() if issubclass(plugin, plugins.Plugin)
@@ -161,7 +168,13 @@ def load_all_services(comm: communication.CommunicationHandler, client: typing.O
 # Modalities should be split up into chunks that follow this behavior
 # ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
 PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
-def run_plugins(plugins: typing.List[plugins.Plugin], loop, done_signal: threading.Event) -> None:
+async def run_plugins(plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
+    async def _signaller():
+        while await asyncio.sleep(PLUGIN_SLEEP):
+            if done_signal.wait(SIGNAL_TIMEOUT):
+                return
+
+    callbacks = [_signaller]
     for plugin in plugins:
         async def _runner():
             while await plugin.main():
@@ -169,11 +182,10 @@ def run_plugins(plugins: typing.List[plugins.Plugin], loop, done_signal: threadi
 
             done_signal.set()
 
-        asyncio.run_coroutine_threadsafe(_runner(), loop=loop)
+        callbacks.append(_runner)
 
-
-    while not done_signal.wait(SIGNAL_TIMEOUT):
-        time.sleep(PLUGIN_SLEEP)
+    _done, _pending = await asyncio.wait([runner() for runner in callbacks], return_when=asyncio.FIRST_COMPLETED)
+    done_signal.set()
 
 
 #
@@ -197,14 +209,13 @@ done_signal = threading.Event()
 read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, done_signal))
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
-# Construct the plugin threads
+# Load the plugins
 plugins = load_all_services(comm, client=Client)
-plugin_thread = threading.Thread(target=run_plugins, args=(plugins, loop, done_signal))
 
 # Run the launcher
 read_thread.start()
 write_thread.start()
-plugin_thread.start()
+loop.run_until_complete(run_plugins(plugins, done_signal))
 
 # Wait for one of the threads to exit (and then close everything done)
 done_signal.wait()
@@ -216,9 +227,7 @@ sock.close()
 print("Waiting for the reading thread to finish...")
 read_thread.join(READER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)
 
-print("Waiting for the reading thread to finish...")
+print("Waiting for the writing thread to finish...")
 write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
 
-print("Waiting for the plugins thread to finish...")
-plugin_thread.join(PLUGIN_SLEEP + 2 * SIGNAL_TIMEOUT + 1)
 print("All threads have exited successfully")
