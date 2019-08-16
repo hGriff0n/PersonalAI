@@ -1,9 +1,8 @@
 
 # standard imports
 import asyncio
-# import queue
-# import socket
 import typing
+# import uuid
 
 # third-part imports
 
@@ -84,7 +83,7 @@ class AppServer(Plugin):
         handles = [handle for handle, _ in endpoints.items()]
         required = [handle for handle, endpoint in endpoints.items() if endpoint.get('required')]
 
-        resp = await self._comm.await_Response(Message(call="register_app", args={ 'handles': handles }, msg_id="foo"))
+        resp = await self._comm.await_Response(Message(call="register_app", args={ 'handles': handles }))
 
         registered_handles = []
         if resp.resp and 'registered' in resp.resp:

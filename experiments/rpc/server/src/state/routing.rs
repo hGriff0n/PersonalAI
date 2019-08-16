@@ -4,6 +4,7 @@ use std::{collections, net, sync};
 
 // third-party imports
 use tokio::sync::oneshot;
+use uuid;
 
 // local imports
 use crate::rpc;
@@ -20,11 +21,11 @@ struct InFlightMessage {
 
 pub struct MessageRouter {
     // Tracker of all messages currently in-flight and their continuation handles (for forwarding)
-    in_flight: sync::Arc<sync::Mutex<collections::HashMap<String, InFlightMessage>>>,
+    in_flight: sync::Arc<sync::Mutex<collections::HashMap<uuid::Uuid, InFlightMessage>>>,
     // Map of all messages being served by a particular address
-    serving_messages: sync::Arc<sync::Mutex<collections::HashMap<net::SocketAddr, Vec<String>>>>,
+    serving_messages: sync::Arc<sync::Mutex<collections::HashMap<net::SocketAddr, Vec<uuid::Uuid>>>>,
     // Map of all messages that are being waited on by a particular address
-    waiting_messages: sync::Arc<sync::Mutex<collections::HashMap<net::SocketAddr, Vec<String>>>>,
+    waiting_messages: sync::Arc<sync::Mutex<collections::HashMap<net::SocketAddr, Vec<uuid::Uuid>>>>,
 }
 
 impl MessageRouter {
@@ -36,7 +37,7 @@ impl MessageRouter {
         }
     }
 
-    pub fn wait_for_message(&self, msg_id: String, from: net::SocketAddr, to: net::SocketAddr)
+    pub fn wait_for_message(&self, msg_id: uuid::Uuid, from: net::SocketAddr, to: net::SocketAddr)
         -> oneshot::Receiver<rpc::Message>
     {
         let (send, rec) = oneshot::channel();
@@ -75,7 +76,7 @@ impl MessageRouter {
             let (_, msgs) = o.remove_entry();
             let mut in_flight = self.in_flight.lock().unwrap();
             for msg in msgs {
-                in_flight.remove(msg.as_str());
+                in_flight.remove(&msg);
             }
         }
 
@@ -96,7 +97,7 @@ impl MessageRouter {
         Ok(())
     }
 
-    pub fn forward_message(&self, msg_id: String) -> Option<oneshot::Sender<rpc::Message>> {
+    pub fn forward_message(&self, msg_id: uuid::Uuid) -> Option<oneshot::Sender<rpc::Message>> {
         // Extract the sender end from the map
         if let Some(msg) = self.in_flight
             .lock()

@@ -11,7 +11,7 @@ import typing
 import rpc
 
 class Protocol(object):
-    M = typing.TypeVar('M', bound=rpc.BaseMessage)
+    M = typing.TypeVar('M', bound=rpc.Serializable)
 
     @abc.abstractmethod
     def make_packet(self, msg: rpc.Message) -> bytes:

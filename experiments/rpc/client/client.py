@@ -104,19 +104,7 @@ def writer(conn: communication.NetworkQueue,
 class Client(plugins.Client):
 
     async def main(self) -> bool:
-        fortune_request = {
-            "call": "tell_fortune",
-            "args": {
-                "sign": "leo"
-            },
-            "msg_id": "fdfjdjd"
-        }
-        rpc_message = rpc.Message.from_dict(fortune_request)
-        print(fortune_request)
-
-        if rpc_message is None:
-            print("Failed to parse {} into an rpc.Message".format(fortune_request))
-            return False
+        rpc_message = rpc.Message(call="tell_fortune", args={"sign": "leo"})
 
         # Send message and wait response
         print("Send {} to server.....".format(rpc_message.serialize()))
@@ -127,7 +115,7 @@ class Client(plugins.Client):
         return False
 
 
-class NullMessage(rpc.BaseMessage):
+class NullMessage(rpc.Serializable):
 
     def __init__(self):
         self.message: str = ""

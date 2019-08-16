@@ -2,6 +2,7 @@
 # standard imports
 import abc
 import typing
+import uuid
 
 # third-part imports
 
@@ -13,7 +14,7 @@ import typing
 SerializedMessage = typing.Dict[str, typing.Any]
 
 
-class BaseMessage(object):
+class Serializable(object):
     """
     The basic rpc "message" type
 
@@ -37,16 +38,16 @@ class BaseMessage(object):
         Generally this means a required arg is missing, or unsupported args exist
         """
 
-    M = typing.TypeVar('M', bound="BaseMessage")
+    M = typing.TypeVar('M', bound="Serializable")
     @classmethod
-    def from_dict(kls: typing.Type['BaseMessage.M'], msg_dict: SerializedMessage) -> typing.Optional['BaseMessage.M']:
+    def from_dict(kls: typing.Type['Serializable.M'], msg_dict: SerializedMessage) -> typing.Optional['Serializable.M']:
         obj = kls()
         if not obj.deserialize(msg_dict):
             return None
         return obj
 
 
-class Message(BaseMessage):
+class Message(Serializable):
     """
     The rpc communication type
 
@@ -54,11 +55,10 @@ class Message(BaseMessage):
     """
 
     def __init__(self,
-                 msg_id: typing.Optional[str] = None,
                  call: typing.Optional[str] = None,
                  args: typing.Optional[SerializedMessage] = None,
                  resp: typing.Optional[SerializedMessage] = None) -> None:
-        self._msg_id = msg_id or ""
+        self._msg_id = uuid.uuid4()
         self._call = call or ""
         self._args = args or {}
         self._resp: typing.Optional[SerializedMessage] = resp
@@ -74,7 +74,7 @@ class Message(BaseMessage):
         return ret_dict
 
     def deserialize(self, msg_dict: SerializedMessage) -> bool:
-        if ('msg_id' not in msg_dict) or ('call' not in msg_dict) or ('args' not in msg_dict):
+        if any(key not in msg_dict for key in ['msg_id', 'call', 'args']):
             return False
 
         msg_vals = msg_dict.copy()

@@ -41,8 +41,19 @@ rpc_schema!(Message {
     resp: Option<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>,
 
     // Call metadata
-    msg_id: String
+    msg_id: uuid::Uuid
 });
+
+impl Message {
+    fn new(call: String, args: <protocol::JsonProtocol as protocol::RpcSerializer>::Message) -> Self {
+        Self{
+            call: call,
+            args: args,
+            resp: None,
+            msg_id: uuid::Uuid::new_v4(),
+        }
+    }
+}
 
 
 // TODO: Improve typing usage and genericity

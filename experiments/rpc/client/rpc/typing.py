@@ -17,7 +17,7 @@ class PluginBase(object):
 
 # Setup the types of the acceptable endpoint functions (for `@service` and `@endpoint`)
 EndpointSelfTypeVar = typing.TypeVar('EndpointSelfTypeVar', bound='PluginBase')
-EndpointRespTypeVar = typing.TypeVar('EndpointRespTypeVar', bound='message.BaseMessage')
+EndpointRespTypeVar = typing.TypeVar('EndpointRespTypeVar', bound='message.Serializable')
 
 # NOTE: The usage of `Optional` allows for endpoints to not have a response (ie. return None)
 # While Apps currently always return to the server, this can be handled from the dispatcher/decorator
@@ -29,7 +29,7 @@ EndpointResponseType = typing.Coroutine[typing.Any, typing.Any, typing.Optional[
 # 3) Arg endpoint with no response value
 # 4) Arg endpoint with a response value
 EndpointWithNoArgs = typing.Callable[[EndpointSelfTypeVar], EndpointResponseType]
-EndpointWithArgs = typing.Callable[[EndpointSelfTypeVar, message.BaseMessage.M], EndpointResponseType]
+EndpointWithArgs = typing.Callable[[EndpointSelfTypeVar, message.Serializable.M], EndpointResponseType]
 AllEndpointTypes = typing.Union[EndpointWithArgs, EndpointWithNoArgs]
 
 # The type of the function expected within the dispatcher for endpoints

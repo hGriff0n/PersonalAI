@@ -5,9 +5,6 @@ Project:
       <- final products:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
-      autogenerate message ids
-        server
-        client
       produce app using the dispatcher
         add print logging to the python and rust code
         <- uncomment the app server
@@ -71,6 +68,9 @@ Project:
       implement `get_registered_devices` rpc
     determine rpc options to request device routing
     modify routing to use devices if provided
+    add ability to set modality information
+      <- mac address, status, name, etc.
+      <- would be put in `plugins.Client` (similar to `plugins.AppServer`)
   Introduce rpc timeouts
     NOTE: Any solution here will likely also work for when a client exits while waiting on in-flight messages
   Think about network/device monitoring situation
