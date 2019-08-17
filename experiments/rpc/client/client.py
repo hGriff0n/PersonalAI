@@ -114,8 +114,6 @@ class Client(plugins.Client):
         resp = await self._comm.wait_response(rpc_message)
         if resp is not None:
             print("Received {}".format(resp.resp))
-        else:
-            print("None")
 
         return False
 
@@ -162,29 +160,30 @@ def load_all_services(comm: communication.CommunicationHandler, client: typing.O
 # Modalities should be split up into chunks that follow this behavior
 # ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
 PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
-async def run_plugins(plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
-    async def _signaller():
-        while True:
+async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
+
+    # Create a small "plugin" that periodically checks whether the done_signal has been set
+    # This enables the plugin runner to exit when the reader/writer sets the signal, even if no plugins would fail then
+    class Signaller(plugins.Plugin):
+        def __init__(self):
+            pass
+
+        async def main(self) -> bool:
             await asyncio.sleep(PLUGIN_SLEEP)
-            if done_signal.wait(SIGNAL_TIMEOUT):
-                return
+            return not done_signal.wait(SIGNAL_TIMEOUT)
 
-    callbacks = [_signaller]
-    for plugin in plugins:
-        async def _runner():
-            while await plugin.main():
-                await asyncio.sleep(1)
+    all_plugins.append(Signaller())
 
-            print("Setting done signal: {}".format(plugin))
-            done_signal.set()
+    # Create a plugin runner that periodically runs the 'Plugin.main' entrypoint
+    # Sets the `done_signal` once `main` returns False
+    async def _runner(plugin):
+        print("Starting runner callback for {}".format(plugin))
+        while await plugin.main():
+            await asyncio.sleep(1)
+        done_signal.set()
 
-        callbacks.append(_runner)
-
-    print("Callbacks: {}".format(callbacks))
-    _done, pending = await asyncio.wait([runner() for runner in callbacks], return_when=asyncio.FIRST_COMPLETED)
-    done_signal.set()
-
-    print("Canelling {}".format(pending))
+    # Spawn all plugins on the event loop, cancel the active ones when one exits
+    _done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
     for p in pending:
         p.cancel()
 
@@ -217,14 +216,13 @@ read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, do
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
 # Load the plugins
-# plugins = load_all_services(comm, client=Client)
-plugins = load_all_services(comm)
-print("Loaded services: {}".format(plugins))
+all_plugins = load_all_services(comm, client=Client)
+print("Loaded services: {}".format(all_plugins))
 
 # Run the launcher
 read_thread.start()
 write_thread.start()
-loop.run_until_complete(run_plugins(plugins, done_signal))
+loop.run_until_complete(run_plugins(all_plugins, done_signal))
 
 # Wait for one of the threads to exit (and then close everything done)
 done_signal.wait()

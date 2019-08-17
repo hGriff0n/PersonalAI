@@ -45,6 +45,7 @@ rpc_schema!(Message {
 });
 
 impl Message {
+    #[allow(dead_code)]
     fn new(call: String, args: <protocol::JsonProtocol as protocol::RpcSerializer>::Message) -> Self {
         Self{
             call: call,

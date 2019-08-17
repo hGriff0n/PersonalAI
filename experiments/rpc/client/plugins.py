@@ -83,17 +83,19 @@ class AppServer(Plugin):
         handles = [handle for handle, _ in endpoints.items()]
         required = [handle for handle, endpoint in endpoints.items() if endpoint.get('required')]
 
-        resp = await self._comm.await_Response(Message(call="register_app", args={ 'handles': handles }))
+        print("Registring handles for {}: {}".format(type(self), handles))
+        resp = await self._comm.wait_response(Message(call="register_app", args={ 'handles': handles }))
 
         registered_handles = []
         if resp.resp and 'registered' in resp.resp:
             registered_handles.extend(resp.resp['registered'])
+        print("Registered handles for service {}: {}".format(type(self), registered_handles))
 
         # Check that all required handles are registered (if any)
         # If some handle is required but fails to register, then deregister the whole app
         broken_endpoints = [handle for handle in required if handle not in registered_handles]
         if len(broken_endpoints) > 0:
-            print("Failure to register handles for service {}: {}".format(type(self), broken_endpoints))
+            print("Failure to register required handles for service {}: {}".format(type(self), broken_endpoints))
 
             # TODO: Explicit `deregister` is not implemented
             # deregister_id = "foo"
