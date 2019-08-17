@@ -9,7 +9,7 @@ from rpc import registration
 
 
 DispatcherFunction = typing.Callable[[rpc.Message], typing.Coroutine[typing.Any, typing.Any, rpc.Message]]
-__DISPATCHER: typing.Dict[str, DispatcherFunction]
+__DISPATCHER: typing.Dict[str, DispatcherFunction] = {}
 
 
 def get_dispatch_routine(call: str) -> typing.Optional[DispatcherFunction]:

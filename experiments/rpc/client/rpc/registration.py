@@ -11,7 +11,7 @@ from rpc import typing as rpc_type
 
 # Endpoint registration structures
 RpcEndpoint = typing.Dict[str, typing.Any]
-__ACTIVE_ENDPOINT_REGISTRATIONS: typing.Dict[str, RpcEndpoint]
+__ACTIVE_ENDPOINT_REGISTRATIONS: typing.Dict[str, RpcEndpoint] = {}
 __REGISTERED_ENDPOINTS: typing.Dict[typing.Type[rpc_type.PluginBase], typing.Dict[str, RpcEndpoint]] = {}
 
 # TODO: Not sure on the interface for creating the dispatcher

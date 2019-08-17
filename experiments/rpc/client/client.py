@@ -68,6 +68,7 @@ def reader(conn: communication.NetworkQueue,
         if logger is not None:
             logger.error("Unexpected exception while waiting for messages: {}".format(e))
 
+    print("Setting done signal: reader")
     done_signal.set()
 
 
@@ -97,6 +98,8 @@ def writer(conn: communication.NetworkQueue,
         except Exception as e:
             if logger is not None:
                 logger.error("Unexpected exception in writer thread: {}".format(e))
+
+            print("Setting done signal: writer - {}".format(e))
             done_signal.set()
             return None
 
@@ -104,13 +107,15 @@ def writer(conn: communication.NetworkQueue,
 class Client(plugins.Client):
 
     async def main(self) -> bool:
-        rpc_message = rpc.Message(call="tell_fortune", args={"sign": "leo"})
+        await asyncio.sleep(10)
 
-        # Send message and wait response
-        print("Send {} to server.....".format(rpc_message.serialize()))
+        rpc_message = rpc.Message(call="grab_a_message")
+        print("Calling `grab_a_message`")
         resp = await self._comm.wait_response(rpc_message)
         if resp is not None:
-            print("Received {}".format(resp.serialize()))
+            print("Received {}".format(resp.resp))
+        else:
+            print("None")
 
         return False
 
@@ -130,13 +135,14 @@ class NullMessage(rpc.Serializable):
         return True
 
 
-# @rpc.service
-# class AppService(plugins.AppServer):
+@rpc.service
+class AppService(plugins.AppServer):
 
-#     @rpc.endpoint
-#     async def test_fn_type(self, msg: NullMessage) -> NullMessage:
-#         msg.message = "This is a special message"
-#         return msg
+    @rpc.endpoint
+    async def grab_a_message(self, msg: NullMessage) -> NullMessage:
+        print("Returning a special message")
+        msg.message = "This is a special message"
+        return msg
 
 
 # TODO: Work on the loading procedure
@@ -158,7 +164,8 @@ def load_all_services(comm: communication.CommunicationHandler, client: typing.O
 PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
 async def run_plugins(plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
     async def _signaller():
-        while await asyncio.sleep(PLUGIN_SLEEP):
+        while True:
+            await asyncio.sleep(PLUGIN_SLEEP)
             if done_signal.wait(SIGNAL_TIMEOUT):
                 return
 
@@ -168,12 +175,24 @@ async def run_plugins(plugins: typing.List[plugins.Plugin], done_signal: threadi
             while await plugin.main():
                 await asyncio.sleep(1)
 
+            print("Setting done signal: {}".format(plugin))
             done_signal.set()
 
         callbacks.append(_runner)
 
-    _done, _pending = await asyncio.wait([runner() for runner in callbacks], return_when=asyncio.FIRST_COMPLETED)
+    print("Callbacks: {}".format(callbacks))
+    _done, pending = await asyncio.wait([runner() for runner in callbacks], return_when=asyncio.FIRST_COMPLETED)
     done_signal.set()
+
+    print("Canelling {}".format(pending))
+    for p in pending:
+        p.cancel()
+
+    # For some reason, cancelling the pending tasks throws an exception in this function. Handle that
+    try:
+        await asyncio.gather(*pending)
+    except asyncio.CancelledError:
+        pass
 
 
 #
@@ -198,7 +217,9 @@ read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, do
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
 # Load the plugins
-plugins = load_all_services(comm, client=Client)
+# plugins = load_all_services(comm, client=Client)
+plugins = load_all_services(comm)
+print("Loaded services: {}".format(plugins))
 
 # Run the launcher
 read_thread.start()

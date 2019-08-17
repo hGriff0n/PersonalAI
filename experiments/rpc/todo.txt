@@ -6,11 +6,16 @@ Project:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
       produce app using the dispatcher
-        add print logging to the python and rust code
-        <- uncomment the app server
+        figure out how to handle cancelling
+          improve handling of cancel
+        add in print logging of the registration
+          <- add in print logging of the message dispatching
+        fix the timing issues with asyncio
+          the registration code isn't being called because the client was being run
+        figure out why 2 'grab_a_message' calls were done
+          <- add in print logging of the communication processed
         produce a second app to test out any module inefficiencies
       produce a client using the modules
-        figure out how users will control what gets run
         produce a second client to test out any module inefficiencies
         test out that both clients work with both apps
           <- test out that I can register both apps and use them in a client
@@ -35,6 +40,7 @@ Project:
       add handle for `deregister` request
         drop all messages in flight to that app
       automatically `deregister` on client shutdown
+        create a way to call internal functions through the rpc channel
     move services into `server/src/services`
       improve the organization of `server/src/state/`
   Read through old code to see what's now missing

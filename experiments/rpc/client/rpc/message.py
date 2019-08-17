@@ -67,7 +67,7 @@ class Message(Serializable):
         ret_dict = {
             'call': self._call,
             'args': self._args,
-            'msg_id': self._msg_id,
+            'msg_id': str(self._msg_id),
         }
         if self._resp is not None:
             ret_dict['resp'] = self._resp
@@ -78,7 +78,7 @@ class Message(Serializable):
             return False
 
         msg_vals = msg_dict.copy()
-        self._msg_id = str(msg_vals.pop('msg_id'))
+        self._msg_id = uuid.UUID(msg_vals.pop('msg_id'))
         self._call = str(msg_vals.pop('call'))
         self._args = dict(msg_vals.pop('args'))
 
