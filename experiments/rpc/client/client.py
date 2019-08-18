@@ -44,29 +44,28 @@ def reader(conn: communication.NetworkQueue,
                     return None
                 continue
 
-            if msg.msg_id in comm.waiting_messages:
-                if logger is not None:
-                    logger.info("Received response to message id={}".format(msg.msg_id))
-                comm.waiting_messages[msg.msg_id].value = msg
-                loop.call_soon_threadsafe(comm.waiting_messages[msg.msg_id].set)
+            if msg.resp is not None:
+                if msg.msg_id in comm.waiting_messages:
+                    print("Received response to message id={}".format(msg.msg_id))
+                    comm.waiting_messages[msg.msg_id].value = msg
+                    loop.call_soon_threadsafe(comm.waiting_messages[msg.msg_id].set)
+
+                else:
+                    print("Received unexpected response to message {}".format(msg.msg_id))
 
             else:
                 dispatch = dispatcher.get_dispatch_routine(msg.call)
                 if not dispatch:
-                    if logger is not None:
-                        logger.warning("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
+                    print("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
                 else:
-                    if logger is not None:
-                        logger.info("Handling message id={} through plugin handle".format(msg.msg_id))
-                    asyncio.run_coroutine_threadsafe(dispatch(msg), loop=loop)
+                     print("Handling message id={} through plugin handle".format(msg.msg_id))
+                     asyncio.run_coroutine_threadsafe(dispatch(msg), loop=loop)
 
     except ConnectionResetError as e:
-        if logger is not None:
-            logger.error("Lost connection to server: {}".format(e))
+        print("Lost connection to server: {}".format(e))
 
     except Exception as e:
-        if logger is not None:
-            logger.error("Unexpected exception while waiting for messages: {}".format(e))
+        print("Unexpected exception while waiting for messages: {}".format(e))
 
     print("Setting done signal: reader")
     done_signal.set()
@@ -96,8 +95,7 @@ def writer(conn: communication.NetworkQueue,
                 return None
 
         except Exception as e:
-            if logger is not None:
-                logger.error("Unexpected exception in writer thread: {}".format(e))
+            print("Unexpected exception in writer thread: {}".format(e))
 
             print("Setting done signal: writer - {}".format(e))
             done_signal.set()

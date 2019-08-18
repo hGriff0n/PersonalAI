@@ -103,25 +103,31 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                 .for_each(move |msg| {
                     let rpc_msg: rpc::Message = <P as protocol::RpcSerializer>::from_value(msg)?;
 
-                    // Check if there is any forwarding setup for the message we just received
-                    if let Some(sender) = router.forward_message(rpc_msg.msg_id.clone()) {
-                        let rpc_msg_id = rpc_msg.msg_id.clone();
-                        return sender.send(rpc_msg)
-                            .map_err(|_err| std::io::Error::new(
-                                std::io::ErrorKind::UnexpectedEof,
-                                format!("Client disconnected while waiting for response to {}", rpc_msg_id)
-                            ));
-                    }
+                    // If the message is a response, then try to send it back to the requestor
+                    if rpc_msg.resp.is_some() {
+                        if let Some(sender) = router.forward_message(rpc_msg.msg_id.clone()) {
+                            let rpc_msg_id = rpc_msg.msg_id.clone();
+                            return sender.send(rpc_msg)
+                                .map_err(|_err| std::io::Error::new(
+                                    std::io::ErrorKind::UnexpectedEof,
+                                    format!("Client disconnected while waiting for response to {}", rpc_msg_id)
+                                ));
+                        } else {
+                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData,
+                                format!("Received unexpected response to message {}", rpc_msg.msg_id)));
+                        }
 
                     // Marshal the call off to the rpc dispatcher (asynchronous)
-                    let client = client.clone();
-                    let dispatch_fn = rpc_dispatcher.dispatch(rpc_msg, peer_addr)
-                        .and_then(move |resp|
-                            client.write_queue
-                                .unbounded_send(resp)
-                                .map_err(|_err|
-                                    eprintln!("async dispatch error: Failed to send message to client")));
-                    tokio::spawn(dispatch_fn);
+                    } else {
+                        let client = client.clone();
+                        let dispatch_fn = rpc_dispatcher.dispatch(rpc_msg, peer_addr)
+                            .and_then(move |resp|
+                                client.write_queue
+                                    .unbounded_send(resp)
+                                    .map_err(|_err|
+                                        eprintln!("async dispatch error: Failed to send message to client")));
+                        tokio::spawn(dispatch_fn);
+                    }
                     Ok(())
                 })
                 .map(|_| ())
