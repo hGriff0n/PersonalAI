@@ -106,7 +106,8 @@ class NetworkQueue(object):
         try:
             msg = self._protocol.unwrap_packet(_read)
 
-        except socket.timeout:
+        # If the socket gets shutdown, it may produce a WindowsError (as it's "not a socket" anymore)
+        except (socket.timeout, WindowsError):
             return None
 
         if self._logger:

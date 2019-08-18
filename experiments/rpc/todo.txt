@@ -6,7 +6,6 @@ Project:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
       produce app using the dispatcher
-        fix "An operation was attempted on something that is not a socket" error
         produce a second app to test out any module inefficiencies
       produce a client using the modules
         produce a second client to test out any module inefficiencies
