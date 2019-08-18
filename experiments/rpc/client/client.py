@@ -59,7 +59,7 @@ def reader(conn: communication.NetworkQueue,
                     print("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
                 else:
                      print("Handling message id={} through plugin handle".format(msg.msg_id))
-                     asyncio.run_coroutine_threadsafe(dispatch(msg), loop=loop)
+                     asyncio.run_coroutine_threadsafe(dispatch(msg, comm), loop=loop)
 
     except ConnectionResetError as e:
         print("Lost connection to server: {}".format(e))
@@ -136,7 +136,7 @@ class AppService(plugins.AppServer):
 
     @rpc.endpoint
     async def grab_a_message(self, msg: NullMessage) -> NullMessage:
-        print("Returning a special message")
+        print("Received args self={} msg={}".format(self, msg.serialize()))
         msg.message = "This is a special message"
         return msg
 

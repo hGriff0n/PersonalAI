@@ -4,6 +4,7 @@ import typing
 # third-part imports
 
 # local imports
+import communication
 import rpc
 from rpc import registration
 
@@ -17,7 +18,13 @@ def get_dispatch_routine(call: str) -> typing.Optional[DispatcherFunction]:
 
 
 # NOTE: The endpoint mapping will never overlap (otherwise the server wouldn't have registered the function)
-def register_endpoint(endpoint: str, plugin: rpc.PluginBase):
+def register_endpoint(endpoint: str, plugin: rpc.PluginBase) -> None:
     registered = registration.endpoints_for_class(type(plugin)).get(endpoint)
-    if registered is not None:
-        __DISPATCHER[endpoint] = getattr(plugin, registered['func'])
+    if registered is None:
+        return None
+
+    endpoint_fn = getattr(plugin, registered['func'])
+    async def _endpoint_dispatcher(msg: rpc.Message, comm: communication.CommunicationHandler) -> None:
+        comm.write_queue.put(await endpoint_fn(msg))
+
+    __DISPATCHER[endpoint] = _endpoint_dispatcher

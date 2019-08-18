@@ -6,10 +6,7 @@ Project:
         app the exports a few interfaces
         client that calls an rpc exported by the previously registered app
       produce app using the dispatcher
-        fix the deadlock with the service->server->client responding
-          add in server print statements to track the path of the message as it goes through
-          add in print statements to the auto-gen rpc code in the plugins module
-          <- I know that the service received the message and tried to return it
+        fix "An operation was attempted on something that is not a socket" error
         produce a second app to test out any module inefficiencies
       produce a client using the modules
         produce a second client to test out any module inefficiencies
