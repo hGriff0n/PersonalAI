@@ -9,7 +9,7 @@ import rpc
 from rpc import registration
 
 
-DispatcherFunction = typing.Callable[[rpc.Message], typing.Coroutine[typing.Any, typing.Any, rpc.Message]]
+DispatcherFunction = typing.Callable[[rpc.Message, communication.CommunicationHandler], typing.Coroutine[typing.Any, typing.Any, None]]
 __DISPATCHER: typing.Dict[str, DispatcherFunction] = {}
 
 

@@ -4,6 +4,7 @@ import asyncio
 import queue
 import socket
 import typing
+import uuid
 
 # third-part imports
 
@@ -28,14 +29,14 @@ class CommunicationHandler(object):
     def __init__(self, write_queue: 'queue.Queue[rpc.Message]', logger: typing.Optional[typing.Any] = None) -> None:
         self._logger = logger
         self._write_queue = write_queue
-        self._waiting_messages: typing.Dict[str, MessageEvent] = {}
+        self._waiting_messages: typing.Dict[uuid.UUID, MessageEvent] = {}
 
     @property
     def write_queue(self) -> 'queue.Queue[rpc.Message]':
         return self._write_queue
 
     @property
-    def waiting_messages(self) -> typing.Dict[str, MessageEvent]:
+    def waiting_messages(self) -> typing.Dict[uuid.UUID, MessageEvent]:
         return self._waiting_messages
 
     def send(self, msg: rpc.Message) -> MessageEvent:
@@ -106,8 +107,8 @@ class NetworkQueue(object):
         try:
             msg = self._protocol.unwrap_packet(_read)
 
-        # If the socket gets shutdown, it may produce a WindowsError (as it's "not a socket" anymore)
-        except (socket.timeout, WindowsError):
+        # If the socket gets shutdown (on windows), it may produce an error (as it's "not a socket" anymore)
+        except (socket.timeout, OSError):
             return None
 
         if self._logger:

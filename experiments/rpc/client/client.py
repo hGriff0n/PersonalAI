@@ -107,8 +107,7 @@ class Client(plugins.Client):
     async def main(self) -> bool:
         await asyncio.sleep(10)
 
-        rpc_message = rpc.Message(call="grab_a_message")
-        print("Calling `grab_a_message`")
+        rpc_message = rpc.Message(call="parlez")
         resp = await self._comm.wait_response(rpc_message)
         if resp is not None:
             print("Received {}".format(resp.resp))
@@ -132,12 +131,24 @@ class NullMessage(rpc.Serializable):
 
 
 @rpc.service
-class AppService(plugins.AppServer):
+class FortuneCookie(plugins.AppServer):
 
     @rpc.endpoint
     async def grab_a_message(self, msg: NullMessage) -> NullMessage:
-        print("Received args self={} msg={}".format(self, msg.serialize()))
         msg.message = "This is a special message"
+        return msg
+
+
+@rpc.service
+class FrenchFortuneCookie(plugins.AppServer):
+
+    @rpc.endpoint
+    async def parlez(self, msg: NullMessage) -> NullMessage:
+        fortune = await self._comm.wait_response(rpc.Message(call="grab_a_message"))
+        if fortune is not None:
+            message = NullMessage.from_dict(fortune.resp or {})
+        if message is not None:
+            msg.message = "C'est un message ({})".format(message.message)
         return msg
 
 

@@ -66,10 +66,7 @@ impl RegistrationService {
                     .map_err(move |_err| std::io::Error::new(
                         std::io::ErrorKind::ConnectionAborted,
                         format!("Server disconnected while handling request to {}", msg_id)))
-                    .and_then(|resp| match <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(resp) {
-                        Ok(resp) => future::ok(Some(resp)),
-                        Err(err) => future::err(err),
-                    });
+                    .and_then(|resp| future::ok(resp.resp));
                 Box::new(forward_resp)
             };
 

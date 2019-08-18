@@ -58,7 +58,7 @@ class Message(Serializable):
                  call: typing.Optional[str] = None,
                  args: typing.Optional[SerializedMessage] = None,
                  resp: typing.Optional[SerializedMessage] = None) -> None:
-        self._msg_id = uuid.uuid4()
+        self._msg_id: uuid.UUID = uuid.uuid4()
         self._call = call or ""
         self._args = args or {}
         self._resp: typing.Optional[SerializedMessage] = resp
@@ -98,7 +98,7 @@ class Message(Serializable):
         self._call = val
 
     @property
-    def msg_id(self) -> str:
+    def msg_id(self) -> uuid.UUID:
         return self._msg_id
 
     @property
