@@ -15,26 +15,20 @@ app sends register_app request (NOTE: Finished server)
         NOTE: Pushing things on the write channel will currently cause infinite loops with the response
           Would need to change handling of read workflow slightly (see later)
     -> register_server registers callback for each handles (NOTE: Done)
-      TODO: Most messages the server recieves from an app will be responses
-        The current read workflow assumes requests only, which will cause infinite loops
-        Change that to recognize when a message is an app response
-          <- could segment the app handling into an entirely separate tcpstream workflow?
-    <- register_server sends back registered handles (TODO:)
+    <- register_server sends back registered handles (NOTE: Done)
   -> server checks response for messages (NOTE: Automatic)
     <- response has message (NOTE: Automatic)
   <- server sends response back to app (NOTE: Automatic)
 -> app handles response (NOTE: Implementation detail)
-  TODO: Apps may require "calling" their own methods through the rpc system
-    May want to provide a system for apps to register local handlers for some functionality
 
-client sends app request (TODO: App creation)
+client sends app request (NOTE: Done)
   -> server receives request (NOTE: Automatic)
   -> server dispatches on request (NOTE: Automatic)
     <- dispatch points to an app server (NOTE: Done)
-    <- server installs system to reroute responses to the original message (TODO: What systems)
+    <- server installs system to reroute responses to the original message (NOTE: Done)
       ISSUE: Some apps may not return anything. How to handle?
     <- server sends message to app write queue (NOTE: Done)
-  -> app handles message (TODO: App construction, initial registration, and async timings)
+  -> app handles message (NOTE: Done)
     -> app receives request (NOTE: Done)
     -> app dispatches on request to endpoint (NOTE: Done)
       <- find registered endpoint method (NOTE: Done)
@@ -47,7 +41,7 @@ client sends app request (TODO: App creation)
     <- response is sent to requestor's write queue (NOTE: Done)
     <- server sends response to requestor (NOTE: Automatic)
   -> app handles response (NOTE: Done)
-client handles response (TODO:)
+client handles response (NOTE: Done)
 
 app sends deregister request (TODO:)
   -> server receives `deregister` request (NOTE: Automatic)

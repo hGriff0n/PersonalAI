@@ -13,10 +13,37 @@ Project:
         dispatch should not use raw `json!` when producing error messages
           should instead produce from a `rpc::Error` class and the serialize it to the dictionary
       produce module setup and testing "framework"
-        <- how to utilize mypy
+        <- how to utilize mypy?
+        make `setup.py` replacement
+          <- move code into subfolder
+        make `launch.py` replacement
       is there a way to setup these integration tests?
         also look at setting up unit tests in the rust and python code
         can also use a library (ex pydantic) that enforces these hints at runtime
+    change server error handling to use custom error type [[desktop]]
+      create custom error type that is serializable to a dictionary
+        -> dispatch should not use raw `json!` when producing error messages
+      convert all existing code to use the new error type
+        rpc/mod.rs:
+          service def returns std::io::Error
+          __wrap_user_body expects rpc body to return a std::io::Error
+          registration returns Result<(), String>
+        rpc/dispatch.rs:
+          raw `json!` commands are used to produce the error messages which are sent
+        rpc/service.rs:
+          register_endpoints returns Result<(), String>
+        rpc/types.rs:
+          Result type has an `Error=std::io::Error`
+        state/client.rs:
+          'on_exit' callback returns a Result<(), std::io::Error>
+          run_exit_callbacks returns a Result<(), std::io::Error>
+          drop_client returns a Result<(), std::io::Error>
+        state/routing.rs:
+          drop_client returns a Result<(), std::io::Error>
+        registration_service.rs:
+          register_app_impl returns a Result<Vec<String>, std::io::Error>
+        protocol.rs:
+          all trait methods return a Resul<_, std::io::Error>
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
@@ -26,8 +53,6 @@ Project:
   Read through old code to see what's now missing
     -> seshat/indexer
       the current codebase doesn't really fit that too well
-    -> custom error types (ie. not routing everything through std::io::Error)
-      automatic generation of the correct error json
   Clean up the codebase and ensure everything is well architected
     How will I get server state data into the rpc service handlers?
     Add comments to all of the classes and the functions
@@ -74,7 +99,6 @@ Improvements:
     implement message timeouts (for server and forwarding requests) <- rpc timeouts?
       if a message takes too long, a timeout error is sent back instead
       if a message is being processed by an app, and the app is taken offline to upgrade it
-  Setup project (replace old version)
   Implement security module
   Implement pastry distributed FS (or distributed hash table)
     implement local indexer (client?)
