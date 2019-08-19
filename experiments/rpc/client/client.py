@@ -124,9 +124,11 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
     # Sets the `done_signal` once `main` returns False
     async def _runner(plugin):
         # print("Starting runner callback for {}".format(plugin))
-        while await plugin.main():
-            await asyncio.sleep(1)
-        done_signal.set()
+        try:
+            while await plugin.main():
+                await asyncio.sleep(1)
+        finally:
+            done_signal.set()
 
     # Spawn all plugins on the event loop, cancel the active ones when one exits
     _done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
@@ -144,7 +146,7 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
 class TestClient(plugins.Client):
 
     async def main(self) -> bool:
-        await asyncio.sleep(10)
+        await asyncio.sleep(5)
 
         rpc_message = rpc.Message(call="parley")
         resp = await self._comm.wait_response(rpc_message)

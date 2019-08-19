@@ -38,7 +38,6 @@ class Service(plugin.Plugin):
     # TODO: Is there anyway to detect whether this is a direct inheritance
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        print("{}".format(cls))
 
         global _REGISTERED_SERVICES
         _REGISTERED_SERVICES.append(cls)

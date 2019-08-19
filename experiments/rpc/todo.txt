@@ -2,13 +2,6 @@
 Project:
   Implement routing of messages
     implement client+app
-      stress testing (all tests should work with multiple clients)
-        <- client can call a server that immediately crashes
-          this'll test the "server exit" control flow
-        <- client can call a server and immediately crashes
-          -> this needs a server in a separate script
-          this'll test the "client exit" control flow
-          the server here should delay for a minute before responding
       change server error handling
         dispatch should not use raw `json!` when producing error messages
           should instead produce from a `rpc::Error` class and the serialize it to the dictionary
@@ -47,7 +40,6 @@ Project:
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
-    create a way to call internal functions through the rpc channel
     move services into `server/src/services`
       improve the organization of `server/src/state/`
   Read through old code to see what's now missing
@@ -90,6 +82,9 @@ Improvements:
       <- would be put in `plugins.Client` (similar to `plugins.AppServer`)
   Introduce rpc timeouts
     NOTE: Any solution here will likely also work for when a client exits while waiting on in-flight messages
+  Develop server to use rpcs for internal functions
+    -> would require load-balancing and other monitoring functionality
+    -> may want to add similar functionality in python (for calling services in the same modality)
   Think about network/device monitoring situation
   Think about ways to allow for multiple handles to be registered to one rpc
     <- may not be desired
