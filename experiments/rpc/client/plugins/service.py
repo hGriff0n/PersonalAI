@@ -9,42 +9,21 @@ import typing
 # local imports
 import communication
 import dispatcher
-from rpc import typing as rpc_types
-from rpc import Message, registration
+from plugins import plugin
+import rpc
+from rpc import registration
 
 
-# TODO: There might be a better way to provide the communication handler
-class Plugin(rpc_types.PluginBase):
+_REGISTERED_SERVICES: typing.List[typing.Type[plugin.Plugin]] = []
+def get_registered_services() -> typing.List[typing.Type[plugin.Plugin]]:
+    return _REGISTERED_SERVICES
+
+
+class Service(plugin.Plugin):
     """
-    Base class for all plugins
-
-    Exports the `main` method which acts as a customization point for any code that needs to be run every so often
-    Clients will overload this method to implement their "calling" code
-    """
-
-    def __init__(self, comm: communication.CommunicationHandler) -> None:
-        self._comm = comm
-
-    async def main(self) -> bool:
-        """
-        Entrypoint for any code that needs to be run semi-regularly
-        """
-        await asyncio.sleep(5)
-        return True
-
-
-class Client(Plugin):
-    """
-    Specialization for clients
-    TODO: Hopefully allow for automatic determination of the "Client" class (if any)
-    """
-    pass
-
-
-class AppServer(Plugin):
-    """
-    Augment plugins with the capability to act as an app server
-    App servers export rpc endpoints to the wider network, so that other clients can be called
+    Definition class which marks all plugins that inherit from it as a service
+    Services export rpc endpoints to the wider network, so that other clients can be called
+    NOTE: This class should only be inherited on leaf nodes
 
     This class automatically defines `main` to do a "register_app" call, which exports it's endpoints
     To provide "main" service, overload the `run` method
@@ -54,6 +33,17 @@ class AppServer(Plugin):
     def __init__(self, comm: communication.CommunicationHandler):
         super().__init__(comm)
         self._registered = False
+
+
+    # TODO: Is there anyway to detect whether this is a direct inheritance
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        print("{}".format(cls))
+
+        global _REGISTERED_SERVICES
+        _REGISTERED_SERVICES.append(cls)
+        registration.associate_endpoints_with_service(cls)
+
 
     async def main(self) -> bool:
         """
@@ -83,19 +73,19 @@ class AppServer(Plugin):
         handles = [handle for handle, _ in endpoints.items()]
         required = [handle for handle, endpoint in endpoints.items() if endpoint.get('required')]
 
-        print("Registring handles for {}: {}".format(type(self), handles))
-        resp = await self._comm.wait_response(Message(call="register_app", args={ 'handles': handles }))
+        # print("Registring handles for {}: {}".format(type(self), handles))
+        resp = await self._comm.wait_response(rpc.Message(call="register_app", args={ 'handles': handles }))
 
         registered_handles = []
         if resp.resp and 'registered' in resp.resp:
             registered_handles.extend(resp.resp['registered'])
-        print("Registered handles for service {}: {}".format(type(self), registered_handles))
+        # print("Registered handles for service {}: {}".format(type(self), registered_handles))
 
         # Check that all required handles are registered (if any)
         # If some handle is required but fails to register, then deregister the whole app
         broken_endpoints = [handle for handle in required if handle not in registered_handles]
         if len(broken_endpoints) > 0:
-            print("Failure to register required handles for service {}: {}".format(type(self), broken_endpoints))
+            # print("Failure to register required handles for service {}: {}".format(type(self), broken_endpoints))
 
             # TODO: Explicit `deregister` is not implemented
             # deregister_id = "foo"

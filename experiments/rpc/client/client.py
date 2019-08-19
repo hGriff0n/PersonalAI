@@ -17,13 +17,11 @@ import plugins
 import protocol
 
 
-# TODO: Move this to a better position
-DispatcherMap = typing.Dict[str, typing.Callable[[rpc.Message], typing.Coroutine[typing.Any, typing.Any, rpc.Message]]]
-
 # Number of seconds to wait in the threads for the done signal to be set
 SIGNAL_TIMEOUT = 0.3
 
 
+# TODO: Move to `launch.py` when that is created
 # NOTE: This is provided by the library/loader
 READER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def reader(conn: communication.NetworkQueue,
@@ -71,6 +69,7 @@ def reader(conn: communication.NetworkQueue,
     done_signal.set()
 
 
+# TODO: Move to `launch.py` when that is created
 # NOTE: This is provided by the library/loader
 WRITER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def writer(conn: communication.NetworkQueue,
@@ -94,7 +93,7 @@ def writer(conn: communication.NetworkQueue,
             if done_signal.wait(SIGNAL_TIMEOUT):
                 return None
 
-        except Exception as e:
+        except Exception:
             print("Unexpected exception in writer thread: {}".format(e))
 
             print("Setting done signal: writer - {}".format(e))
@@ -102,12 +101,52 @@ def writer(conn: communication.NetworkQueue,
             return None
 
 
-class Client(plugins.Client):
+# TODO: Move to `launch.py` when that is created
+# NOTE: As soon as one plugin "completes", all plugins in the modality will "exit" (reader+writer will shut down)
+# Modalities should be split up into chunks that follow this behavior
+# ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
+PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
+async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
+
+    # Create a small "plugin" that periodically checks whether the done_signal has been set
+    # This enables the plugin runner to exit when the reader/writer sets the signal, even if no plugins would fail then
+    class Signaller(plugins.Plugin):
+        def __init__(self):
+            pass
+
+        async def main(self) -> bool:
+            await asyncio.sleep(PLUGIN_SLEEP)
+            return not done_signal.wait(SIGNAL_TIMEOUT)
+
+    all_plugins.append(Signaller())
+
+    # Create a plugin runner that periodically runs the 'Plugin.main' entrypoint
+    # Sets the `done_signal` once `main` returns False
+    async def _runner(plugin):
+        # print("Starting runner callback for {}".format(plugin))
+        while await plugin.main():
+            await asyncio.sleep(1)
+        done_signal.set()
+
+    # Spawn all plugins on the event loop, cancel the active ones when one exits
+    _done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
+    for p in pending:
+        p.cancel()
+
+    # For some reason, cancelling the pending tasks throws an exception in this function. Handle that
+    try:
+        await asyncio.gather(*pending)
+    except asyncio.CancelledError:
+        pass
+
+
+# NOTE: These defs are what's provided by the user
+class TestClient(plugins.Client):
 
     async def main(self) -> bool:
         await asyncio.sleep(10)
 
-        rpc_message = rpc.Message(call="parlez")
+        rpc_message = rpc.Message(call="parley")
         resp = await self._comm.wait_response(rpc_message)
         if resp is not None:
             print("Received {}".format(resp.resp))
@@ -130,8 +169,7 @@ class NullMessage(rpc.Serializable):
         return True
 
 
-@rpc.service
-class FortuneCookie(plugins.AppServer):
+class FortuneCookie(plugins.Service):
 
     @rpc.endpoint
     async def grab_a_message(self, msg: NullMessage) -> NullMessage:
@@ -139,10 +177,9 @@ class FortuneCookie(plugins.AppServer):
         return msg
 
 
-@rpc.service
-class FrenchFortuneCookie(plugins.AppServer):
+class FrenchFortuneCookie(plugins.Service):
 
-    @rpc.endpoint
+    @rpc.endpoint(name="parley")
     async def parlez(self, msg: NullMessage) -> NullMessage:
         fortune = await self._comm.wait_response(rpc.Message(call="grab_a_message"))
         if fortune is not None:
@@ -152,56 +189,7 @@ class FrenchFortuneCookie(plugins.AppServer):
         return msg
 
 
-# TODO: Work on the loading procedure
-# TODO: Incorporate configuration into this
-# TODO: Handle cases where loading fails (What do I mean by this?)
-@typing.no_type_check
-def load_all_services(comm: communication.CommunicationHandler, client: typing.Optional[typing.Type[Client]] = None) -> typing.List[plugins.Plugin]:
-    services: typing.List[plugins.Plugin] = [  # The `issubclass` is required for typing
-        plugin(comm) for plugin in rpc.registration.get_registered_services() if issubclass(plugin, plugins.Plugin)
-    ]
-    if client is not None:
-        services.append(client(comm))
-    return services
-
-
-# NOTE: As soon as one plugin "completes", all plugins in the modality will "exit" (reader+writer will shut down)
-# Modalities should be split up into chunks that follow this behavior
-# ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
-PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
-async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
-
-    # Create a small "plugin" that periodically checks whether the done_signal has been set
-    # This enables the plugin runner to exit when the reader/writer sets the signal, even if no plugins would fail then
-    class Signaller(plugins.Plugin):
-        def __init__(self):
-            pass
-
-        async def main(self) -> bool:
-            await asyncio.sleep(PLUGIN_SLEEP)
-            return not done_signal.wait(SIGNAL_TIMEOUT)
-
-    all_plugins.append(Signaller())
-
-    # Create a plugin runner that periodically runs the 'Plugin.main' entrypoint
-    # Sets the `done_signal` once `main` returns False
-    async def _runner(plugin):
-        print("Starting runner callback for {}".format(plugin))
-        while await plugin.main():
-            await asyncio.sleep(1)
-        done_signal.set()
-
-    # Spawn all plugins on the event loop, cancel the active ones when one exits
-    _done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
-    for p in pending:
-        p.cancel()
-
-    # For some reason, cancelling the pending tasks throws an exception in this function. Handle that
-    try:
-        await asyncio.gather(*pending)
-    except asyncio.CancelledError:
-        pass
-
+# TODO: Move to `launch.py` when that is created (this is the "main" in there)
 
 #
 # Loader/Runner Code
@@ -225,8 +213,8 @@ read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, do
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
 # Load the plugins
-all_plugins = load_all_services(comm, client=Client)
-print("Loaded services: {}".format(all_plugins))
+all_plugins = plugins.initialize_registered_plugins(comm)
+# print("Loaded services: {}".format(all_plugins))
 
 # Run the launcher
 read_thread.start()

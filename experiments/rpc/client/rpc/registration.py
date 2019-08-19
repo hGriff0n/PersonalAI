@@ -6,15 +6,15 @@ import typing
 
 # local imports
 from rpc import message
-from rpc import typing as rpc_type
+import rpc.typing as rpc_type
 
 
 # Endpoint registration structures
 RpcEndpoint = typing.Dict[str, typing.Any]
-__ACTIVE_ENDPOINT_REGISTRATIONS: typing.Dict[str, RpcEndpoint] = {}
 __REGISTERED_ENDPOINTS: typing.Dict[typing.Type[rpc_type.PluginBase], typing.Dict[str, RpcEndpoint]] = {}
+__ACTIVE_ENDPOINT_REGISTRATIONS: typing.Dict[str, RpcEndpoint] = {}
 
-# TODO: Not sure on the interface for creating the dispatcher
+
 def endpoints_for_class(kls: typing.Type[rpc_type.PluginBase]) -> typing.Dict[str, RpcEndpoint]:
     """
     Get the list of registered endpoitns for the service
@@ -22,28 +22,19 @@ def endpoints_for_class(kls: typing.Type[rpc_type.PluginBase]) -> typing.Dict[st
     return __REGISTERED_ENDPOINTS.get(kls, {})
 
 
-##
-## Service Registration
-##
-
-def service(kls: typing.Type[rpc_type.PluginBase]):
+def associate_endpoints_with_service(kls: typing.Type[rpc_type.PluginBase]):
     """
-    Class decorator that maps the active list of registered endpoints to the specific plugin service
+    Helper function to map the active list of registered endpoints to the specific plugin service
 
-    NOTE: Decorators are only run once!!! This will not work with inheritance
+    NOTE: This is run after the endpoint decorator is run on the endpoints.
+    This is why
     This is acceptable as `service` should be used to indicate a "specific" service, not a family of services
     """
 
     global __ACTIVE_ENDPOINT_REGISTRATIONS
     global __REGISTERED_ENDPOINTS
-
     __REGISTERED_ENDPOINTS[kls] = __ACTIVE_ENDPOINT_REGISTRATIONS
     __ACTIVE_ENDPOINT_REGISTRATIONS = {}
-    return kls
-
-
-def get_registered_services() -> typing.KeysView[typing.Type[rpc_type.PluginBase]]:
-    return __REGISTERED_ENDPOINTS.keys()
 
 
 ##
