@@ -1,8 +1,8 @@
 
 // #[macro_use] extern crate log;
+mod errors;
 mod protocol;
-#[macro_use]
-mod rpc;
+#[macro_use] mod rpc;
 mod state;
 
 // services
@@ -101,7 +101,8 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
             let router = msg_router.clone();
             let read_action = reader
                 .for_each(move |msg| {
-                    let rpc_msg: rpc::Message = <P as protocol::RpcSerializer>::from_value(msg)?;
+                    let rpc_msg: rpc::Message = <P as protocol::RpcSerializer>::from_value(msg)
+                        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{}", err)))?;
 
                     // If the message is a response, then try to send it back to the requestor
                     if rpc_msg.resp.is_some() {

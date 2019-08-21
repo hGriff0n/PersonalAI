@@ -21,7 +21,7 @@ pub struct Client {
     close_signal: sync::Arc<sync::Mutex<Option<oneshot::Sender<()>>>>,
 
     // TODO: Can't accept `FnOnce` because "cannot move out of borrowed content"?
-    exit_callbacks: sync::Arc<sync::RwLock<Vec<Box<Fn() -> Result<(), std::io::Error> + Send + Sync>>>>,
+    exit_callbacks: sync::Arc<sync::RwLock<Vec<Box<dyn Fn() -> Result<(), std::io::Error> + Send + Sync>>>>,
 }
 
 impl Client {

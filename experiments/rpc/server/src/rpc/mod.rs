@@ -36,8 +36,10 @@ macro_rules! __typecast_rpc_args {
     }};
     ($proto:ty | $call_msg:ident $arg_type:ty) => {{
         let args = <$proto as $crate::protocol::RpcSerializer>::from_value::<$arg_type>($call_msg.args);
+        // TODO: Remove when the endpoint code starts returning my error format
         if let Err(err) = args {
-            return Box::new(futures::future::err(err));
+            let io_err = std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{}", err));
+            return Box::new(futures::future::err(io_err));
         }
         args.unwrap()
     }};

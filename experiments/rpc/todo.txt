@@ -22,7 +22,8 @@ Project:
         can also use a library (ex pydantic) that enforces these hints at runtime
     change server error handling to use custom error type [[desktop]]
       create custom error type that is serializable to a dictionary
-        -> dispatch should not use raw `json!` when producing error messages
+        -> need to replace usage of raw `json!` when producing the error message
+          is there a way I can create a small map (from 'error' -> error) and then send that?
       convert all existing code to use the new error type
         rpc/mod.rs:
           service def returns std::io::Error
@@ -42,8 +43,6 @@ Project:
           drop_client returns a Result<(), std::io::Error>
         registration_service.rs:
           register_app_impl returns a Result<Vec<String>, std::io::Error>
-        protocol.rs:
-          all trait methods return a Resul<_, std::io::Error>
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
