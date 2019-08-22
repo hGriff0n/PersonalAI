@@ -7,6 +7,7 @@ use futures::{Future, future};
 use serde::{Serialize, Deserialize};
 
 // local imports
+use crate::errors;
 use crate::protocol;
 use crate::rpc;
 use crate::rpc::Registry;
@@ -36,7 +37,7 @@ impl RegistrationService {
     }
 
     fn register_app_impl(&self, server: sync::Arc<state::clients::Client>, app_address: net::SocketAddr, handles: &[String])
-        -> Result<Vec<String>, std::io::Error>
+        -> Vec<String>
     {
         let mut registered = Vec::new();
 
@@ -79,7 +80,7 @@ impl RegistrationService {
             }
         }
 
-        Ok(registered)
+        registered
     }
 }
 
@@ -102,28 +103,24 @@ rpc_service! {
     rpc register_app(self, caller, args: RegisterAppArgs) -> RegisterAppResponse {
         self.clients.get_client(caller)
             // We have a client object so let's register the handles and exit callbacks
-            .and_then(|server| Some(match self.register_app_impl(server.clone(), caller, &args.handles) {
-                Err(err) => future::err(err),
-                Ok(registered) => {
-                    let resp = RegisterAppResponse{registered: registered.clone()};
+            .and_then(|server| Some(self.register_app_impl(server.clone(), caller, &args.handles))
+            .and_then(|registered| {
+                let resp = RegisterAppResponse{registered: registered.clone()};
 
-                    let reg = self.registry.clone();
-                    server.on_exit(move || {
-                        for handle in &registered {
-                            if let Some(callback) = reg.unregister(handle.as_str()) {
-                                if sync::Arc::strong_count(&callback) > 1 {
-                                    return Err(std::io::Error::new(
-                                        std::io::ErrorKind::Other,
-                                        format!("Strong references held to dispatcher for app callback `{}` at deregistration", handle)
-                                    ));
-                                }
+                let reg = self.registry.clone();
+                server.on_exit(move || {
+                    for handle in &registered {
+                        if let Some(callback) = reg.unregister(handle.as_str()) {
+                            if sync::Arc::strong_count(&callback) > 1 {
+                                return Err(errors::Error::exit_error(
+                                    "Strong references held to", handle, "at deregistration"));
                             }
                         }
-                        Ok(())
-                    });
+                    }
+                    Ok(())
+                });
 
-                    future::ok(resp)
-                }
+                Some(future::ok(resp))
             }))
 
             // For some reason there was no registered client

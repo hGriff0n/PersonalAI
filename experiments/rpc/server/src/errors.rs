@@ -13,6 +13,16 @@ pub struct Error {
     inner: failure::Context<ErrorKind>,
 }
 
+impl Error {
+    pub fn endpoint_registration_error(service: &str, endpoint: &str) -> Error {
+        return ErrorKind::RegistrationError(service.to_string(), endpoint.to_string()).into()
+    }
+
+    pub fn exit_error(init_message: &str, handle: &str, end_message: &str) -> Error {
+        return ErrorKind::ExitError(init_message.to_string(), handle.to_string(), end_message.to_string()).into()
+    }
+}
+
 impl failure::Fail for Error {
     fn cause(&self) -> Option<&dyn failure::Fail> {
         self.inner.cause()
@@ -34,6 +44,10 @@ impl std::fmt::Display for Error {
 pub enum ErrorKind {
     #[fail(display = "error in serialization: {}", _0)]
     SerializationError(#[cause] serde_json::error::Error),
+    #[fail(display = "failed to register handle {}::{} - handle already exists", _0, _1)]
+    RegistrationError(String, String),
+    #[fail(display = "{} dispatcher for app callback `{}` {}", _0, _1, _2)]
+    ExitError(String, String, String),
     // ...
     // #[doc(hidden)]
     // __Nonexhaustive,

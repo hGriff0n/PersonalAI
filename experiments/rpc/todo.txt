@@ -21,28 +21,28 @@ Project:
         also look at setting up unit tests in the rust and python code
         can also use a library (ex pydantic) that enforces these hints at runtime
     change server error handling to use custom error type [[desktop]]
-      create custom error type that is serializable to a dictionary
-        -> need to replace usage of raw `json!` when producing the error message
-          is there a way I can create a small map (from 'error' -> error) and then send that?
-      convert all existing code to use the new error type
+      rpc body code
+        rpc/types.rs
+        rpc/service.rs
         rpc/mod.rs:
-          service def returns std::io::Error
-          __wrap_user_body expects rpc body to return a std::io::Error
-          registration returns Result<(), String>
-        rpc/dispatch.rs:
-          raw `json!` commands are used to produce the error messages which are sent
-        rpc/service.rs:
-          register_endpoints returns Result<(), String>
-        rpc/types.rs:
-          Result type has an `Error=std::io::Error`
-        state/client.rs:
-          'on_exit' callback returns a Result<(), std::io::Error>
-          run_exit_callbacks returns a Result<(), std::io::Error>
-          drop_client returns a Result<(), std::io::Error>
-        state/routing.rs:
-          drop_client returns a Result<(), std::io::Error>
-        registration_service.rs:
-          register_app_impl returns a Result<Vec<String>, std::io::Error>
+        registration_service.rs
+      rpc total code
+        any places that cast a `errors::Error` to a `std::io::Error`
+          the conversion is over, remove "swap" code
+      create custom error type that is serializable to a dictionary
+        replace usage of raw `json!` with some dict-serializable type
+          utilize the actual error in the error dictionary
+        make the dispatcher protocol generic (if possible)
+        -> need to replace usage of raw `json!` when producing the error message (`rpc/dispatch.rs`)
+          is there a way I can create a small map (from 'error' -> error) and then send that?
+      report errors in a way that makes use of failure's functionality
+      improve the architecture of the error code
+        the "localized" error handling is atrocious
+          see registration_service.rs and mod.rs
+        figure out how to handle "local module" errors
+          it's a question of how to type when the module may be used with different areas
+            -> require all "errors" for that section of code implement `Into<LocalModuleError>`?
+          so like the registration code would return a "RegistrationError" that the "general" error code wraps
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app

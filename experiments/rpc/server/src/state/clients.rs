@@ -7,6 +7,7 @@ use futures::sync::mpsc;
 use tokio::sync::oneshot;
 
 // local imports
+use crate::errors;
 use crate::rpc;
 
 //
@@ -21,7 +22,7 @@ pub struct Client {
     close_signal: sync::Arc<sync::Mutex<Option<oneshot::Sender<()>>>>,
 
     // TODO: Can't accept `FnOnce` because "cannot move out of borrowed content"?
-    exit_callbacks: sync::Arc<sync::RwLock<Vec<Box<dyn Fn() -> Result<(), std::io::Error> + Send + Sync>>>>,
+    exit_callbacks: sync::Arc<sync::RwLock<Vec<Box<dyn Fn() -> Result<(), errors::Error> + Send + Sync>>>>,
 }
 
 impl Client {
@@ -47,7 +48,7 @@ impl Client {
 
     // Exit callback interface
     pub fn on_exit<F>(&self, func: F)
-        where F: Fn() -> Result<(), std::io::Error> + Send + Sync + 'static
+        where F: Fn() -> Result<(), errors::Error> + Send + Sync + 'static
     {
         self.exit_callbacks
             .write()
@@ -55,7 +56,7 @@ impl Client {
             .push(Box::new(func))
     }
 
-    pub fn run_exit_callbacks(&self) -> Result<(), std::io::Error> {
+    pub fn run_exit_callbacks(&self) -> Result<(), errors::Error> {
         let mut callbacks = self.exit_callbacks
             .write()
             .unwrap();
@@ -115,7 +116,7 @@ impl ClientTracker {
             .and_then(|client| Some(client.clone()))
     }
 
-    pub fn drop_client(&self, addr: net::SocketAddr) -> Result<(), std::io::Error> {
+    pub fn drop_client(&self, addr: net::SocketAddr) -> Result<(), errors::Error> {
         if let Some(client) = self.active_clients
                                   .write()
                                   .unwrap()

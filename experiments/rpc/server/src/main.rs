@@ -165,10 +165,7 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
                         .and_then(|err| Some(eprintln!("drop client error: {:?}", err)));
 
                     // And drop any messages that it's involved in servicing
-                    in_flight_dropper.drop_client(peer_addr)
-                        .err()
-                        .and_then(|err| Some(eprintln!("drop client messages error: {:?}", err)));
-
+                    in_flight_dropper.drop_client(peer_addr);
                     println!("Closed connection with {:?}", peer_addr)
                 })
                 .map_err(|_| eprintln!("unknown error occurred"));

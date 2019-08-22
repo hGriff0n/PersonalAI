@@ -1,4 +1,11 @@
 
+// standard imports
+
+// third-party imports
+
+// local imports
+
+// Interface imports
 pub mod dispatch;
 mod service;
 #[macro_use] mod types;  // NOTE: The `[macro_use]` is required to get access to `rpc_schema!`
@@ -27,7 +34,6 @@ macro_rules! __stringify {
 // Helper method to extract rpc arguments from the rpc network message
 // This attempts to parse the `args` value to the defined type, returning an error if unable
 // If no argument type is specified, this enforces that no arguments were passed in (TODO: Keep?)
-// TODO: The error generation for no-args explicitly references std::io::Error (maybe problematic)
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __typecast_rpc_args {
@@ -79,6 +85,8 @@ macro_rules! __wrap_user_body {
 // TODO: Figure out a way to allow for renaming handles (attributes?)
 // Macro that defines and implements an rpc service
 // Defined rpcs are automatically wrapped with correct argument parsing and response handling code
+// NOTE: While rpc "return types" should be provided in terms of a serializable "message"
+    // The actual code should return a `futures::FutureResult<resp_ty, std::io::Error>`
 // NOTE: Rust allows for multiple `impl $service` blocks
     // These can be used to define constructors and other helper methods
 // NOTE: I don't quite like the implicit dependency on some type defs this has
@@ -112,7 +120,9 @@ macro_rules! rpc_service {
 
         // Setup the registration for the rpc calls
         impl $crate::rpc::Service<$proto> for $service {
-            fn register_endpoints<R: $crate::rpc::Registry<$proto>>(self, register: &R) -> Result<(), String> {
+            fn register_endpoints<R: $crate::rpc::Registry<$proto>>(self, register: &R)
+                -> Result<(), $crate::errors::Error>
+            {
                 let service = std::sync::Arc::new(self);
 
                 $({
@@ -121,10 +131,8 @@ macro_rules! rpc_service {
                         __stringify!($name),
                         move |caller: std::net::SocketAddr, msg: $crate::rpc::Message| endpoint_server.$name(caller, msg))
                     {
-                        return Err(
-                            std::format!(
-                                "Error when registering handle {}::{} - handle already exists",
-                                __stringify!($service), __stringify!($name)));
+                        return Err($crate::errors::Error::endpoint_registration_error(
+                            __stringify!($service), __stringify!($name)));
                     }
                 })*
 
