@@ -10,8 +10,15 @@ Project:
           this'll test the "client exit" control flow
           the server here should delay for a minute before responding
       change server error handling
-        dispatch should not use raw `json!` when producing error messages
-          should instead produce from a `rpc::Error` class and the serialize it to the dictionary
+        improve the architecture of the error codebase
+          try to find a way to have "module-local" errors
+            all errors returned from the "rpc" module would be of type `RpcError`
+            the general "errors" module will then take it as a "cause" (like json and io errors)
+          clean up the error module and error code
+          extend the rpc ErrorMessage to be able to report the "causal" chain
+            try to make it convertable back into an errors::Error if received from rust
+            find a way to add a concept of "private information" to the reporting?
+        make dispatcher generic on the protocol it's using
       produce module setup and testing "framework"
         <- how to utilize mypy?
         make `setup.py` replacement
@@ -21,15 +28,9 @@ Project:
         also look at setting up unit tests in the rust and python code
         can also use a library (ex pydantic) that enforces these hints at runtime
     change server error handling to use custom error type [[desktop]]
-      rpc total code
-        any places that cast a `errors::Error` to a `std::io::Error`
-          the conversion is over, remove "swap" code
       create custom error type that is serializable to a dictionary
         replace usage of raw `json!` with some dict-serializable type
           utilize the actual error in the error dictionary
-        make the dispatcher protocol generic (if possible)
-        -> need to replace usage of raw `json!` when producing the error message (`rpc/dispatch.rs`)
-          is there a way I can create a small map (from 'error' -> error) and then send that?
       report errors in a way that makes use of failure's functionality
       improve the architecture of the error code
         the "localized" error handling is atrocious

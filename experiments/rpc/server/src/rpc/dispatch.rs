@@ -3,9 +3,9 @@
 use std::{collections, net, sync};
 
 // third-party imports
-use serde_json::json;
 
 // local imports
+use crate::errors;
 use super::service;
 use super::types;
 use crate::protocol;
@@ -47,10 +47,18 @@ impl Dispatcher {
             // Call the registerd function if one was found
             .and_then(|handle| Some(handle(caller, rpc_call.clone())))
             // If no function was registered, produce an error indicating it
-            .or_else(|| Some(Box::new(futures::future::ok(Some(json!({"error": "invalid rpc call"}))))))
+            .or_else(||
+                Some(Box::new(futures::future::err(
+                    errors::Error::from(errors::ErrorKind::RpcError(rpc_call.call.to_string())))))
+            )
             .unwrap()
             // Transform any error in the handler into an error message
-            .or_else(|_err| futures::future::ok(Some(json!({"error": "error in rpc handler"}))))
+            .or_else(|err| {
+                let error_msg = types::ErrorMessage{ error: format!("{}", err) };
+                let error_send = <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg)
+                    .unwrap();
+                futures::future::ok(Some(error_send))
+            })
             // Since there are no "errors" in this result
             // We take over the 'Error' case to represent cases where a response shouldn't be sent
             // This allows us to unwrap the `Message` out of the Option

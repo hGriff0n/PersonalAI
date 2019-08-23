@@ -44,12 +44,15 @@ impl std::fmt::Display for Error {
 pub enum ErrorKind {
     #[fail(display = "error in serialization: {}", _0)]
     SerializationError(#[cause] serde_json::error::Error),
+    #[fail(display = "io error: {}", _0)]
+    IoError(#[cause] std::io::Error),
+
     #[fail(display = "failed to register handle {}::{} - handle already exists", _0, _1)]
     RegistrationError(String, String),
     #[fail(display = "{} dispatcher for app callback `{}` {}", _0, _1, _2)]
     ExitError(String, String, String),
-    #[fail(display = "io error: {}", _0)]
-    IoError(#[cause] std::io::Error),
+    #[fail(display = "invalid rpc error: rpc {} does not exist", _0)]
+    RpcError(String),
     // ...
     // #[doc(hidden)]
     // __Nonexhaustive,

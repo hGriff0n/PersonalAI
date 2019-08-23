@@ -57,6 +57,10 @@ impl Message {
     }
 }
 
+rpc_schema!(ErrorMessage {
+    error: String
+});
+
 
 // TODO: Improve typing usage and genericity
 // TODO: Utilize an "RpcError" type
