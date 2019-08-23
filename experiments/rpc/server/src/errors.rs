@@ -48,6 +48,8 @@ pub enum ErrorKind {
     RegistrationError(String, String),
     #[fail(display = "{} dispatcher for app callback `{}` {}", _0, _1, _2)]
     ExitError(String, String, String),
+    #[fail(display = "io error: {}", _0)]
+    IoError(#[cause] std::io::Error),
     // ...
     // #[doc(hidden)]
     // __Nonexhaustive,
@@ -72,5 +74,11 @@ impl std::convert::From<failure::Context<ErrorKind>> for Error {
 impl std::convert::From<serde_json::error::Error> for Error {
     fn from(json_err: serde_json::error::Error) -> Error {
         Error{ inner: failure::Context::new(ErrorKind::SerializationError(json_err)) }
+    }
+}
+
+impl std::convert::From<std::io::Error> for Error {
+    fn from(io_err: std::io::Error) -> Error {
+        Error{ inner: failure::Context::new(ErrorKind::IoError(io_err)) }
     }
 }

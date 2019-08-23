@@ -50,14 +50,15 @@ impl RegistrationService {
             let callback = move |caller: net::SocketAddr, msg: rpc::Message|
                 -> Box<dyn Future<
                     Item=Option<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>,
-                    Error=std::io::Error> + Send>
+                    Error=errors::Error> + Send>
             {
                 // Send the message over to the server app
                 // Return immediately if an error was found
                 if let Err(_err) = app_msg_queue.unbounded_send(msg.clone()) {
-                    return Box::new(future::err(std::io::Error::new(
+                    let io_err = std::io::Error::new(
                         std::io::ErrorKind::ConnectionAborted,
-                        format!("Receiving end for server {} dropped", app_address))));
+                        format!("Receiving end for server {} dropped", app_address));
+                    return Box::new(future::err(io_err.into()));
                 }
 
                 // Otherwise register an entry in the forwarding table
@@ -67,6 +68,7 @@ impl RegistrationService {
                     .map_err(move |_err| std::io::Error::new(
                         std::io::ErrorKind::ConnectionAborted,
                         format!("Server disconnected while handling request to {}", msg_id)))
+                    .map_err(|err| err.into())
                     .and_then(|resp| future::ok(resp.resp));
                 Box::new(forward_resp)
             };
@@ -124,8 +126,12 @@ rpc_service! {
             }))
 
             // For some reason there was no registered client
-            .unwrap_or_else(|| future::err(std::io::Error::new(
-                std::io::ErrorKind::ConnectionRefused,
-                format!("No registered client for {}", caller))))
+            .unwrap_or_else(|| {
+                let io_err = std::io::Error::new(
+                    std::io::ErrorKind::ConnectionRefused,
+                    format!("No registered client for {}", caller));
+                let err: errors::Error = io_err.into();
+                future::err(err)
+            })
     }
 }

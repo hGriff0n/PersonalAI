@@ -21,11 +21,6 @@ Project:
         also look at setting up unit tests in the rust and python code
         can also use a library (ex pydantic) that enforces these hints at runtime
     change server error handling to use custom error type [[desktop]]
-      rpc body code
-        rpc/types.rs
-        rpc/service.rs
-        rpc/mod.rs:
-        registration_service.rs
       rpc total code
         any places that cast a `errors::Error` to a `std::io::Error`
           the conversion is over, remove "swap" code

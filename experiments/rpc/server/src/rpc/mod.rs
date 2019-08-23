@@ -44,8 +44,7 @@ macro_rules! __typecast_rpc_args {
         let args = <$proto as $crate::protocol::RpcSerializer>::from_value::<$arg_type>($call_msg.args);
         // TODO: Remove when the endpoint code starts returning my error format
         if let Err(err) = args {
-            let io_err = std::io::Error::new(std::io::ErrorKind::InvalidData, format!("{}", err));
-            return Box::new(futures::future::err(io_err));
+            return Box::new(futures::future::err(err));
         }
         args.unwrap()
     }};
@@ -73,11 +72,11 @@ macro_rules! __wrap_rpc_return {
 #[macro_export]
 macro_rules! __wrap_user_body {
     ($fn_body:block) => {{
-        let tmp: futures::future::FutureResult<(), std::io::Error> = $fn_body;
+        let tmp: futures::future::FutureResult<(), $crate::errors::Error> = $fn_body;
         tmp
     }};
     ($fn_body:block $resp_ty:ty) => {{
-        let tmp: futures::future::FutureResult<$resp_ty, std::io::Error> = $fn_body;
+        let tmp: futures::future::FutureResult<$resp_ty, $crate::errors::Error> = $fn_body;
         tmp
     }};
 }
@@ -86,7 +85,7 @@ macro_rules! __wrap_user_body {
 // Macro that defines and implements an rpc service
 // Defined rpcs are automatically wrapped with correct argument parsing and response handling code
 // NOTE: While rpc "return types" should be provided in terms of a serializable "message"
-    // The actual code should return a `futures::FutureResult<resp_ty, std::io::Error>`
+    // The actual code should return a `futures::FutureResult<resp_ty, $crate::errors::Error>`
 // NOTE: Rust allows for multiple `impl $service` blocks
     // These can be used to define constructors and other helper methods
 // NOTE: I don't quite like the implicit dependency on some type defs this has
@@ -105,7 +104,7 @@ macro_rules! rpc_service {
         impl $service {
             $(
                 fn $name(&$this, $caller: std::net::SocketAddr, call_msg: $crate::rpc::Message)
-                    -> Box<dyn futures::Future<Item=Option<<$proto as $crate::protocol::RpcSerializer>::Message>, Error=std::io::Error> + Send>
+                    -> Box<dyn futures::Future<Item=Option<<$proto as $crate::protocol::RpcSerializer>::Message>, Error=$crate::errors::Error> + Send>
                 {
                     let $args = __typecast_rpc_args!($proto | call_msg $($arg_type)*);
                     use futures::Future;
