@@ -29,6 +29,8 @@ impl Dispatcher {
         }
     }
 
+    // This function doesn't actually return an "error" since any errors should be reported to the client
+    // We instead use the 'Error' case to represent that no response should be sent
     pub fn dispatch(&self, mut rpc_call: types::Message, caller: net::SocketAddr)
         -> impl futures::Future<Item=types::Message, Error=()>
     {
@@ -59,9 +61,6 @@ impl Dispatcher {
                     .unwrap();
                 futures::future::ok(Some(error_send))
             })
-            // Since there are no "errors" in this result
-            // We take over the 'Error' case to represent cases where a response shouldn't be sent
-            // This allows us to unwrap the `Message` out of the Option
             .and_then(|resp| match resp {
                 None => futures::future::err(()),
                 resp => {
@@ -73,14 +72,16 @@ impl Dispatcher {
 }
 
 impl service::Registry<protocol::JsonProtocol> for Dispatcher {
-    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>) -> bool {
+    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>)
+        -> Option<errors::RegistrationError>
+    {
         match self.handles
             .write()
             .unwrap()
             .entry(fn_name.to_string())
         {
-            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(sync::Arc::new(callback)); true },
-            _ => false
+            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(sync::Arc::new(callback)); None },
+            _ => Some(errors::RegistrationError::handle_already_exists(fn_name))
         }
     }
 

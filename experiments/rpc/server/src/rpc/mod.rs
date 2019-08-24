@@ -126,12 +126,10 @@ macro_rules! rpc_service {
 
                 $({
                     let endpoint_server = service.clone();
-                    if !register.register_fn(
-                        __stringify!($name),
+                    if let Some(err) = register.register_fn(__stringify!($name),
                         move |caller: std::net::SocketAddr, msg: $crate::rpc::Message| endpoint_server.$name(caller, msg))
                     {
-                        return Err($crate::errors::Error::endpoint_registration_error(
-                            __stringify!($service), __stringify!($name)));
+                        return Err($crate::errors::Error::registration_error(__stringify!($service), err));
                     }
                 })*
 

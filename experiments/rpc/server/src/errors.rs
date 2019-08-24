@@ -14,12 +14,12 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn endpoint_registration_error(service: &str, endpoint: &str) -> Error {
-        return ErrorKind::RegistrationError(service.to_string(), endpoint.to_string()).into()
+    pub fn registration_error(service: &str, error: RegistrationError) -> Error {
+        return ErrorKind::ServiceRegistrationError(service.to_string(), error).into()
     }
 
-    pub fn exit_error(init_message: &str, handle: &str, end_message: &str) -> Error {
-        return ErrorKind::ExitError(init_message.to_string(), handle.to_string(), end_message.to_string()).into()
+    pub fn client_error(client: std::net::SocketAddr, error: ClientError) -> Error {
+        return ErrorKind::ConnectedAppError(client, error).into()
     }
 }
 
@@ -46,12 +46,12 @@ pub enum ErrorKind {
     SerializationError(#[cause] serde_json::error::Error),
     #[fail(display = "io error: {}", _0)]
     IoError(#[cause] std::io::Error),
+    #[fail(display = "failed to register service {} -> {:?}", _0, _1)]
+    ServiceRegistrationError(String, RegistrationError),
+    #[fail(display = "client {} -> {:?}", _0, _1)]
+    ConnectedAppError(std::net::SocketAddr, ClientError),
 
-    #[fail(display = "failed to register handle {}::{} - handle already exists", _0, _1)]
-    RegistrationError(String, String),
-    #[fail(display = "{} dispatcher for app callback `{}` {}", _0, _1, _2)]
-    ExitError(String, String, String),
-    #[fail(display = "invalid rpc error: rpc {} does not exist", _0)]
+    #[fail(display = "invalid rpc error: rpc {} is not registered", _0)]
     RpcError(String),
     // ...
     // #[doc(hidden)]
@@ -83,5 +83,59 @@ impl std::convert::From<serde_json::error::Error> for Error {
 impl std::convert::From<std::io::Error> for Error {
     fn from(io_err: std::io::Error) -> Error {
         Error{ inner: failure::Context::new(ErrorKind::IoError(io_err)) }
+    }
+}
+
+
+//
+//
+//
+#[derive(Debug)]
+pub struct RegistrationError {
+    inner: failure::Context<RegistrationErrorKind>,
+}
+
+impl RegistrationError {
+    pub fn handle_already_exists(handle: &str) -> Self {
+        RegistrationErrorKind::HandleAlreadyMapped(handle.to_string()).into()
+    }
+}
+
+#[derive(Debug, failure::Fail)]
+pub enum RegistrationErrorKind {
+    #[fail(display = "Existing handle found for endpoint {}", _0)]
+    HandleAlreadyMapped(String),
+}
+
+impl std::convert::From<RegistrationErrorKind> for RegistrationError {
+    fn from(kind: RegistrationErrorKind) -> RegistrationError {
+        RegistrationError{ inner: failure::Context::new(kind) }
+    }
+}
+
+
+//
+//
+//
+#[derive(Debug)]
+pub struct ClientError {
+    inner: failure::Context<ClientErrorKind>,
+}
+
+impl ClientError {
+    pub fn strong_references_to(handle: &str) -> Self {
+        ClientErrorKind::DeregisterHandleHeld(handle.to_string()).into()
+    }
+}
+
+#[derive(Debug, failure::Fail)]
+pub enum ClientErrorKind {
+    #[fail(display = "Multiple strong references held to {} when attempting to deregister client", _0)]
+    DeregisterHandleHeld(String),
+}
+
+impl std::convert::From<ClientErrorKind> for ClientError {
+    fn from(kind: ClientErrorKind) -> ClientError {
+        ClientError{ inner: failure::Context::new(kind) }
     }
 }

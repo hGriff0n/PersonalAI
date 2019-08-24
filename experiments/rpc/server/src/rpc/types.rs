@@ -57,13 +57,13 @@ impl Message {
     }
 }
 
+// TODO: Add "causal" information
 rpc_schema!(ErrorMessage {
     error: String
 });
 
 
 // TODO: Improve typing usage and genericity
-// TODO: Utilize an "RpcError" type
 pub type Result<T> = Box<dyn futures::Future<Item=Option<T>, Error=errors::Error> + Send>;
 pub type Function<P> = dyn Fn(std::net::SocketAddr, Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
 

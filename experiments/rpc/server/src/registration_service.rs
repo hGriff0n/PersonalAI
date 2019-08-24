@@ -77,7 +77,7 @@ impl RegistrationService {
             // NOTE: If a registration fails, we do not do any error handling at the moment
             // It is the server's responsibility to recognize that a handle was not registered
             // And to fail if that handle's registration must succeed
-            if self.registry.register_fn(handle, callback) {
+            if self.registry.register_fn(handle, callback).is_none() {
                 registered.push(handle.to_owned());
             }
         }
@@ -114,8 +114,8 @@ rpc_service! {
                     for handle in &registered {
                         if let Some(callback) = reg.unregister(handle.as_str()) {
                             if sync::Arc::strong_count(&callback) > 1 {
-                                return Err(errors::Error::exit_error(
-                                    "Strong references held to", handle, "at deregistration"));
+                                let err = errors::ClientError::strong_references_to(handle);
+                                return Err(errors::Error::client_error(caller, err));
                             }
                         }
                     }
@@ -130,8 +130,7 @@ rpc_service! {
                 let io_err = std::io::Error::new(
                     std::io::ErrorKind::ConnectionRefused,
                     format!("No registered client for {}", caller));
-                let err: errors::Error = io_err.into();
-                future::err(err)
+                future::err(io_err.into())
             })
     }
 }

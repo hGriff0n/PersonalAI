@@ -25,9 +25,11 @@ pub trait Service<P: protocol::RpcSerializer> {
 
 // Alternative trait for allowing registration of rpc services
 pub trait Registry<P: protocol::RpcSerializer> {
-    fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> bool;
+    // Return a `Some(Error)` if an error did happen during registration
+    // The caller is free to ignore this error if they want
+    fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> Option<errors::RegistrationError>;
     // TODO: (r/41517) - Improve once trait aliases are in stable
-    fn register_fn<F>(&self, fn_name: &str, callback: F) -> bool
+    fn register_fn<F>(&self, fn_name: &str, callback: F) -> Option<errors::RegistrationError>
         where F: Fn(net::SocketAddr, types::Message) -> types::Result<P::Message> + Send + Sync + 'static
     {
         self.register(fn_name, Box::new(callback))
