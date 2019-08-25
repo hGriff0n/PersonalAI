@@ -57,9 +57,12 @@ impl Message {
     }
 }
 
-// TODO: Add "causal" information
+// Due to the failure crate, causal information is pushed "top-bottom"
+// That means that the most-recent cause will be at the front of the chain
+// NOTE: This requires "extending" the chain from this message, to push_front
 rpc_schema!(ErrorMessage {
-    error: String
+    error: String,
+    chain: Vec<String>
 });
 
 

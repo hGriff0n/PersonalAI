@@ -62,6 +62,7 @@ pub trait RpcSerializer: Clone+Copy {
     fn to_value<T>(msg: T)
         -> Result<Self::Message, errors::Error>
         where T: Serialize;
+    fn has_key(msg: &Option<Self::Message>, key: &str) -> bool;
 }
 
 //
@@ -85,6 +86,14 @@ impl RpcSerializer for JsonProtocol {
         -> Result<Self::Message, errors::Error>
     {
         Ok(serde_json::to_value(msg)?)
+    }
+
+    fn has_key(msg: &Option<Self::Message>, key: &str) -> bool {
+        msg.as_ref()
+            .and_then(|msg| {
+                msg.as_object()
+                    .and_then(|obj| Some(obj.contains_key(key)))
+            }).unwrap_or(false)
     }
 }
 impl<Conn, Codec> RpcProtocol<Conn, Codec> for JsonProtocol

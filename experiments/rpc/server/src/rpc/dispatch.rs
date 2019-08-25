@@ -3,6 +3,7 @@
 use std::{collections, net, sync};
 
 // third-party imports
+use failure;
 
 // local imports
 use crate::errors;
@@ -56,9 +57,13 @@ impl Dispatcher {
             .unwrap()
             // Transform any error in the handler into an error message
             .or_else(|err| {
-                let error_msg = types::ErrorMessage{ error: format!("{}", err) };
-                let error_send = <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg)
-                    .unwrap();
+                let err: &dyn failure::Fail = &err;
+                let error_msg = types::ErrorMessage{
+                    error: format!("{}", err),
+                    chain: err.iter_causes().map(|cause| format!("{}", cause)).collect()
+                };
+                let error_send =
+                    <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg).unwrap();
                 futures::future::ok(Some(error_send))
             })
             .and_then(|resp| match resp {

@@ -9,12 +9,6 @@ Project:
           -> this needs a server in a separate script
           this'll test the "client exit" control flow
           the server here should delay for a minute before responding
-      change server error handling
-        extend the rpc ErrorMessage to be able to report the "causal" chain
-          try to make it convertible back into an errors::Error if received from rust
-          find a way to add a concept of "private information" to the reporting?
-        convert app errors into server errors?
-        make dispatcher generic on the protocol it's using
       produce module setup and testing "framework"
         <- how to utilize mypy?
         make `setup.py` replacement
@@ -48,6 +42,7 @@ Project:
     How will I get server state data into the rpc service handlers?
     Add comments to all of the classes and the functions
     Improve the organization of the python code
+    Improve the rust error handling
   Integrate with CLI args
     add clap to rust server
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
