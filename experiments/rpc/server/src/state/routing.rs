@@ -68,7 +68,7 @@ impl MessageRouter {
         rec
     }
 
-    pub fn drop_client(&self, client: net::SocketAddr) -> Result<(), std::io::Error> {
+    pub fn drop_client(&self, client: net::SocketAddr) {
         // Drop all `Sender` handles for messages that this client is handling
         // This has the effect of immediately completing any forwarding requests with an Error
         // NOTE: I could also get the same effect by sending out the error message here
@@ -93,8 +93,6 @@ impl MessageRouter {
                 }
             }
         }
-
-        Ok(())
     }
 
     pub fn forward_message(&self, msg_id: uuid::Uuid) -> Option<oneshot::Sender<rpc::Message>> {

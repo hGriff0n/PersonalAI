@@ -3,9 +3,10 @@
 use std::{collections, net, sync};
 
 // third-party imports
-use serde_json::json;
+use failure;
 
 // local imports
+use crate::errors;
 use super::service;
 use super::types;
 use crate::protocol;
@@ -29,6 +30,8 @@ impl Dispatcher {
         }
     }
 
+    // This function doesn't actually return an "error" since any errors should be reported to the client
+    // We instead use the 'Error' case to represent that no response should be sent
     pub fn dispatch(&self, mut rpc_call: types::Message, caller: net::SocketAddr)
         -> impl futures::Future<Item=types::Message, Error=()>
     {
@@ -47,13 +50,22 @@ impl Dispatcher {
             // Call the registerd function if one was found
             .and_then(|handle| Some(handle(caller, rpc_call.clone())))
             // If no function was registered, produce an error indicating it
-            .or_else(|| Some(Box::new(futures::future::ok(Some(json!({"error": "invalid rpc call"}))))))
+            .or_else(||
+                Some(Box::new(futures::future::err(
+                    errors::Error::from(errors::ErrorKind::RpcError(rpc_call.call.to_string())))))
+            )
             .unwrap()
             // Transform any error in the handler into an error message
-            .or_else(|_err| futures::future::ok(Some(json!({"error": "error in rpc handler"}))))
-            // Since there are no "errors" in this result
-            // We take over the 'Error' case to represent cases where a response shouldn't be sent
-            // This allows us to unwrap the `Message` out of the Option
+            .or_else(|err| {
+                let err: &dyn failure::Fail = &err;
+                let error_msg = types::ErrorMessage{
+                    error: format!("{}", err),
+                    chain: err.iter_causes().map(|cause| format!("{}", cause)).collect()
+                };
+                let error_send =
+                    <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg).unwrap();
+                futures::future::ok(Some(error_send))
+            })
             .and_then(|resp| match resp {
                 None => futures::future::err(()),
                 resp => {
@@ -65,14 +77,16 @@ impl Dispatcher {
 }
 
 impl service::Registry<protocol::JsonProtocol> for Dispatcher {
-    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>) -> bool {
+    fn register(&self, fn_name: &str, callback: Box<types::Function<protocol::JsonProtocol>>)
+        -> Option<errors::RegistrationError>
+    {
         match self.handles
             .write()
             .unwrap()
             .entry(fn_name.to_string())
         {
-            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(sync::Arc::new(callback)); true },
-            _ => false
+            std::collections::hash_map::Entry::Vacant(entry) => { entry.insert(sync::Arc::new(callback)); None },
+            _ => Some(errors::RegistrationError::handle_already_exists(fn_name))
         }
     }
 

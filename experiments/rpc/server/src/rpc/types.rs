@@ -6,6 +6,7 @@ use std;
 use serde::{Serialize, Deserialize};
 
 // local imports
+use crate::errors;
 use crate::protocol;
 
 
@@ -56,11 +57,18 @@ impl Message {
     }
 }
 
+// Due to the failure crate, causal information is pushed "top-bottom"
+// That means that the most-recent cause will be at the front of the chain
+// NOTE: This requires "extending" the chain from this message, to push_front
+rpc_schema!(ErrorMessage {
+    error: String,
+    chain: Vec<String>
+});
+
 
 // TODO: Improve typing usage and genericity
-// TODO: Utilize an "RpcError" type
-pub type Result<T> = Box<dyn futures::Future<Item=Option<T>, Error=std::io::Error> + Send>;
-pub type Function<P> = Fn(std::net::SocketAddr, Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
+pub type Result<T> = Box<dyn futures::Future<Item=Option<T>, Error=errors::Error> + Send>;
+pub type Function<P> = dyn Fn(std::net::SocketAddr, Message) -> self::Result<<P as protocol::RpcSerializer>::Message> + Send + Sync;
 
 // TODO: trait aliases are experimental (https://github.com/rust-lang/rust/issues/41517)
 // NOTE: Currently we can't use `F: impl Function<P>` or `where F: Function<P>` in some definitions that accept closures

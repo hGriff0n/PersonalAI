@@ -15,28 +15,16 @@ Project:
         can also use a library (ex pydantic) that enforces these hints at runtime
     change server error handling to use custom error type [[desktop]]
       create custom error type that is serializable to a dictionary
-        -> dispatch should not use raw `json!` when producing error messages
-      convert all existing code to use the new error type
-        rpc/mod.rs:
-          service def returns std::io::Error
-          __wrap_user_body expects rpc body to return a std::io::Error
-          registration returns Result<(), String>
-        rpc/dispatch.rs:
-          raw `json!` commands are used to produce the error messages which are sent
-        rpc/service.rs:
-          register_endpoints returns Result<(), String>
-        rpc/types.rs:
-          Result type has an `Error=std::io::Error`
-        state/client.rs:
-          'on_exit' callback returns a Result<(), std::io::Error>
-          run_exit_callbacks returns a Result<(), std::io::Error>
-          drop_client returns a Result<(), std::io::Error>
-        state/routing.rs:
-          drop_client returns a Result<(), std::io::Error>
-        registration_service.rs:
-          register_app_impl returns a Result<Vec<String>, std::io::Error>
-        protocol.rs:
-          all trait methods return a Resul<_, std::io::Error>
+        replace usage of raw `json!` with some dict-serializable type
+          utilize the act ual error in the error dictionary
+      report errors in a way that makes use of failure's functionality
+      improve the architecture of the error code
+        the "localized" error handling is atrocious
+          see registration_service.rs and mod.rs
+        figure out how to handle "local module" errors
+          it's a question of how to type when the module may be used with different areas
+            -> require all "errors" for that section of code implement `Into<LocalModuleError>`?
+          so like the registration code would return a "RegistrationError" that the "general" error code wraps
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
@@ -49,6 +37,7 @@ Project:
     How will I get server state data into the rpc service handlers?
     Add comments to all of the classes and the functions
     Improve the organization of the python code
+    Improve the rust error handling
   Integrate with CLI args
     add clap to rust server
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`

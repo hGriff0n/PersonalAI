@@ -5,6 +5,7 @@ use std::{net, sync};
 // third-party imports
 
 // local imports
+use crate::errors;
 use super::types;
 use crate::protocol;
 
@@ -19,14 +20,16 @@ pub trait Service<P: protocol::RpcSerializer> {
     // Returns a Result indicating any error message produced during registration
     // NOTE: This (currently) only happens when a handle fails to register due to name clashes
         // The returned string is an error string for reporting which handle caused the collision
-    fn register_endpoints<R: Registry<P>>(self, register: &R) -> Result<(), String>;
+    fn register_endpoints<R: Registry<P>>(self, register: &R) -> Result<(), errors::Error>;
 }
 
 // Alternative trait for allowing registration of rpc services
 pub trait Registry<P: protocol::RpcSerializer> {
-    fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> bool;
+    // Return a `Some(Error)` if an error did happen during registration
+    // The caller is free to ignore this error if they want
+    fn register(&self, fn_name: &str, callback: Box<types::Function<P>>) -> Option<errors::RegistrationError>;
     // TODO: (r/41517) - Improve once trait aliases are in stable
-    fn register_fn<F>(&self, fn_name: &str, callback: F) -> bool
+    fn register_fn<F>(&self, fn_name: &str, callback: F) -> Option<errors::RegistrationError>
         where F: Fn(net::SocketAddr, types::Message) -> types::Result<P::Message> + Send + Sync + 'static
     {
         self.register(fn_name, Box::new(callback))

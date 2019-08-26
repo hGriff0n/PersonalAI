@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 use tokio::prelude::*;
 
 // local imports
+use crate::errors;
 
 
 //
@@ -19,7 +20,7 @@ use tokio::prelude::*;
 //  1) Split the connection into read/write ends
 //  2) Wrap the connection in a codec to handle packet framing
 //  3) Wrap the connection in a protocol so interaction is in the message layer
-pub fn frame_with_protocol<P, Conn, Codec>(conn: Conn, codec_producer: &Fn() -> Codec)
+pub fn frame_with_protocol<P, Conn, Codec>(conn: Conn, codec_producer: &dyn Fn() -> Codec)
     -> (P::Reader, P::Writer)
     where Conn: AsyncRead + AsyncWrite,
           Codec: tokio::codec::Decoder + tokio::codec::Encoder,
@@ -47,8 +48,8 @@ pub trait RpcProtocol<Conn, Codec>
     type Reader;
     type Writer;
 
-    fn make_reader(read_conn: tokio::io::ReadHalf<Conn>, codec_producer: &Fn() -> Codec) -> Self::Reader;
-    fn make_writer(write_conn: tokio::io::WriteHalf<Conn>, codec_producer: &Fn() -> Codec) -> Self::Writer;
+    fn make_reader(read_conn: tokio::io::ReadHalf<Conn>, codec_producer: &dyn Fn() -> Codec) -> Self::Reader;
+    fn make_writer(write_conn: tokio::io::WriteHalf<Conn>, codec_producer: &dyn Fn() -> Codec) -> Self::Writer;
 }
 
 // Helper trait to wrap serialization of messages
@@ -56,11 +57,12 @@ pub trait RpcSerializer: Clone+Copy {
     type Message;
 
     fn from_value<T>(msg: Self::Message)
-        -> Result<T, std::io::Error>
+        -> Result<T, errors::Error>
         where for<'d> T: Deserialize<'d>;
     fn to_value<T>(msg: T)
-        -> Result<Self::Message, std::io::Error>
+        -> Result<Self::Message, errors::Error>
         where T: Serialize;
+    fn has_key(msg: &Option<Self::Message>, key: &str) -> bool;
 }
 
 //
@@ -74,20 +76,24 @@ impl RpcSerializer for JsonProtocol {
     type Message = serde_json::Value;
 
     fn from_value<T>(msg: Self::Message)
-        -> Result<T, std::io::Error>
+        -> Result<T, errors::Error>
         where for<'d> T: Deserialize<'d>
     {
-        serde_json::from_value(msg)
-            .map_err(|_err|
-                std::io::Error::new(std::io::ErrorKind::InvalidInput, "failed to deserialize message"))
+        Ok(serde_json::from_value(msg)?)
     }
 
     fn to_value<T: Serialize>(msg: T)
-        -> Result<Self::Message, std::io::Error>
+        -> Result<Self::Message, errors::Error>
     {
-        serde_json::to_value(msg)
-            .map_err(|_err|
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "failed to serialize message"))
+        Ok(serde_json::to_value(msg)?)
+    }
+
+    fn has_key(msg: &Option<Self::Message>, key: &str) -> bool {
+        msg.as_ref()
+            .and_then(|msg| {
+                msg.as_object()
+                    .and_then(|obj| Some(obj.contains_key(key)))
+            }).unwrap_or(false)
     }
 }
 impl<Conn, Codec> RpcProtocol<Conn, Codec> for JsonProtocol
@@ -109,11 +115,11 @@ impl<Conn, Codec> RpcProtocol<Conn, Codec> for JsonProtocol
         tokio::codec::FramedWrite<tokio::io::WriteHalf<Conn>, Codec>,
         serde_json::Value>;
 
-    fn make_reader(read_conn: tokio::io::ReadHalf<Conn>, codec_producer: &Fn() -> Codec) -> Self::Reader {
+    fn make_reader(read_conn: tokio::io::ReadHalf<Conn>, codec_producer: &dyn Fn() -> Codec) -> Self::Reader {
         tokio_serde_json::ReadJson::new(tokio::codec::FramedRead::new(read_conn, codec_producer()))
     }
 
-    fn make_writer(write_conn: tokio::io::WriteHalf<Conn>, codec_producer: &Fn() -> Codec) -> Self::Writer {
+    fn make_writer(write_conn: tokio::io::WriteHalf<Conn>, codec_producer: &dyn Fn() -> Codec) -> Self::Writer {
         tokio_serde_json::WriteJson::new(tokio::codec::FramedWrite::new(write_conn, codec_producer()))
     }
 }
