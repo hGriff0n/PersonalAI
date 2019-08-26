@@ -1,43 +1,12 @@
 
 Project:
   Implement routing of messages
-    implement client+app
-      change server error handling
-        dispatch should not use raw `json!` when producing error messages
-          should instead produce from a `rpc::Error` class and the serialize it to the dictionary
-      produce module setup and testing "framework"
-        <- how to utilize mypy?
-        make `setup.py` replacement
-          <- move code into subfolder
-        make `launch.py` replacement
-      is there a way to setup these integration tests?
-        also look at setting up unit tests in the rust and python code
-        can also use a library (ex pydantic) that enforces these hints at runtime
-    change server error handling to use custom error type [[desktop]]
-      create custom error type that is serializable to a dictionary
-        replace usage of raw `json!` with some dict-serializable type
-          utilize the act ual error in the error dictionary
-      report errors in a way that makes use of failure's functionality
-      improve the architecture of the error code
-        the "localized" error handling is atrocious
-          see registration_service.rs and mod.rs
-        figure out how to handle "local module" errors
-          it's a question of how to type when the module may be used with different areas
-            -> require all "errors" for that section of code implement `Into<LocalModuleError>`?
-          so like the registration code would return a "RegistrationError" that the "general" error code wraps
     implement deregister
       add handle for `deregister` request
         drop all messages in flight to that app
     move services into `server/src/services`
       improve the organization of `server/src/state/`
-  Read through old code to see what's now missing
-    -> seshat/indexer
-      the current codebase doesn't really fit that too well
-  Clean up the codebase and ensure everything is well architected
-    How will I get server state data into the rpc service handlers?
-    Add comments to all of the classes and the functions
-    Improve the organization of the python code
-    Improve the rust error handling
+
   Integrate with CLI args
     add clap to rust server
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
@@ -46,18 +15,29 @@ Project:
       get python code to the level of completeness as in the old codebase
     <- maybe have config files instead
       -> isn't this supported already
+
   Integrate with logging
     add logging.rs to server
       <- introduce logging calls where needed
     add whatever python logging thing I used
+      make `loader.py` replacement
+
+  Clean up the codebase and ensure everything is well architected
+    How will I get server state data into the rpc service handlers?
+    Add comments to all of the classes and the functions
+    Improve the organization of the python code
+    Improve the rust error handling
+
   Release the new framework
     Delete the old code and move this code to the "main" sections
-    Create setup.py and launch.py variants
+    Modify setup.py and launch.py to fit the new code
+
 
 Improvements:
   Integrate with monitoring
     find monitoring framework
       -> https://crates.io/crates/metered
+
   Implement device routing (a location service, kinda)
     implement register_device
     <- client that registers a device server (use two for testing)
@@ -69,25 +49,37 @@ Improvements:
     add ability to set modality information
       <- mac address, status, name, etc.
       <- would be put in `plugins.Client` (similar to `plugins.AppServer`)
+
+  Convert python rpc messages to using pydantic
+    Simpler enforcement of conversion type rules
+
   Introduce rpc timeouts
     NOTE: Any solution here will likely also work for when a client exits while waiting on in-flight messages
+
   Develop server to use rpcs for internal functions
     -> would require load-balancing and other monitoring functionality
     -> may want to add similar functionality in python (for calling services in the same modality)
+
   Think about network/device monitoring situation
   Think about ways to allow for multiple handles to be registered to one rpc
     <- may not be desired
   Think about ways to allow for subscriptions/alerts to be registered+produced
+
+  Unit tests and Integration tests for python and rust
+
   Current design work and focus assumes the "distributed follys"
     Look at ways of making the handling code more robust
     implement message timeouts (for server and forwarding requests) <- rpc timeouts?
       if a message takes too long, a timeout error is sent back instead
       if a message is being processed by an app, and the app is taken offline to upgrade it
+
   Implement security module
+
   Implement pastry distributed FS (or distributed hash table)
     implement local indexer (client?)
       -> implementing as a client would require a FsUpdateService to handle indexer updates
     implement seshat search engine service
+
 
 Communication:
   would be nice to "chain" calls
@@ -95,6 +87,7 @@ Communication:
       the response for `find file` triggers `streamto device` on the server, not the client
       not sure how necessary this would actually be
     we could implement a `setup_direct_connection` call to enable this?
+
 
 Tech Debt:
   Look at modifying rpc_service! macro to inject the protocol through generics on the methods/struct

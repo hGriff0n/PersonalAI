@@ -19,6 +19,7 @@ class Client(plugin.Plugin):
     Clients only interact with the wider network to send rpc calls (as opposed to servers)
 
     NOTE: This class should only be inherited on leaf nodes
+    NOTE: Calling `exit` doesn't properly shutdown the connection. Throw an exception instead
     """
 
     def __init_subclass__(cls, **kwargs):
