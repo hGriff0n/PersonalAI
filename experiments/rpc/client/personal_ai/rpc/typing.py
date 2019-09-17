@@ -4,7 +4,7 @@ import typing
 # third-part imports
 
 # local imports
-from rpc import message
+from personal_ai.rpc import message
 
 # Plugin typing
 class PluginBase(object):

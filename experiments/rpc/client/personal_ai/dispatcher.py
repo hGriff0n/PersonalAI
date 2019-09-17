@@ -4,9 +4,9 @@ import typing
 # third-part imports
 
 # local imports
-import communication
-import rpc
-from rpc import registration
+from personal_ai import communication
+from personal_ai import rpc
+from personal_ai.rpc import registration
 
 
 DispatcherFunction = typing.Callable[[rpc.Message, communication.CommunicationHandler], typing.Coroutine[typing.Any, typing.Any, None]]

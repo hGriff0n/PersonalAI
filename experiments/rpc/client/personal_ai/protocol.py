@@ -8,7 +8,7 @@ import typing
 # third-part imports
 
 # local imports
-import rpc
+from personal_ai import rpc
 
 class Protocol(object):
     M = typing.TypeVar('M', bound=rpc.Serializable)
@@ -28,13 +28,13 @@ class Protocol(object):
         """
 
     @abc.abstractmethod
-    def encode(self, msg: 'Protocol.M') -> rpc.SerializedMessage:
+    def _serialize(self, msg: 'Protocol.M') -> rpc.SerializedMessage:
         """
         Convert the rpc.Message object into an rpc.SerializedMessage
         """
 
     @abc.abstractmethod
-    def decode(self, msg: rpc.SerializedMessage, msg_class: typing.Type['Protocol.M']) -> typing.Optional['Protocol.M']:
+    def _unserialize(self, msg: rpc.SerializedMessage, msg_class: typing.Type['Protocol.M']) -> typing.Optional['Protocol.M']:
         """
         Convert the rpc.SerializedMessage into the given rpc.Message class
         """
@@ -49,7 +49,7 @@ class JsonProtocol(Protocol):
         self._logger = logger
 
     def make_packet(self, msg: rpc.Message) -> bytes:
-        buf = json.dumps(self.encode(msg)).encode('utf-8')
+        buf = json.dumps(self._serialize(msg)).encode('utf-8')
         frame = struct.pack('>I', len(buf))
         return frame + buf
 
@@ -58,12 +58,12 @@ class JsonProtocol(Protocol):
         msg_len = struct.unpack('>I', len_buf)[0]
 
         msg_buf = socket_reader(msg_len).decode('utf-8')
-        return self.decode(json.loads(msg_buf), rpc.Message)
+        return self._unserialize(json.loads(msg_buf), rpc.Message)
 
-    def encode(self, msg: Protocol.M) -> rpc.SerializedMessage:
+    def _serialize(self, msg: Protocol.M) -> rpc.SerializedMessage:
         return msg.serialize()
 
-    def decode(self, msg: rpc.SerializedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
+    def _unserialize(self, msg: rpc.SerializedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
         decoded_msg = msg_class.from_dict(msg)
         if decoded_msg is None and self._logger is not None:
             self._logger.warning("Failed to decode message {} to rpc.Message type `{}`", msg, msg_class)

@@ -7,11 +7,11 @@ import typing
 # third-part imports
 
 # local imports
-import communication
-import dispatcher
-from plugins import plugin
-import rpc
-from rpc import registration
+from personal_ai import communication
+from personal_ai import dispatcher
+from personal_ai.plugins import plugin
+from personal_ai import rpc
+from personal_ai.rpc import registration
 
 
 _REGISTERED_SERVICES: typing.List[typing.Type[plugin.Plugin]] = []
@@ -72,7 +72,6 @@ class Service(plugin.Plugin):
         handles = [handle for handle, _ in endpoints.items()]
         required = [handle for handle, endpoint in endpoints.items() if endpoint.get('required')]
 
-        # print("Registring handles for {}: {}".format(type(self), handles))
         resp = await self._comm.wait_response(rpc.Message(call="register_app", args={ 'handles': handles }))
 
         registered_handles = []

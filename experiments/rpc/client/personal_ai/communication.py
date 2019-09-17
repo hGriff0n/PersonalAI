@@ -9,8 +9,8 @@ import uuid
 # third-part imports
 
 # local imports
-import rpc
-import protocol
+from personal_ai import rpc
+from personal_ai import protocol
 
 
 class MessageEvent(asyncio.Event):
@@ -94,14 +94,14 @@ class NetworkQueue(object):
         packet = self._protocol.make_packet(msg)
         self._sock.sendall(packet)
 
-        if self._logger:
-            self._logger.info("Sent message {}".format(msg))
+        # print("Sent message {}".format(msg))
 
     def get_message(self) -> typing.Optional[rpc.Message]:
         """
         Wait for a message to come in from the network
         """
         def _read(n: int) -> bytes:
+            # print("Reading {} bytes...".format(n))
             return self._sock.recv(n)
 
         try:
@@ -111,9 +111,8 @@ class NetworkQueue(object):
         except (socket.timeout, OSError):
             return None
 
-        if self._logger:
-            if msg is not None:
-                self._logger.info("Received message {}".format(msg.msg_id))
-            else:
-                self._logger.error("Failed receiving message!!!")
+        # if msg is not None:
+        #     print("Received message {}".format(msg.msg_id))
+        # else:
+        #     print("Failed receiving message!!!")
         return msg

@@ -11,16 +11,23 @@ Project:
     add clap to rust server
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
       -> basically can just take server.rs (+ others?)
-    add whatever python cli thing I used
-      get python code to the level of completeness as in the old codebase
-    <- maybe have config files instead
-      -> isn't this supported already
+
+    figure out how to specify plugin loading configuration
+      <- what plugins to load/launch
+      <- modality arguments (or per-plugin arguments)
+      adapt loader.py to load in configuration
+        change the app registration process to follow configuration
+          <- Having the clients/server "dispatch" registration may be working
+          <- Server may still be necessary to map to support "disptach"
 
   Integrate with logging
     add logging.rs to server
       <- introduce logging calls where needed
-    add whatever python logging thing I used
-      make `loader.py` replacement
+
+    copy over `common/logger.py`
+      store the created logger in the plugin/thread code
+      add in logging statements to the plugin/thread code
+
 
   Clean up the codebase and ensure everything is well architected
     How will I get server state data into the rpc service handlers?
@@ -31,6 +38,7 @@ Project:
   Release the new framework
     Delete the old code and move this code to the "main" sections
     Modify setup.py and launch.py to fit the new code
+    Tidy up the code organization a little bit
 
 
 Improvements:

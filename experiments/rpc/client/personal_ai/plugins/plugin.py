@@ -6,8 +6,8 @@ import typing
 # third-part imports
 
 # local imports
-import communication
-from rpc import typing as rpc_types
+from personal_ai import communication
+from personal_ai.rpc import typing as rpc_types
 
 
 # TODO: There might be a better way to provide the communication handler

@@ -5,8 +5,9 @@ import typing
 # third-part imports
 
 # local imports
-from rpc import message
-import rpc.typing as rpc_type
+import personal_ai.rpc
+from personal_ai.rpc import message
+from personal_ai.rpc import typing as rpc_type
 
 
 # Endpoint registration structures
@@ -30,7 +31,6 @@ def associate_endpoints_with_service(kls: typing.Type[rpc_type.PluginBase]):
     This is why
     This is acceptable as `service` should be used to indicate a "specific" service, not a family of services
     """
-
     global __ACTIVE_ENDPOINT_REGISTRATIONS
     global __REGISTERED_ENDPOINTS
     __REGISTERED_ENDPOINTS[kls] = __ACTIVE_ENDPOINT_REGISTRATIONS
@@ -92,7 +92,6 @@ def endpoint(_func: typing.Optional[rpc_type.AllEndpointTypes] = None,
     NOTE: Decorators are only run once!!! This will not work with inheritance
     This is acceptable as an `endpoint` should represent a specific callable behavior, sharing makes no sense
     """
-
     def _decorator_no_type_checks(func):
         """
         Create the actual wrapper for the endpoint

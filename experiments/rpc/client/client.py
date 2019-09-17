@@ -7,14 +7,14 @@ import threading
 import time
 import typing
 
-# third-part imports
+# third-party imports
 
 # local imports
-import communication
-import dispatcher
-import rpc
-import plugins
-import protocol
+from personal_ai import communication
+from personal_ai import dispatcher
+from personal_ai import rpc
+from personal_ai import plugins
+from personal_ai import protocol
 
 
 # Number of seconds to wait in the threads for the done signal to be set
@@ -56,8 +56,8 @@ def reader(conn: communication.NetworkQueue,
                 if not dispatch:
                     print("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
                 else:
-                     print("Handling message id={} through plugin handle".format(msg.msg_id))
-                     asyncio.run_coroutine_threadsafe(dispatch(msg, comm), loop=loop)
+                    print("Handling message id={} through plugin handle".format(msg.msg_id))
+                    asyncio.run_coroutine_threadsafe(dispatch(msg, comm), loop=loop)
 
     except ConnectionResetError as e:
         print("Lost connection to server: {}".format(e))
@@ -123,7 +123,6 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
     # Create a plugin runner that periodically runs the 'Plugin.main' entrypoint
     # Sets the `done_signal` once `main` returns False
     async def _runner(plugin):
-        # print("Starting runner callback for {}".format(plugin))
         try:
             while await plugin.main():
                 await asyncio.sleep(1)
@@ -142,56 +141,19 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
         pass
 
 
-# NOTE: These defs are what's provided by the user
-class TestClient(plugins.Client):
+# TODO: Incorporate with config when I've moved totally to a "loader.py" setup
+import imp
+def import_plugins(config):
+    for p in [plugin['path'] for plugin in config.values()]:
+        plugin = imp.find_module('__init__', [p])
+        imp.load_module('__init__', *plugin)
 
-    async def main(self) -> bool:
-        await asyncio.sleep(5)
-
-        rpc_message = rpc.Message(call="parley")
-        resp = await self._comm.wait_response(rpc_message)
-        if resp is not None:
-            print("Received {}".format(resp.resp))
-
-        return False
-
-
-class NullMessage(rpc.Serializable):
-
-    def __init__(self):
-        self.message: str = ""
-
-    def serialize(self) -> rpc.SerializedMessage:
-        return {
-            'message': self.message
-        }
-
-    def deserialize(self, msg_dict: rpc.SerializedMessage) -> bool:
-        self.message = msg_dict.get('message', '')
-        return True
-
-
-class FortuneCookie(plugins.Service):
-
-    @rpc.endpoint
-    async def grab_a_message(self, msg: NullMessage) -> NullMessage:
-        msg.message = "This is a special message"
-        return msg
-
-
-class FrenchFortuneCookie(plugins.Service):
-
-    @rpc.endpoint(name="parley")
-    async def parlez(self, msg: NullMessage) -> NullMessage:
-        fortune = await self._comm.wait_response(rpc.Message(call="grab_a_message"))
-        if fortune is not None:
-            message = NullMessage.from_dict(fortune.resp or {})
-        if message is not None:
-            msg.message = "C'est un message ({})".format(message.message)
-        return msg
-
-
-# TODO: Move to `launch.py` when that is created (this is the "main" in there)
+config = {
+    'test': {
+        'path': r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\modalities\tester"
+    }
+}
+import_plugins(config)
 
 #
 # Loader/Runner Code
@@ -216,7 +178,7 @@ write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, 
 
 # Load the plugins
 all_plugins = plugins.initialize_registered_plugins(comm)
-# print("Loaded services: {}".format(all_plugins))
+print("Loaded services: {}".format(all_plugins))
 
 # Run the launcher
 read_thread.start()

@@ -5,7 +5,7 @@ import typing
 # third-part imports
 
 # local imports
-from plugins import plugin
+from personal_ai.plugins import plugin
 
 
 _REGISTERED_CLIENTS: typing.List[typing.Type[plugin.Plugin]] = []

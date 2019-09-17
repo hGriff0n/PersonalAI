@@ -5,8 +5,8 @@ import typing
 # third-part imports
 
 # local imports
-import communication
-from plugins import client, plugin, service
+from personal_ai import communication
+from personal_ai.plugins import client, plugin, service
 
 
 # TODO: Work on the loading procedure
