@@ -11,6 +11,7 @@ import uuid
 # local imports
 from personal_ai import rpc
 from personal_ai import protocol
+from personal_ai.logger import Logger
 
 
 class MessageEvent(asyncio.Event):
@@ -26,8 +27,8 @@ class CommunicationHandler(object):
     Enables plugins to send a message and asynchronously "wait" for a response
     """
 
-    def __init__(self, write_queue: 'queue.Queue[rpc.Message]', logger: typing.Optional[typing.Any] = None) -> None:
-        self._logger = logger
+    def __init__(self, write_queue: 'queue.Queue[rpc.Message]', log: Logger) -> None:
+        self._log = log
         self._write_queue = write_queue
         self._waiting_messages: typing.Dict[uuid.UUID, MessageEvent] = {}
 
@@ -46,6 +47,7 @@ class CommunicationHandler(object):
         """
         self._write_queue.put(msg)
         self._waiting_messages[msg.msg_id] = MessageEvent()
+        self._log.debug("Placed msg id={} on waiting queue. Listening for response".format(msg.msg_id))
         return self._waiting_messages[msg.msg_id]
 
     def drop_message(self, msg: rpc.Message):
@@ -56,7 +58,10 @@ class CommunicationHandler(object):
         TODO: Do I need code to explicitly drop the message if a response does come in?
         """
         if msg.msg_id in self._waiting_messages:
+            self._log.debug("Stop listening for message id={}".format(msg.msg_id))
             del self._waiting_messages[msg.msg_id]
+        else:
+            self._log.warning("Attempt to drop message that no one is listening on (id={})".format(msg.msg_id))
 
     async def wait_response(self, msg: rpc.Message) -> typing.Optional[rpc.Message]:
         """
@@ -66,6 +71,7 @@ class CommunicationHandler(object):
         continuation = self.send(msg)
         await continuation.wait()
 
+        self._log.debug("Detected response on message id={}. Resuming".format(msg.msg_id))
         resp = continuation.value
         del self._waiting_messages[msg.msg_id]
         return resp
@@ -80,12 +86,16 @@ class NetworkQueue(object):
 
     SOCKET_TIMEOUT: typing.ClassVar[int] = 5
 
-    def __init__(self, socket, proto: protocol.Protocol, logger) -> None:
+    def __init__(self, socket, proto: protocol.Protocol, log) -> None:
         self._sock = socket
-        self._logger = logger
+        self._log = log
         self._protocol = proto
 
         self._sock.settimeout(NetworkQueue.SOCKET_TIMEOUT)
+
+    @property
+    def logger(self) -> Logger:
+        return self._log
 
     def send_message(self, msg: rpc.Message) -> None:
         """
@@ -93,26 +103,25 @@ class NetworkQueue(object):
         """
         packet = self._protocol.make_packet(msg)
         self._sock.sendall(packet)
-
-        # print("Sent message {}".format(msg))
+        self._log.debug("Sent message id={}".format(msg.msg_id))
 
     def get_message(self) -> typing.Optional[rpc.Message]:
         """
         Wait for a message to come in from the network
         """
         def _read(n: int) -> bytes:
-            # print("Reading {} bytes...".format(n))
             return self._sock.recv(n)
 
         try:
             msg = self._protocol.unwrap_packet(_read)
+            if msg is None:
+                self._log.warning("Failed receiving message")
+            else:
+                self._log.debug("Received message id={}".format(msg.msg_id))
 
         # If the socket gets shutdown (on windows), it may produce an error (as it's "not a socket" anymore)
         except (socket.timeout, OSError):
+            self._log.warning("Socket timeout/shutdown. Returning None")
             return None
 
-        # if msg is not None:
-        #     print("Received message {}".format(msg.msg_id))
-        # else:
-        #     print("Failed receiving message!!!")
         return msg

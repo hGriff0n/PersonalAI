@@ -12,6 +12,7 @@ import typing
 # local imports
 from personal_ai import communication
 from personal_ai import dispatcher
+from personal_ai import logger
 from personal_ai import rpc
 from personal_ai import plugins
 from personal_ai import protocol
@@ -27,11 +28,11 @@ READER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
            loop: asyncio.AbstractEventLoop,
-           done_signal: threading.Event,
-           logger: typing.Optional[typing.Any] = None) -> None:
+           done_signal: threading.Event) -> None:
     """
     Thread callback to handle messages as they are received by the plugin
     """
+    log = conn.logger
     try:
         while True:
             msg = conn.get_message()
@@ -44,28 +45,28 @@ def reader(conn: communication.NetworkQueue,
 
             if msg.resp is not None:
                 if msg.msg_id in comm.waiting_messages:
-                    print("Received response to message id={}".format(msg.msg_id))
+                    log.info("Received response to message id={}".format(msg.msg_id))
                     comm.waiting_messages[msg.msg_id].value = msg
                     loop.call_soon_threadsafe(comm.waiting_messages[msg.msg_id].set)
 
                 else:
-                    print("Received unexpected response to message {}".format(msg.msg_id))
+                    log.debug("Received unexpected response to message {}".format(msg.msg_id))
 
             else:
                 dispatch = dispatcher.get_dispatch_routine(msg.call)
                 if not dispatch:
-                    print("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
+                    log.debug("Received unexpected message {}: No endpoint registered for {}".format(msg.msg_id, msg.call))
                 else:
-                    print("Handling message id={} through plugin handle".format(msg.msg_id))
+                    log.info("Handling message id={} through plugin handle".format(msg.msg_id))
                     asyncio.run_coroutine_threadsafe(dispatch(msg, comm), loop=loop)
 
     except ConnectionResetError as e:
-        print("Lost connection to server: {}".format(e))
+        log.exception("Lost connection to server: {}".format(e))
 
     except Exception as e:
-        print("Unexpected exception while waiting for messages: {}".format(e))
+        log.exception("Unexpected exception while waiting for messages: {}".format(e))
 
-    print("Setting done signal: reader")
+    log.info("Setting done signal: reader")
     done_signal.set()
 
 
@@ -74,13 +75,13 @@ def reader(conn: communication.NetworkQueue,
 WRITER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def writer(conn: communication.NetworkQueue,
            write_queue: 'queue.Queue[rpc.Message]',
-           done_signal: threading.Event,
-           logger: typing.Optional[typing.Any] = None) -> None:
+           done_signal: threading.Event,) -> None:
     """
     Thread callback responsible for sending messages out of the plugin
 
     This enables us to avoid waiting on the write queue as it not an "async boundary"
     """
+    log = conn.logger
     while True:
         try:
             msg = write_queue.get(timeout=WRITER_TIMEOUT)
@@ -93,10 +94,10 @@ def writer(conn: communication.NetworkQueue,
             if done_signal.wait(SIGNAL_TIMEOUT):
                 return None
 
-        except Exception:
-            print("Unexpected exception in writer thread: {}".format(e))
+        except Exception as e:
+            log.exception("Unexpected exception in writer thread: {}".format(e))
 
-            print("Setting done signal: writer - {}".format(e))
+            log.info("Setting done signal: writer - {}".format(e))
             done_signal.set()
             return None
 
@@ -106,7 +107,7 @@ def writer(conn: communication.NetworkQueue,
 # Modalities should be split up into chunks that follow this behavior
 # ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
 PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
-async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event) -> None:
+async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event, log: logger.Logger) -> None:
 
     # Create a small "plugin" that periodically checks whether the done_signal has been set
     # This enables the plugin runner to exit when the reader/writer sets the signal, even if no plugins would fail then
@@ -118,6 +119,7 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
             await asyncio.sleep(PLUGIN_SLEEP)
             return not done_signal.wait(SIGNAL_TIMEOUT)
 
+    log.debug("Appending exit signaller to plugin list")
     all_plugins.append(Signaller())
 
     # Create a plugin runner that periodically runs the 'Plugin.main' entrypoint
@@ -127,10 +129,15 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
             while await plugin.main():
                 await asyncio.sleep(1)
         finally:
+            log.debug("Plugin exited. Setting done signal to close threads")
             done_signal.set()
 
     # Spawn all plugins on the event loop, cancel the active ones when one exits
-    _done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
+    log.debug("Spawning plugins: {}".format(all_plugins))
+    done, pending = await asyncio.wait([_runner(plugin) for plugin in all_plugins], return_when=asyncio.FIRST_COMPLETED)
+
+    log.debug("Plugins finished: {}".format(done))
+    log.debug("Cancelling plugins: {}".format(pending))
     for p in pending:
         p.cancel()
 
@@ -139,36 +146,62 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
         await asyncio.gather(*pending)
     except asyncio.CancelledError:
         pass
+    log.debug("Plugins cancelled")
 
 
 # TODO: Incorporate with config when I've moved totally to a "loader.py" setup
-import imp
-def import_plugins(config):
-    for p in [plugin['path'] for plugin in config.values()]:
-        plugin = imp.find_module('__init__', [p])
-        imp.load_module('__init__', *plugin)
+import importlib.abc
+import importlib.util
+import os.path
+def import_plugins(config: typing.Dict[str, str]) -> str:
+    modality_name = config.pop('name')
 
-config = {
-    'test': {
-        'path': r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\modalities\tester"
-    }
-}
-import_plugins(config)
+    print("importing from {}".format(config.get('path')))
+    module_path = os.path.join(config.pop('path'), '__init__.py')
+    spec = importlib.util.spec_from_file_location(modality_name, module_path)
+    print("Found spec: {}".format(spec))
+    module = importlib.util.module_from_spec(spec)
+
+    assert isinstance(spec.loader, importlib.abc.Loader)
+    spec.loader.exec_module(module)
+
+    return modality_name
+
 
 #
 # Loader/Runner Code
 #
 proto = protocol.JsonProtocol(None)
+log_dir = r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\logs"
+log = logger.create("loader.log", name='__loader__', log_dir=log_dir)
 
 # Connect to server
+# TODO: Add retry handling on connection errors
 addr = "127.0.0.1:6142".split(':')
+log.debug("Connecting to socket on {}".format(addr))
 sock = socket.socket()
 sock.connect((addr[0], int(addr[1])))
-sock_handler = communication.NetworkQueue(sock, proto, None)
+log.info("Listening to socket on {}".format(addr))
+
+# Load the modality
+config = {
+    'name': "tester",
+    'path': r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\modalities\tester"
+}
+modality_name = import_plugins(config)
+modality_logger = logger.create("{}.log".format(modality_name), name=modality_name, log_dir=log_dir)
 
 # Construct the communication handles
 write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
-comm = communication.CommunicationHandler(write_queue)
+comm = communication.CommunicationHandler(write_queue, modality_logger)
+sock_handler = communication.NetworkQueue(sock, proto, modality_logger)
+
+# Initialize the modality (ie. construct the plugins)
+all_plugins = plugins.initialize_loaded_modality(log, comm, log_dir)
+modality_logger.debug("Initialized modality: {}".format(all_plugins))
+
+print("Starting modality now....")
+log.info("Starting modality {}".format(modality_name))
 
 # Construct the read/write threads
 loop = asyncio.get_event_loop()
@@ -176,26 +209,24 @@ done_signal = threading.Event()
 read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, done_signal))
 write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
 
-# Load the plugins
-all_plugins = plugins.initialize_registered_plugins(comm)
-print("Loaded services: {}".format(all_plugins))
-
 # Run the launcher
 read_thread.start()
 write_thread.start()
-loop.run_until_complete(run_plugins(all_plugins, done_signal))
+loop.run_until_complete(run_plugins(all_plugins, done_signal, modality_logger))
 
 # Wait for one of the threads to exit (and then close everything done)
 done_signal.wait()
 
-print("Closing the socket connection....")
+log.debug("Closing the socket connection....")
 sock.shutdown(socket.SHUT_RDWR)        # So we don't produce 'ConnectionReset' errors in the host server
 sock.close()
 
-print("Waiting for the reading thread to finish...")
+log.debug("Waiting for the reading thread to finish...")
 read_thread.join(READER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)
 
-print("Waiting for the writing thread to finish...")
+log.debug("Waiting for the writing thread to finish...")
 write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
 
-print("All threads have exited successfully")
+print("Modality exited successfully")
+log.info("Closed modality: {}".format(modality_name))
+modality_logger.info("Modality closed successfully")

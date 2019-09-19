@@ -1,17 +1,17 @@
 
 # standard imports
 import asyncio
-import typing
 
 # third-part imports
 
 # local imports
 from personal_ai import communication
-from personal_ai.rpc import typing as rpc_types
+from personal_ai import logger
+from personal_ai.rpc.typing import PluginBase
 
 
 # TODO: There might be a better way to provide the communication handler
-class Plugin(rpc_types.PluginBase):
+class Plugin(PluginBase):
     """
     Base class for all plugins
 
@@ -19,8 +19,9 @@ class Plugin(rpc_types.PluginBase):
     Clients will overload this method to implement their "calling" code
     """
 
-    def __init__(self, comm: communication.CommunicationHandler) -> None:
+    def __init__(self, comm: communication.CommunicationHandler, log: logger.Logger) -> None:
         self._comm = comm
+        self._log = log
 
     async def main(self) -> bool:
         """

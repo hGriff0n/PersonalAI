@@ -9,6 +9,7 @@ import typing
 # local imports
 from personal_ai import communication
 from personal_ai import dispatcher
+from personal_ai import logger
 from personal_ai.plugins import plugin
 from personal_ai import rpc
 from personal_ai.rpc import registration
@@ -30,8 +31,8 @@ class Service(plugin.Plugin):
     NOTE: Registration fails if any required endpoint is not registered
     """
 
-    def __init__(self, comm: communication.CommunicationHandler):
-        super().__init__(comm)
+    def __init__(self, comm: communication.CommunicationHandler, log: logger.Logger):
+        super().__init__(comm, log)
         self._registered = False
 
 

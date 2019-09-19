@@ -24,20 +24,21 @@ Project:
     add logging.rs to server
       <- introduce logging calls where needed
 
-    copy over `common/logger.py`
-      store the created logger in the plugin/thread code
-      add in logging statements to the plugin/thread code
-
+    improve python logging
+      look at adding decorators to log method calls
+      look at logging cookbook
+      look at removing "logger" passing to threads through the comm handler?
 
   Clean up the codebase and ensure everything is well architected
-    How will I get server state data into the rpc service handlers?
     Add comments to all of the classes and the functions
     Improve the organization of the python code
     Improve the rust error handling
+    Add retry handling to python socket connect
 
   Release the new framework
     Delete the old code and move this code to the "main" sections
     Modify setup.py and launch.py to fit the new code
+      Rename client.py to launch.py
     Tidy up the code organization a little bit
 
 
