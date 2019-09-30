@@ -1,0 +1,15 @@
+log_dir: <base directory for storing logging information>
+server_address: <socket address to listen for plugin connections on>
+
+# TODO: How will we handle this if I split the device manager code up into modalities itself?
+device_manager:
+  src: <path to device manager source code base directory. Optional>
+  path: <path to device manager executable>
+  log-level: debug
+
+modalities:
+  - loader:
+      program: <loader executable>
+      source: <loader script file (such as for python)>
+    name: <name of the modality that is being loaded>
+    cli_shell: <whether to pipe modality output to the terminal after spawn-up. default=false>

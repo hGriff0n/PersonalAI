@@ -1,6 +1,9 @@
 
 # standard imports
 import asyncio
+import importlib.abc
+import importlib.util
+import os.path
 import queue
 import socket
 import threading
@@ -150,16 +153,13 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
 
 
 # TODO: Incorporate with config when I've moved totally to a "loader.py" setup
-import importlib.abc
-import importlib.util
-import os.path
-def import_plugins(config: typing.Dict[str, str]) -> str:
+def import_plugins(config: typing.Dict[str, str], log: logger.Logger) -> str:
     modality_name = config.pop('name')
 
-    print("importing from {}".format(config.get('path')))
+    log.debug("importing from {}".format(config.get('path')))
     module_path = os.path.join(config.pop('path'), '__init__.py')
     spec = importlib.util.spec_from_file_location(modality_name, module_path)
-    print("Found spec: {}".format(spec))
+    log.debug("Found spec: {}".format(spec))
     module = importlib.util.module_from_spec(spec)
 
     assert isinstance(spec.loader, importlib.abc.Loader)
@@ -172,7 +172,7 @@ def import_plugins(config: typing.Dict[str, str]) -> str:
 # Loader/Runner Code
 #
 proto = protocol.JsonProtocol(None)
-log_dir = r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\logs"
+log_dir = r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\logs"
 log = logger.create("loader.log", name='__loader__', log_dir=log_dir)
 
 # Connect to server
@@ -188,7 +188,7 @@ config = {
     'name': "tester",
     'path': r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\modalities\tester"
 }
-modality_name = import_plugins(config)
+modality_name = import_plugins(config, log)
 modality_logger = logger.create("{}.log".format(modality_name), name=modality_name, log_dir=log_dir)
 
 # Construct the communication handles
