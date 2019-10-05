@@ -45,9 +45,6 @@ class JsonProtocol(Protocol):
     Helper object to encapsulate handling parsing to/from messages
     """
 
-    def __init__(self, logger) -> None:
-        self._logger = logger
-
     def make_packet(self, msg: rpc.Message) -> bytes:
         buf = json.dumps(self._serialize(msg)).encode('utf-8')
         frame = struct.pack('>I', len(buf))
@@ -64,7 +61,4 @@ class JsonProtocol(Protocol):
         return msg.serialize()
 
     def _unserialize(self, msg: rpc.SerializedMessage, msg_class: typing.Type[Protocol.M]) -> typing.Optional[Protocol.M]:
-        decoded_msg = msg_class.from_dict(msg)
-        if decoded_msg is None and self._logger is not None:
-            self._logger.warning("Failed to decode message {} to rpc.Message type `{}`", msg, msg_class)
-        return decoded_msg
+        return msg_class.from_dict(msg)

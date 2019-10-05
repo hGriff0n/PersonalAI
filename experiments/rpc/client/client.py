@@ -168,65 +168,84 @@ def import_plugins(config: typing.Dict[str, str], log: logger.Logger) -> str:
     return modality_name
 
 
-#
-# Loader/Runner Code
-#
-proto = protocol.JsonProtocol(None)
-log_dir = r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\logs"
-log = logger.create("loader.log", name='__loader__', log_dir=log_dir)
+def connect_to_server(server_address: str, max_retries: int, timeout: float, log: logger.Logger) -> typing.Optional[socket.socket]:
+    addr = server_address.split(':')
+    log.debug("Connecting to socket on {}".format(addr))
 
-# Connect to server
-# TODO: Add retry handling on connection errors
-addr = "127.0.0.1:6142".split(':')
-log.debug("Connecting to socket on {}".format(addr))
-sock = socket.socket()
-sock.connect((addr[0], int(addr[1])))
-log.info("Listening to socket on {}".format(addr))
+    # TODO: Handle retries and connection timeouts
+    del max_retries
+    del timeout
+    sock = socket.socket()
+    sock.connect((addr[0], int(addr[1])))
+    log.info("Listening to socket on {}".format(addr))
 
-# Load the modality
-config = {
-    'name': "tester",
-    'path': r"C:\Users\ghoop\Desktop\PersonalAI\experiments\rpc\client\modalities\tester"
-}
-modality_name = import_plugins(config, log)
-modality_logger = logger.create("{}.log".format(modality_name), name=modality_name, log_dir=log_dir)
+    return sock
 
-# Construct the communication handles
-write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
-comm = communication.CommunicationHandler(write_queue, modality_logger)
-sock_handler = communication.NetworkQueue(sock, proto, modality_logger)
+def wait_and_exit(done_signal, sock, read_thread, write_thread, log):
+    done_signal.wait()
 
-# Initialize the modality (ie. construct the plugins)
-all_plugins = plugins.initialize_loaded_modality(log, comm, log_dir)
-modality_logger.debug("Initialized modality: {}".format(all_plugins))
+    log.debug("Closing the socket connection....")
+    sock.shutdown(socket.SHUT_RDWR)        # So we don't produce 'ConnectionReset' errors in the host server
+    sock.close()
 
-print("Starting modality now....")
-log.info("Starting modality {}".format(modality_name))
+    log.debug("Waiting for the reading thread to finish...")
+    read_thread.join(READER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)
 
-# Construct the read/write threads
-loop = asyncio.get_event_loop()
-done_signal = threading.Event()
-read_thread = threading.Thread(target=reader, args=(sock_handler, comm, loop, done_signal))
-write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
+    log.debug("Waiting for the writing thread to finish...")
+    write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
 
-# Run the launcher
-read_thread.start()
-write_thread.start()
-loop.run_until_complete(run_plugins(all_plugins, done_signal, modality_logger))
+def main(args, conf):
+    # Create protocol and log "global" objects
+    proto = protocol.JsonProtocol()
+    log_dir = conf.pop('log_dir')
+    log = logger.create("loader.log", name='__loader__', log_dir=log_dir)
 
-# Wait for one of the threads to exit (and then close everything done)
-done_signal.wait()
+    server_addr = conf.pop('server_address')
+    sock = connect_to_server(server_addr, 0, 0, log)
+    if sock is None:
+        log.error("Failed to connect to server on socket: {}".format(server_addr))
+        return
 
-log.debug("Closing the socket connection....")
-sock.shutdown(socket.SHUT_RDWR)        # So we don't produce 'ConnectionReset' errors in the host server
-sock.close()
+    # Load the modality
+    modality_name = import_plugins(conf, log)
+    modality_logger = logger.create("{}.log".format(modality_name), name=modality_name, log_dir=log_dir)
 
-log.debug("Waiting for the reading thread to finish...")
-read_thread.join(READER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)
+    # Construct the communication handles
+    write_queue: 'queue.Queue[rpc.Message]' = queue.Queue()
+    comm = communication.CommunicationHandler(write_queue, modality_logger)
+    sock_handler = communication.NetworkQueue(sock, proto, modality_logger)
 
-log.debug("Waiting for the writing thread to finish...")
-write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
+    # Construct the modality plugins
+    # TODO: Pass in unparsed args to this function?
+    modality_plugins = plugins.initialize_loaded_modality(args, comm, log, log_dir)
+    modality_logger.debug("Initialized modality plugins: {}".format(modality_plugins))
+    log.info("Starting modality {}....".format(modality_name))
 
-print("Modality exited successfully")
-log.info("Closed modality: {}".format(modality_name))
-modality_logger.info("Modality closed successfully")
+    # Construct the read/write threads
+    async_loop = asyncio.get_event_loop()
+    done_signal = threading.Event()
+    read_thread = threading.Thread(target=reader, args=(sock_handler, comm, async_loop, done_signal))
+    write_thread = threading.Thread(target=writer, args=(sock_handler, write_queue, done_signal))
+
+    # Run the plugins and threads
+    read_thread.start()
+    write_thread.start()
+    async_loop.run_until_complete(run_plugins(modality_plugins, done_signal, modality_logger))
+
+    # Wait for one of the threads to exit (and then close everything done)
+    wait_and_exit(done_signal, sock, read_thread, write_thread, log)
+    log.info("Successfully closed modality: {}".format(modality_name))
+    modality_logger.info("Modality closed successfully")
+
+# TODO: Need a way to indicate that the logger should also print to the terminal
+if __name__ == "__main__":
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument('name', help="Name of the modality being loaded")
+    p.add_argument('--server_address', help="IP address that the device manager is listening on")
+    p.add_argument('--log_dir', help='Base directory for local log storage')
+    p.add_argument('--source', help="Base directory for the modality definition", dest='path')
+
+    conf, args = p.parse_known_args()
+    main(args, vars(conf))

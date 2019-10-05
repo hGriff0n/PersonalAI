@@ -1,6 +1,7 @@
 
 # standard imports
 import asyncio
+import typing
 
 # third-part imports
 
@@ -19,9 +20,11 @@ class Plugin(PluginBase):
     Clients will overload this method to implement their "calling" code
     """
 
-    def __init__(self, comm: communication.CommunicationHandler, log: logger.Logger) -> None:
+    def __init__(self, args: typing.List[str], comm: communication.CommunicationHandler, log: logger.Logger) -> None:
         self._comm = comm
         self._log = log
+
+        _unused = args
 
     async def main(self) -> bool:
         """

@@ -31,8 +31,8 @@ class Service(plugin.Plugin):
     NOTE: Registration fails if any required endpoint is not registered
     """
 
-    def __init__(self, comm: communication.CommunicationHandler, log: logger.Logger):
-        super().__init__(comm, log)
+    def __init__(self, args: typing.List[str], comm: communication.CommunicationHandler, log: logger.Logger):
+        super().__init__(args, comm, log)
         self._registered = False
 
 

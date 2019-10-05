@@ -1,7 +1,9 @@
 
 # standard imports
 import argparse
+import itertools
 import os
+import re
 import subprocess
 import sys
 import types
@@ -13,12 +15,14 @@ import yaml
 # local imports
 
 
-def build(conf):
+def build(args, conf):
     """
     Build the device-manager server
 
     TODO: Should this also build the python sutff?
     """
+    _unused = args
+
     launch_dir = os.getcwd()
 
     os.chdir(conf.get('device_manager', {}).pop('src'))
@@ -26,13 +30,14 @@ def build(conf):
     os.chdir(launch_dir)
     return ret
 
-def build_python_libs(conf):
+def build_python_libs(args, conf):
     """
     Build and install the python client module
 
     NOTE: This isn't really applicable for deployment, only for development
+    TODO: Produce a system which will check for the existence of the "{lang}" modules, and download+install if not
     """
-    del conf  # Unused for now
+    _unused = (args, conf) # Unused for now
     launch_dir = os.getcwd()
 
     # TODO: This should probably be specified in the config
@@ -41,12 +46,14 @@ def build_python_libs(conf):
     os.chdir(launch_dir)
     return ret
 
-def clean(conf):
+def clean(args, conf):
     """
     Clear out any "cruft" directories that may accumulate files while running
 
     This is particularly useful to clean out the log directory
     """
+    _unused = args
+
     if 'log-dir' not in conf:
         conf['log-dir'] = "./log"
 
@@ -63,10 +70,7 @@ def escape_arg(arg) -> str:
     # TODO: Need a way to escape strings
     if isinstance(arg, list) or isinstance(arg, types.GeneratorType):
         return ','.join(arg)
-    arg = str(arg)
-    # if ' ' in arg:
-    #     return "\"{}\"".format(arg)
-    return arg
+    return str(arg)
 
 def spawn_with_args(exe_path: str, *args, **kwargs):
     """
@@ -86,28 +90,40 @@ def spawn_with_args(exe_path: str, *args, **kwargs):
     return subprocess.Popen(program, shell=False, stdout=subprocess.PIPE)
 
 modality_procs = []
-def launch_modality(conf):
+def launch_modality(args, conf):
     """
     Launch the python modality specified by the config
 
-    TODO: Work on this configuration a lot (This is kinda specific to python)
+    TODO: Abstract the configuration process to handle "non-python" clients?
+    NOTE: Modality configuration must come through the config file (overriding from command line is infeasible in multi-modality launches)
     """
+    _unused = args
+    system_args = []
+    if 'server_address' in conf:
+        system_args.append("--server_address={}".format(conf.get('server_address')))
+    if 'log_dir' in conf:
+        system_args.append("--log_dir={}".format(conf.get('log_dir')))
+
     for modality in conf.pop('modalities', []):
+        name = modality.pop('name')
+
+        # Extract any loader-specific configuration for the modality (this cannot be overridden from the command line)
         loader = modality.pop('loader')
         loader_path = loader.pop('program')
-        loader_args = [loader.pop('source')]
+        loader_args = [loader.pop('source')] + system_args
         loader_args.extend("--{}={}".format(k, escape_arg(v)) for k, v in loader.items())
 
-        name = modality.pop('name')
         modality_procs.append(spawn_with_args(loader_path, *filter(None, loader_args), name, **modality))
 
 manager_proc = None
-def launch_server(conf):
+def launch_server(args, conf):
     """
     Launch the server specified by the configs
 
     TODO: Only one of these should be runnable per device, figure out how to prevent that
     """
+    _unused = args
+
     manager = conf.get('device_manager')
     if manager is None:
         print("Trying to launch device manager without launch configuration given")
@@ -126,22 +142,29 @@ def set_debug(debug):
     """
     Initialize the surrounding environment to provide debug information
     """
-    os.environ["RUST_BACKTRACE"] = (debug and "1" or "0")
+    def _debug(args, conf):
+        _unused = args
+
+        os.environ["RUST_BACKTRACE"] = (debug and "1" or "0")
+
+    return _debug
+
+# Allowed commands
+COMMANDS = {
+    'clean': clean,
+    'debug': set_debug(True),
+    'build': build,
+    'install': build_python_libs,
+    'launch': launch_modality,
+    'serve': launch_server,
+}
 
 def main(args, conf):
-    commands = {
-        'clean': lambda: clean(conf),
-        'debug': lambda: set_debug(True),
-        'build': lambda: build(conf),
-        'install': lambda: build_python_libs(conf),
-        'launch': lambda: launch_modality(conf),
-        'serve': lambda: launch_server(conf),
-    }
-
     # run all of the specified commands
-    for mode in sys.argv[1:]:
-        if mode in commands:
-            ret = commands[mode]()
+    # TODO: This won't work for passing arguments to the modalities/etc. through the command line
+    for mode in conf.pop('commands', []):
+        if mode in COMMANDS:
+            ret = COMMANDS[mode](args, conf)
             if ret is not None and ret != 0:
                 return ret
         else:
@@ -169,16 +192,26 @@ def main(args, conf):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument('-c', default="./conf.yaml", help="config file path")
-    p.add_argument('log_dir', help="Base directory for local log storage")
-    p.add_argument('server_address', help="IP address that the server is listening on")
+    p.add_argument('--log_dir', help="Base directory for local log storage")
+    p.add_argument('--server_address', help="IP address that the device manager should be listening on")
 
     # Parse all of the known arguments (defined above)
     conf, args = p.parse_known_args()
-    conf = vars(conf)
+    cmd_conf = vars(conf)
 
-    # Load any unset values from the config file (cli trumps config)
-    config_file_path = conf.pop('c')
+    # Load any unset values from the config file (cli trumps config, except for 'commands')
+    # We have to be careful to remove unset cli arguments as they will always end up overriding the configuration
+    # TODO: This should probably extend to default values too
+    config_file_path = cmd_conf.pop('c')
     with open(config_file_path) as f:
-        conf = {**yaml.safe_load(f), **conf}
+        conf = {**yaml.safe_load(f), **dict(filter(lambda e: e[1] is not None, cmd_conf.items()))}
+
+    # Allow the specification of a bunch of a sequence of commands to run in a way
+    # That still allows passing "positional" arguments to the modality/loader
+    # argparse would seem to work by setting the 'choices' parameter, however that will
+    # Throw an exception on the first item that "fails" the choices check.
+    # Additionally, we only want to take commands until the first "non-command" item
+    conf['commands'] = list(itertools.takewhile(lambda arg: arg in COMMANDS, args))
+    del args[:len(conf['commands'])]
 
     main(args, conf)
