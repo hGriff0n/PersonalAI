@@ -31,6 +31,9 @@ def create(file: str,
     return logger
 
 def dummy_logger(*args, **kwargs):
+       """
+       Create a /dev/null logger that just swallows everything sent to it
+       """
        log = logging.getLogger('NULL_dummy__NULL')
        log.addHandler(logging.NullHandler())
        return log

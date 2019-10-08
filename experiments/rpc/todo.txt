@@ -12,10 +12,6 @@ Project:
       add `add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b>`
       -> basically can just take server.rs (+ others?)
 
-    figure out how to specify plugin loading configuration
-      look at removing "service/client" registration macro code and replacing with config
-        <- endpoint registration (and mapping?) might still need to exist
-
   register modalities/devices with the Syncer
     add 'add_modality' and 'kill_modality' handles to server
       add modality tracking

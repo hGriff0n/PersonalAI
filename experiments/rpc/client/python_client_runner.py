@@ -18,6 +18,7 @@ from personal_ai import dispatcher
 from personal_ai import logger
 from personal_ai import rpc
 from personal_ai import plugins
+from personal_ai.plugins import plugin as plugin_types
 from personal_ai import protocol
 
 
@@ -25,8 +26,6 @@ from personal_ai import protocol
 SIGNAL_TIMEOUT = 0.3
 
 
-# TODO: Move to `launch.py` when that is created
-# NOTE: This is provided by the library/loader
 READER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def reader(conn: communication.NetworkQueue,
            comm: communication.CommunicationHandler,
@@ -73,8 +72,6 @@ def reader(conn: communication.NetworkQueue,
     done_signal.set()
 
 
-# TODO: Move to `launch.py` when that is created
-# NOTE: This is provided by the library/loader
 WRITER_TIMEOUT = communication.NetworkQueue.SOCKET_TIMEOUT
 def writer(conn: communication.NetworkQueue,
            write_queue: 'queue.Queue[rpc.Message]',
@@ -105,12 +102,17 @@ def writer(conn: communication.NetworkQueue,
             return None
 
 
-# TODO: Move to `launch.py` when that is created
-# NOTE: As soon as one plugin "completes", all plugins in the modality will "exit" (reader+writer will shut down)
-# Modalities should be split up into chunks that follow this behavior
-# ie. If two plugins should continue running if the other fails, that should be represented as 2 modalities
 PLUGIN_SLEEP = WRITER_TIMEOUT - SIGNAL_TIMEOUT - SIGNAL_TIMEOUT
 async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: threading.Event, log: logger.Logger) -> None:
+    """
+    Manage the running of modality classes in the asyncio event loop
+
+    This spawns up an async runner that repeatedly calls the class's `main` method until an exception is
+    Thrown or a falsey value is returned. As soon as any one class exits, this function will forcefully
+    Close all functions in the modality (not responsible for closing the connection to the device manager).
+
+    NOTE: If there are plugins that shouldn't exit whenever the other closes, they should be put in different modalities
+    """
 
     # Create a small "plugin" that periodically checks whether the done_signal has been set
     # This enables the plugin runner to exit when the reader/writer sets the signal, even if no plugins would fail then
@@ -152,8 +154,14 @@ async def run_plugins(all_plugins: typing.List[plugins.Plugin], done_signal: thr
     log.debug("Plugins cancelled")
 
 
-# TODO: Incorporate with config when I've moved totally to a "loader.py" setup
 def import_plugins(config: typing.Dict[str, str], log: logger.Logger) -> str:
+    """
+    Helper method to locate and import a plugin from the specified directory
+    The directory to load from is stored in the `path` field of the config dict
+    In the directory, a singular __init__.py file is required that loads in all of the modality classes
+
+    TODO: Find a way to "locate" the plugin based of of the name only?
+    """
     modality_name = config.pop('name')
 
     log.debug("importing from {}".format(config.get('path')))
@@ -168,20 +176,35 @@ def import_plugins(config: typing.Dict[str, str], log: logger.Logger) -> str:
     return modality_name
 
 
-def connect_to_server(server_address: str, max_retries: int, timeout: float, log: logger.Logger) -> typing.Optional[socket.socket]:
+def connect_to_server(server_address: str,
+                      max_retries: int,
+                      timeout: float,
+                      log: logger.Logger) -> typing.Optional[socket.socket]:
+    """
+    Helper method around the initial device_manager connection
+
+    TODO: Handle retries and connection timeouts
+    """
+    del max_retries
+    del timeout
+
     addr = server_address.split(':')
     log.debug("Connecting to socket on {}".format(addr))
 
-    # TODO: Handle retries and connection timeouts
-    del max_retries
-    del timeout
     sock = socket.socket()
     sock.connect((addr[0], int(addr[1])))
     log.info("Listening to socket on {}".format(addr))
 
     return sock
 
-def wait_and_exit(done_signal, sock, read_thread, write_thread, log):
+def wait_and_exit(done_signal: threading.Event,
+                  sock: socket.socket,
+                  read_thread: threading.Thread,
+                  write_thread: threading.Thread,
+                  log: logger.Logger) -> None:
+    """
+    Wait for the done signal to be triggered and then close of all the threads and connections
+    """
     done_signal.wait()
 
     log.debug("Closing the socket connection....")
@@ -194,10 +217,24 @@ def wait_and_exit(done_signal, sock, read_thread, write_thread, log):
     log.debug("Waiting for the writing thread to finish...")
     write_thread.join(WRITER_TIMEOUT + 2 * SIGNAL_TIMEOUT + 1)  # Because of the write queue timeout delay
 
-def main(args, conf):
+def initialize_modality(args: typing.List[str],
+                        comm: communication.CommunicationHandler,
+                        log: logger.Logger,
+                        log_dir: str) -> typing.Optional[typing.List[plugin_types.Plugin]]:
+    """
+    Helper method around `initialize_loaded_modality` to handle possible exceptions from client constructors
+    """
+    try:
+        return plugins.initialize_loaded_modality(args, comm, log, log_dir)
+
+    except Exception as e:
+        log.error("Failed to initialize plugins: {}".format(e))
+        return None
+
+def main(args: typing.List[str], conf: typing.Dict[str, typing.Any]):
     # Create protocol and log "global" objects
     proto = protocol.JsonProtocol()
-    log_dir = conf.pop('log_dir')
+    log_dir = os.path.normpath(conf.pop('log_dir'))
     log = logger.create("loader.log", name='__loader__', log_dir=log_dir)
 
     server_addr = conf.pop('server_address')
@@ -217,7 +254,10 @@ def main(args, conf):
 
     # Construct the modality plugins
     # TODO: Pass in unparsed args to this function?
-    modality_plugins = plugins.initialize_loaded_modality(args, comm, log, log_dir)
+    modality_plugins = initialize_modality(args, comm, log, log_dir)
+    if modality_plugins is None:
+        return
+
     modality_logger.debug("Initialized modality plugins: {}".format(modality_plugins))
     log.info("Starting modality {}....".format(modality_name))
 

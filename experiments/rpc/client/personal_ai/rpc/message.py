@@ -41,6 +41,10 @@ class Serializable(object):
     M = typing.TypeVar('M', bound="Serializable")
     @classmethod
     def from_dict(kls: typing.Type['Serializable.M'], msg_dict: SerializedMessage) -> typing.Optional['Serializable.M']:
+        """
+        Class method to construct a type instance and populated it from a dictionary
+        """
+
         obj = kls()
         if not obj.deserialize(msg_dict):
             return None

@@ -28,7 +28,7 @@ def associate_endpoints_with_service(kls: typing.Type[rpc_type.PluginBase]):
     Helper function to map the active list of registered endpoints to the specific plugin service
 
     NOTE: This is run after the endpoint decorator is run on the endpoints.
-    This is why
+    This is why the `__ACTIVE_ENDPOINT_REGISTRATIONS` variable is required and used
     This is acceptable as `service` should be used to indicate a "specific" service, not a family of services
     """
     global __ACTIVE_ENDPOINT_REGISTRATIONS
@@ -88,6 +88,10 @@ def endpoint(_func: typing.Optional[rpc_type.AllEndpointTypes] = None,
     From the plugin perspective, endpoints should take in a specific argument type and return a specific return type
     From the dispatcher perspective, endpoints should take in a `rpc.Message` and return a `rpc.Message`
     This decorator automatically inserts the steps required to translate between the two perspective
+
+    By default, the name that the endpoint gets bound to (ie. is registered with the device manager as) is the method name.
+    However setting the `name` parameter allows for using a different (often shorter) name instead.
+    Setting `required=True` will cause the service to fail if registration of that endpoint could not succeed
 
     NOTE: Decorators are only run once!!! This will not work with inheritance
     This is acceptable as an `endpoint` should represent a specific callable behavior, sharing makes no sense

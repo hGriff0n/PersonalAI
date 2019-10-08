@@ -24,7 +24,9 @@ class Service(plugin.Plugin):
     """
     Definition class which marks all plugins that inherit from it as a service
     Services export rpc endpoints to the wider network, so that other clients can be called
+
     NOTE: This class should only be inherited on leaf nodes
+    TODO: Is there anyway to detect when this isn't happening?
 
     This class automatically defines `main` to do a "register_app" call, which exports it's endpoints
     To provide "main" service, overload the `run` method
@@ -36,7 +38,6 @@ class Service(plugin.Plugin):
         self._registered = False
 
 
-    # TODO: Is there anyway to detect whether this is a direct inheritance
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
@@ -47,7 +48,11 @@ class Service(plugin.Plugin):
 
     async def main(self) -> bool:
         """
-        Registers the server in the network and then
+        NOTE: Services should overload `run` to perform any "recurrent" operations
+
+        Automatically performs a `register_app` call on the first pass, initializing the
+        Service in the device manager. After registration, the endpoints will automatically be invoked
+        Whenever the modality recieves a request for them (on success). Calls `run` all other passes
         """
         if not self._registered:
             self._registered = await self._register()
@@ -57,12 +62,11 @@ class Service(plugin.Plugin):
 
     async def run(self):
         """
-        Entrypoint for any code that app servers need to be run semi-regularly
+        Entrypoint for any code that app servers need to be run semi-regularly. Defaults to doing nothing.
         """
         await asyncio.sleep(5)
         return True
 
-    # TODO: Generate the message ids
     async def _register(self):
         """
         Construct and perform the registration calls to the network
@@ -78,14 +82,11 @@ class Service(plugin.Plugin):
         registered_handles = []
         if resp.resp and 'registered' in resp.resp:
             registered_handles.extend(resp.resp['registered'])
-        # print("Registered handles for service {}: {}".format(type(self), registered_handles))
 
         # Check that all required handles are registered (if any)
         # If some handle is required but fails to register, then deregister the whole app
         broken_endpoints = [handle for handle in required if handle not in registered_handles]
         if len(broken_endpoints) > 0:
-            # print("Failure to register required handles for service {}: {}".format(type(self), broken_endpoints))
-
             # TODO: Explicit `deregister` is not implemented
             # deregister_id = "foo"
             # self._comm.send(rpc.Message(call="deregister_app", args={'handles': registered_handles}, msg_id="foo"))
