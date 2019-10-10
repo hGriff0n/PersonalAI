@@ -1,6 +1,7 @@
 
 // #[macro_use] extern crate log;
 mod errors;
+mod logging;
 mod protocol;
 #[macro_use] mod rpc;
 mod state;
@@ -17,6 +18,8 @@ mod registration_service;
 use std::net;
 
 // third-party imports
+use clap;
+use log::*;  // As log doesn't play nice with 2018 rust (https://github.com/rust-lang/rust/issues/54642)
 use tokio::prelude::*;
 
 // local imports
@@ -31,8 +34,14 @@ use crate::rpc::Service;
 //
 
 fn main() {
-    let addr = "127.0.0.1:6142".parse::<net::SocketAddr>()
-        .expect("Failed to parse hardcoded socket address");
+    let args = load_configuration();
+    logging::launch(&args).expect("Failed to initialize logging");
+
+    let addr = args.value_of("service_address")
+        .unwrap_or("127.0.0.1:6142")
+        .parse::<net::SocketAddr>()
+        .expect("Value of `service_address` was not a valid socket address");
+    info!("Device Manager listening on socket address: {:?}", addr);
 
     // let device_manager = DeviceManager::new();
     let client_tracker = std::sync::Arc::new(state::clients::ClientTracker::new());
@@ -175,4 +184,25 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
         });
 
     tokio::run(server);
+}
+
+fn load_configuration<'a>() -> clap::ArgMatches<'a> {
+    let app = clap::App::new("Device Manager")
+        .version("0.2")
+        .author("Grayson Hooper <ghooper96@gmail.com>")
+        .about("Manages device state and communication");
+
+    // Add command line arguments
+    let app = add_server_args(app);
+    let app = logging::add_args(app);
+
+    app.get_matches()
+}
+
+fn add_server_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
+    app.arg(clap::Arg::with_name("service_address")
+        .long("service_address")
+        .value_name("IP")
+        .help("IP:port address that the device manager will listen for connections on")
+        .takes_value(true))
 }
