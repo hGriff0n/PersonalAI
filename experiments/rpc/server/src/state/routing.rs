@@ -13,12 +13,21 @@ use crate::rpc;
 // Implementation
 //
 
+/*
+ * Struct which tracks information about sent messages that are waiting a response
+ * Once the response is received, the response should be sent on the `continuation`
+ */
 struct InFlightMessage {
     pub server: net::SocketAddr,
     pub waiter: net::SocketAddr,
     pub continuation: oneshot::Sender<rpc::Message>,
 }
 
+/*
+ * Structure which tracks the status of all messages currently active in the system (that the manager knows about)
+ * Tracks all of the in-flight messages to enable forwarding any responses back to the appropriate handler
+ * Tracks all messages that a connection is handling and waiting for (for if the connection gets dropped)
+ */
 pub struct MessageRouter {
     // Tracker of all messages currently in-flight and their continuation handles (for forwarding)
     in_flight: sync::Arc<sync::Mutex<collections::HashMap<uuid::Uuid, InFlightMessage>>>,
@@ -37,6 +46,7 @@ impl MessageRouter {
         }
     }
 
+    // Insert a "in-flight" async watcher for the given msg_id
     pub fn wait_for_message(&self, msg_id: uuid::Uuid, from: net::SocketAddr, to: net::SocketAddr)
         -> oneshot::Receiver<rpc::Message>
     {
@@ -68,6 +78,8 @@ impl MessageRouter {
         rec
     }
 
+    // Remove all messages from MessageRouter tracking that the specified client is involved in
+    // As they will no longer be handling any of those messages (as we've dropped the connection)
     pub fn drop_client(&self, client: net::SocketAddr) {
         // Drop all `Sender` handles for messages that this client is handling
         // This has the effect of immediately completing any forwarding requests with an Error
@@ -95,6 +107,8 @@ impl MessageRouter {
         }
     }
 
+    // Extract the in-flight async watcher for the specified message if there is one
+    // Makes sure to remove the message from the "in-flight" tracker
     pub fn forward_message(&self, msg_id: uuid::Uuid) -> Option<oneshot::Sender<rpc::Message>> {
         // Extract the sender end from the map
         if let Some(msg) = self.in_flight

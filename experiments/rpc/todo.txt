@@ -23,8 +23,6 @@ Project:
       need to collect device data and forward it on too
 
   Clean up the codebase and ensure everything is well architected
-    Add comments to all of the classes and the functions
-    Improve the organization of the python code
     Improve the rust error handling
     Add retry handling to python socket connect
 
@@ -46,6 +44,11 @@ Project:
 Improvements:
   Create a way to call internal functions through the rpc channel
     <- do server internal computation by calling the rpc endpoint (gets dispatched to server)
+
+  Create a way to dynamically load modules into the device_manager
+    This would also allow for specifying command-line arguments (if possible)
+      might have to setup some config system (or side-rpc channel, etc.)
+
   Integrate with monitoring
     find monitoring framework
       -> https://crates.io/crates/metered

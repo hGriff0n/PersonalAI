@@ -36,6 +36,8 @@ impl RegistrationService {
         }
     }
 
+    // TODO: Improve naming/function split
+    // Helper method to  improve chaining in the rpc service implementation
     fn register_app_impl(&self, server: sync::Arc<state::clients::Client>, app_address: net::SocketAddr, handles: &[String])
         -> Vec<String>
     {

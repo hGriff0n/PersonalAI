@@ -15,6 +15,11 @@ use crate::protocol;
 // Implementation
 //
 
+/*
+ * This class is meant to handle the process of receiving an rpc handle request and dispatching
+ * it to whatever function was registered for that handle. The class is set up to allow for
+ * the dispatch function to forward the message on to some other node if necessary
+ */
 #[derive(Clone)]
 pub struct Dispatcher {
     handles: sync::Arc<

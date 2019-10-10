@@ -75,7 +75,7 @@ pub fn launch<'a>(args: &'a clap::ArgMatches) -> Result<(), fern::InitError> {
     Ok(())
 }
 
-// Extract the expected arguments into the clap::App
+// Register logging specific command line arguments with clap::App
 pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
     use clap::Arg;
 

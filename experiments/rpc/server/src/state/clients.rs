@@ -14,6 +14,11 @@ use crate::rpc;
 // Implementation
 //
 
+/*
+ * Structure which holds all information describing a specific connection to the device manager
+ *
+ * If messages need to be written to the connection, the should be put on the `write_queue`
+ */
 pub struct Client {
     pub write_queue: mpsc::UnboundedSender<rpc::Message>,
 
@@ -36,6 +41,8 @@ impl Client {
         }
     }
 
+    // Helper method to send the signal to drop the client connection
+    // This ensures that the connection is only ever dropped once
     pub fn send_close_signal(&self) {
         if let Some(signal) = self.close_signal
             .lock()
@@ -46,7 +53,7 @@ impl Client {
         }
     }
 
-    // Exit callback interface
+    // Add a function to be run when the client is shutdown
     pub fn on_exit<F>(&self, func: F)
         where F: Fn() -> Result<(), errors::Error> + Send + Sync + 'static
     {
@@ -56,6 +63,8 @@ impl Client {
             .push(Box::new(func))
     }
 
+    // Run all of the registered callbacks
+    // This ensures that the callbacks are only ever run once
     pub fn run_exit_callbacks(&self) -> Result<(), errors::Error> {
         let mut callbacks = self.exit_callbacks
             .write()
@@ -80,6 +89,9 @@ impl Client {
     }
 }
 
+/*
+ * Structure which tracks all connnections and the socket address they are connected on
+ */
 pub struct ClientTracker {
     active_clients: sync::Arc<sync::RwLock<collections::HashMap<net::SocketAddr, sync::Arc<Client>>>>,
 }
@@ -91,7 +103,7 @@ impl ClientTracker {
         }
     }
 
-    // Client tracking interface (add/get/del)
+    // Add a client to the tracking map
     pub fn connect_client(
         &self,
         addr: net::SocketAddr,
@@ -108,6 +120,7 @@ impl ClientTracker {
         client
     }
 
+    // Retrieve the client that is connected on the passed socket address
     pub fn get_client(&self, addr: net::SocketAddr) -> Option<sync::Arc<Client>> {
         self.active_clients
             .read()
@@ -116,6 +129,7 @@ impl ClientTracker {
             .and_then(|client| Some(client.clone()))
     }
 
+    // Close the client on the specific socket address
     pub fn drop_client(&self, addr: net::SocketAddr) -> Result<(), errors::Error> {
         if let Some(client) = self.active_clients
                                   .write()

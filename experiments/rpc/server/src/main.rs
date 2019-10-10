@@ -68,6 +68,7 @@ fn main() {
 }
 
 // TODO: Improve error handling?
+// Spawn the device manager server of the specified address and start handling connections
 fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
          client_tracker: std::sync::Arc<state::clients::ClientTracker>,
          msg_router: std::sync::Arc<state::routing::MessageRouter>,
@@ -186,6 +187,7 @@ fn serve(dispatcher: std::sync::Arc<rpc::dispatch::Dispatcher>,
     tokio::run(server);
 }
 
+// Parse any command line arguments
 fn load_configuration<'a>() -> clap::ArgMatches<'a> {
     let app = clap::App::new("Device Manager")
         .version("0.2")
@@ -199,6 +201,7 @@ fn load_configuration<'a>() -> clap::ArgMatches<'a> {
     app.get_matches()
 }
 
+// Register serving specific command line args to clap
 fn add_server_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
     app.arg(clap::Arg::with_name("service_address")
         .long("service_address")

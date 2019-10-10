@@ -16,8 +16,6 @@ use crate::protocol;
 
 // Helper macro to automatically create a serde struct of the given elements
 // This struct will be used by rpc endpoints to define arguments and return values
-// TODO: Is there a way to enable `rpc_schema! Type { Fields* }`?
-// TODO: Is there a way to use this as `rpc_macros::rpc_schema!`?
 #[macro_export]
 macro_rules! rpc_schema {
     ($name:ident { $($arg:ident: $type:ty),+ }) => {
