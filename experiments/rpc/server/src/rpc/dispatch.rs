@@ -69,14 +69,14 @@ impl Dispatcher {
             )
             .unwrap()
             // Transform any error in the handler into an error message
-            .or_else(|err| {
+            .or_else(move |err| {
                 let err: &dyn failure::Fail = &err;
                 let error_msg = types::ErrorMessage{
                     error: format!("{}", err),
                     chain: err.iter_causes().map(|cause| format!("{}", cause)).collect()
                 };
 
-                info!("Dispatch for Message id={} failed: {:?}", error_msg);
+                info!("Dispatch for Message id={} failed: {:?}", msg_id, error_msg);
                 let error_send =
                     <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg).unwrap();
                 futures::future::ok(Some(error_send))
