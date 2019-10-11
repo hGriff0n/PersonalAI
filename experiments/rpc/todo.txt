@@ -1,7 +1,5 @@
 
 Project:
-  Add log calls to the device manager
-
   Implement routing of messages
     implement deregister
       add handle for `deregister` request

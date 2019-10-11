@@ -5,7 +5,7 @@ server_address: <socket address to listen for plugin connections on>
 device_manager:
   src: <path to device manager source code base directory. Optional>
   path: <path to device manager executable>
-  log-level: debug
+  log_level: debug
 
 modalities:
   - loader:

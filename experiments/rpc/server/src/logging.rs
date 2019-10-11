@@ -11,12 +11,12 @@ use log;
 // Extract the "module" arguments and spawn the logging instance
 // TODO: Convert to using the 'errors' module
 pub fn launch<'a>(args: &'a clap::ArgMatches) -> Result<(), fern::InitError> {
-    let level = args.value_of("log-level")
+    let level = args.value_of("log_level")
         .unwrap_or("warn")
         .parse::<log::LevelFilter>()
         .map_err(|_err| fern::InitError::Io(Error::new(ErrorKind::NotFound, "Log level not found in configuration")))?;
 
-    let log_dir = args.value_of("log-dir")
+    let log_dir = args.value_of("log_dir")
         .unwrap_or("./log");
     {
         let log_dir_path = std::path::Path::new(&log_dir);
@@ -53,7 +53,8 @@ pub fn launch<'a>(args: &'a clap::ArgMatches) -> Result<(), fern::InitError> {
         .level_for("device_manager", level)
         .chain(file_logger);
 
-    if args.is_present("stdio-log") {
+    // Add an additional log "fan" to print stuff to stdout if requested
+    if args.is_present("stdio_log") {
         let io_logger = fern::Dispatch::new()
             .format(move |out, message, record| {
                 out.finish(format_args!(
@@ -79,16 +80,16 @@ pub fn launch<'a>(args: &'a clap::ArgMatches) -> Result<(), fern::InitError> {
 pub fn add_args<'a, 'b>(app: clap::App<'a, 'b>) -> clap::App<'a, 'b> {
     use clap::Arg;
 
-    app.arg(Arg::with_name("log-level")
-            .long("log-level")
+    app.arg(Arg::with_name("log_level")
+            .long("log_level")
             .value_name("LEVEL")
             .help("Logging message output level")
             .takes_value(true))
-        .arg(Arg::with_name("stdio-log")
-            .long("stdio-log")
+        .arg(Arg::with_name("stdio_log")
+            .long("stdio_log")
             .help("Control whether messages should be printed to stdout"))
-        .arg(Arg::with_name("log-dir")
-            .long("log-dir")
+        .arg(Arg::with_name("log_dir")
+            .long("log_dir")
             .help("Log directory location")
             .value_name("DIR")
             .takes_value(true))

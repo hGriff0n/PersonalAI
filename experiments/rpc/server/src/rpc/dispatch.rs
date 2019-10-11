@@ -4,6 +4,7 @@ use std::{collections, net, sync};
 
 // third-party imports
 use failure;
+use log::*;
 
 // local imports
 use crate::errors;
@@ -40,6 +41,10 @@ impl Dispatcher {
     pub fn dispatch(&self, mut rpc_call: types::Message, caller: net::SocketAddr)
         -> impl futures::Future<Item=types::Message, Error=()>
     {
+        let msg_id = rpc_call.msg_id.clone();
+        let call = rpc_call.call.clone();
+        info!("Dispatching Message id={} to handler for rpc endpoint {}", msg_id, call);
+
         // Extract the handle from the handles map, making sure we release the RWLock before calling it
         // This is necessary for `register_app`, etc. as they require write access to the handles map
         // TODO: This will eventually just be the `self.handles`
@@ -53,7 +58,10 @@ impl Dispatcher {
         use futures::future::Future;
         handle
             // Call the registerd function if one was found
-            .and_then(|handle| Some(handle(caller, rpc_call.clone())))
+            .and_then(|handle| {
+                debug!("Handle found for endpoint `{}`. Sending Message id={} to handle", call, msg_id);
+                Some(handle(caller, rpc_call.clone()))
+            })
             // If no function was registered, produce an error indicating it
             .or_else(||
                 Some(Box::new(futures::future::err(
@@ -67,6 +75,8 @@ impl Dispatcher {
                     error: format!("{}", err),
                     chain: err.iter_causes().map(|cause| format!("{}", cause)).collect()
                 };
+
+                info!("Dispatch for Message id={} failed: {:?}", error_msg);
                 let error_send =
                     <protocol::JsonProtocol as protocol::RpcSerializer>::to_value(error_msg).unwrap();
                 futures::future::ok(Some(error_send))

@@ -1,4 +1,8 @@
 
+pub mod dispatch;
+mod service;
+#[macro_use] mod types;  // NOTE: The `[macro_use]` is required to get access to `rpc_schema!`
+
 // standard imports
 
 // third-party imports
@@ -6,10 +10,6 @@
 // local imports
 
 // Interface imports
-pub mod dispatch;
-mod service;
-#[macro_use] mod types;  // NOTE: The `[macro_use]` is required to get access to `rpc_schema!`
-
 pub use service::*;
 pub use types::*;
 

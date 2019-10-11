@@ -3,6 +3,7 @@
 use std::{collections, net, sync};
 
 // third-party imports
+use log::*;
 use tokio::sync::oneshot;
 use uuid;
 
@@ -75,12 +76,15 @@ impl MessageRouter {
             .or_insert(Vec::new())
             .push(msg_id);
 
+        info!("Registered Message id={} as in-flight from {} to {}", msg_id, from, to);
         rec
     }
 
     // Remove all messages from MessageRouter tracking that the specified client is involved in
     // As they will no longer be handling any of those messages (as we've dropped the connection)
     pub fn drop_client(&self, client: net::SocketAddr) {
+        info!("Dropping all in-flight messages to/from client {}", client);
+
         // Drop all `Sender` handles for messages that this client is handling
         // This has the effect of immediately completing any forwarding requests with an Error
         // NOTE: I could also get the same effect by sending out the error message here
@@ -88,6 +92,7 @@ impl MessageRouter {
             let (_, msgs) = o.remove_entry();
             let mut in_flight = self.in_flight.lock().unwrap();
             for msg in msgs {
+                debug!("Dropping in-flight Message id={}. Client closed", msg);
                 in_flight.remove(&msg);
             }
         }
@@ -99,7 +104,9 @@ impl MessageRouter {
             let (_, msgs) = o.remove_entry();
             let mut in_flight = self.in_flight.lock().unwrap();
             for msg in msgs {
+                debug!("Dropping in-flight Message id={}. Client closed", msg);
                 if let Some(in_flight_msg) = in_flight.get_mut(&msg) {
+                    debug!("Sending continuation close signal to Message id={}", msg);
                     let (send, _rec) = oneshot::channel();
                     in_flight_msg.continuation = send;
                 }
@@ -116,6 +123,8 @@ impl MessageRouter {
             .unwrap()
             .remove(&msg_id)
         {
+            debug!("Found waiting in-flight entry for Message id={}. Returning continuation", msg_id);
+
             // Remove the message from `serving_messages`
             if let Some(servers) = self.serving_messages
                 .lock()

@@ -4,6 +4,7 @@ use std::{net, sync};
 
 // third-party imports
 use futures::{Future, future};
+use log::*;
 use serde::{Serialize, Deserialize};
 
 // local imports
@@ -45,6 +46,7 @@ impl RegistrationService {
 
         // Register a handler for the specified functions to forward the message to the app server
         for handle in handles {
+            info!("Attempting to register handle `{}` for client connection {}", handle, app_address);
             let app_msg_queue = server.write_queue.clone();
             let router = self.router.clone();
 
@@ -54,14 +56,18 @@ impl RegistrationService {
                     Item=Option<<protocol::JsonProtocol as protocol::RpcSerializer>::Message>,
                     Error=errors::Error> + Send>
             {
+                info!("Forwarding Message id={} to registered app {} (calling handle {})", msg.msg_id, app_address, msg.call);
+
                 // Send the message over to the server app
                 // Return immediately if an error was found
                 if let Err(_err) = app_msg_queue.unbounded_send(msg.clone()) {
                     let io_err = std::io::Error::new(
                         std::io::ErrorKind::ConnectionAborted,
                         format!("Receiving end for server {} dropped", app_address));
+
                     return Box::new(future::err(io_err.into()));
                 }
+                debug!("Message id={} successfully sent to app {}. Registering response forwarding entry", msg.msg_id, app_address);
 
                 // Otherwise register an entry in the forwarding table
                 // And then wait on the response from the server app
@@ -80,7 +86,10 @@ impl RegistrationService {
             // It is the server's responsibility to recognize that a handle was not registered
             // And to fail if that handle's registration must succeed
             if self.registry.register_fn(handle, callback).is_none() {
+                debug!("Successfully registered handle `{}` for app {}", handle, app_address);
                 registered.push(handle.to_owned());
+            } else {
+                debug!("Failed to register handle `{}` for app {}. Handle already registered", handle, app_address);
             }
         }
 
@@ -114,6 +123,7 @@ rpc_service! {
                 let reg = self.registry.clone();
                 server.on_exit(move || {
                     for handle in &registered {
+                        info!("Unregistering handle {} for app {}", handle, caller);
                         if let Some(callback) = reg.unregister(handle.as_str()) {
                             if sync::Arc::strong_count(&callback) > 1 {
                                 let err = errors::ClientError::strong_references_to(handle);

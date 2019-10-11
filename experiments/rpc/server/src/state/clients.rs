@@ -4,6 +4,7 @@ use std::{collections, net, sync};
 
 // third-party imports
 use futures::sync::mpsc;
+use log::*;
 use tokio::sync::oneshot;
 
 // local imports
@@ -117,6 +118,7 @@ impl ClientTracker {
             .write()
             .unwrap()
             .insert(addr, client.clone());
+        debug!("Registered new client connection on {}", addr);
         client
     }
 
@@ -136,6 +138,8 @@ impl ClientTracker {
                                   .unwrap()
                                   .remove(&addr)
         {
+            debug!("Dropping client connection to {}", addr);
+
             // Try to send the close signal, in case this is called outside of `serve`
             client.send_close_signal();
             client.run_exit_callbacks()
